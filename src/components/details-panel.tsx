@@ -2,14 +2,17 @@
 
 import { useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronRight, X } from "lucide-react";
+import { Brain, ChevronRight, X } from "lucide-react";
+import { formatDuration } from "@/lib/conversation";
 import { ERROR_NOTE } from "@/lib/explain";
+import { useMask } from "@/lib/mask";
+import { useSettings } from "@/lib/settings";
 import { SESSION_START, totalTokens, type Actor, type Step, type Turn, type Usage } from "@/lib/session";
 import { cn } from "@/lib/utils";
-import { CodeBlock } from "./code-block";
 import { StepIcon, hueColor } from "./step-icon";
 import type { Selection } from "./story-map";
 import { Term, TermText } from "./term-text";
+import { ToolRenderer } from "./tools";
 
 const fmt = (n: number) => n.toLocaleString();
 const EDITS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
@@ -92,10 +95,11 @@ function Chip({ actor, onClick }: { actor?: Actor; onClick?: () => void }) {
 /** Long text (briefs, reports) collapses to a few lines with a "show all" toggle. */
 function Quote({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
+  const mask = useMask();
   const long = text.length > 420;
   return (
     <div className="mt-2 rounded-xl bg-foreground/[0.05] px-3.5 py-3 text-[13px] leading-relaxed">
-      <div className={cn("break-words whitespace-pre-wrap", long && !open && "line-clamp-[8]")}>{text}</div>
+      <div className={cn("break-words whitespace-pre-wrap", long && !open && "line-clamp-[8]")}>{mask(text)}</div>
       {long && (
         <button onClick={() => setOpen(!open)} className="mt-2 text-xs font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground">
           {open ? "Show less" : `Show all (${fmt(text.length)} characters)`}
@@ -248,7 +252,11 @@ function StepCard(props: {
   onShowSession: () => void;
 }) {
   const { step: s, index, total, actors, onSelect } = props;
-  const [tech, setTech] = useState(false);
+  const [settings] = useSettings();
+  const mask = useMask();
+  const [techPick, setTech] = useState<boolean | null>(null);
+  const tech = techPick ?? settings.showTechnical;
+  const [thinking, setThinking] = useState(false);
   const lane = actors[s.actor];
   const from = s.from ? actors[s.from] : undefined;
   const hue = (from ?? lane)?.hue ?? 0;
@@ -276,11 +284,12 @@ function StepCard(props: {
           </>
         )}
         <span>· {new Date(s.ts).toLocaleTimeString()}</span>
+        {s.durationMs !== undefined && <span>· took {formatDuration(s.durationMs)}</span>}
       </div>
 
       <H>What happened</H>
       <p className="text-[13px] leading-relaxed">
-        <TermText text={s.what} />
+        <TermText text={mask(s.what)} />
       </p>
       {typeof s.quote === "string" && s.quote && <Quote text={s.quote} />}
       {s.memory && <Remembered memory={s.memory} turns={props.turns} onPickTurn={props.onPickTurn} />}
@@ -303,8 +312,19 @@ function StepCard(props: {
           {s.usage.cached ? <>, {fmt(s.usage.cached)} of them <Term k="cached">re-read from cache</Term></> : null}.
         </p>
       )}
+      {s.thinking ? (
+        <>
+          <button onClick={() => setThinking(!thinking)} className="mt-3 flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground" aria-expanded={thinking}>
+            <ChevronRight className={cn("size-3.5 transition-transform", thinking && "rotate-90")} />
+            <Brain className="size-3.5" /> Claude&apos;s thinking before this · {fmt(s.thinking.length)} characters
+          </button>
+          {thinking && <div className="mt-2 rounded-xl bg-foreground/[0.04] px-3.5 py-3 text-[12px] leading-relaxed break-words whitespace-pre-wrap text-foreground/75 italic">{mask(s.thinking)}</div>}
+        </>
+      ) : s.usage ? (
+        <p className="mt-2 text-xs text-muted-foreground">Claude&apos;s thinking for this reply wasn&apos;t recorded.</p>
+      ) : null}
 
-      {(s.input !== undefined || s.output !== undefined) && (
+      {(s.input !== undefined || s.output !== undefined || !!s.images?.length) && (
         <>
           <button onClick={() => setTech(!tech)} className="mt-5 flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground">
             <ChevronRight className={cn("size-3.5 transition-transform", tech && "rotate-90")} />
@@ -312,9 +332,9 @@ function StepCard(props: {
           </button>
           {tech && (
             <div className="mt-3 space-y-3">
-              {s.tool && <p className="text-xs text-muted-foreground">Tool: <code className="text-foreground">{s.tool}</code></p>}
-              {s.input !== undefined && <CodeBlock label="What Claude sent" value={s.input} />}
-              {s.output !== undefined ? <CodeBlock label="What came back" value={s.output} /> : <p className="text-xs text-muted-foreground">No result yet.</p>}
+              {s.tool && <p className="text-xs text-muted-foreground">Tool: <code className="text-foreground">{s.tool}</code>{s.model ? <> · model <code className="text-foreground">{s.model}</code></> : null}</p>}
+              <ToolRenderer step={s} />
+              {s.tool && s.output === undefined && <p className="text-xs text-muted-foreground">No result yet.</p>}
             </div>
           )}
         </>
