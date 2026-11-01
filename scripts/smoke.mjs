@@ -21,7 +21,8 @@ if (process.argv.includes("--packed")) {
   fs.mkdirSync(app);
   execSync("npm init -y", { cwd: app, stdio: "ignore" });
   execSync(`npm install --no-audit --no-fund "${path.join(tmp, path.basename(filename))}"`, { cwd: app, stdio: "inherit" });
-  bin = path.join(app, "node_modules", "cc-trace", "bin", "cc-trace.mjs");
+  const { name } = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+  bin = path.join(app, "node_modules", name, "bin", "cc-trace.mjs");
 }
 
 // A fake ~/.claude with one session, named the way Claude Code names Windows projects.

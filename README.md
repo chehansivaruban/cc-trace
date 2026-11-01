@@ -16,7 +16,7 @@ cc-trace turns a Claude Code session into an interactive map: one row for you, o
 Works the same on macOS, Windows and Linux:
 
 ```bash
-npx cc-trace
+npx cc-trace-map
 ```
 
 Opens `http://localhost:4747` (or the next free port). Options: `--port 5000`, `--no-open`.
@@ -57,7 +57,7 @@ On Linux, if you get permission errors reading the logs, add `--user "$(id -u):$
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | Where to find `projects/` (same variable Claude Code uses). |
-| `PORT` | `4747` | Port for `npx cc-trace`. |
+| `PORT` | `4747` | Port for `npx cc-trace-map`. |
 | `CC_TRACE_POLL` | unset | Set to `1` to poll for file changes instead of using native events. |
 
 ## Develop
@@ -66,7 +66,7 @@ On Linux, if you get permission errors reading the logs, add `--user "$(id -u):$
 pnpm install
 pnpm dev        # http://localhost:4747 with hot reload
 pnpm check      # self-check for the log → story mapping (Node 22.6+); add `-- --all` to run it on your real sessions
-pnpm build      # production build used by `npx cc-trace`
+pnpm build      # production build used by `npx cc-trace-map`
 pnpm smoke      # starts the built server against a fake log and checks it end to end
 ```
 
@@ -81,7 +81,7 @@ Stack: Next.js 15 (App Router), React 19, Tailwind CSS 4, shadcn/ui, Framer Moti
 | `src/lib/explain.ts` | Plain-English explanations of each tool, and the glossary. |
 | `src/app/api/stream/route.ts` | SSE endpoint that replays a session and its sub-agent logs, then tails them. |
 | `src/components/` | Header, request list, map, explanation panel, help guide. |
-| `bin/cc-trace.mjs` | The `npx` entry point. |
+| `bin/cc-trace.mjs` | The `npx cc-trace-map` entry point (installed as `cc-trace` and `cc-trace-map`). |
 | `scripts/smoke.mjs` | Cross-platform end-to-end test of the real server. |
 
 ### Publishing
