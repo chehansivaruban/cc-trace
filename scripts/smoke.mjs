@@ -44,6 +44,9 @@ function get(urlPath, headers = {}) {
   });
 }
 
+// The newest stream output, shown if a test times out.
+let lastStream = "";
+
 /** Opens the SSE stream; resolves once `match` shows up after the replay. */
 function streamUntil(urlPath, onReady, match) {
   return new Promise((resolve, reject) => {
@@ -52,6 +55,7 @@ function streamUntil(urlPath, onReady, match) {
       let ready = false;
       res.on("data", (d) => {
         body += d;
+        lastStream = (lastStream + d).slice(-600);
         if (!ready && body.includes("event: ready")) {
           ready = true;
           body = "";
@@ -90,6 +94,7 @@ function finish(code) {
 }
 function fail(err) {
   console.error("smoke test FAILED:", err);
+  if (lastStream) console.error("last stream output:\n" + lastStream);
   finish(1);
 }
 

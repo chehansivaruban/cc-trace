@@ -10,6 +10,10 @@ const AGENT_FILE = /^agent-(.+)\.(jsonl|meta\.json)$/;
 
 type Tail = { offset: number; pending: Buffer };
 
+// One spelling per file. chokidar hands its ignore filter forward-slash paths on Windows
+// ("D:/a/b"), while Node uses backslashes ("D:\a\b"), and drive letters can differ in case.
+const pathKey = (p: string) => (process.platform === "win32" ? path.resolve(p).toLowerCase() : path.resolve(p));
+
 /**
  * Replays a session log and its sub-agent logs, then tails all of them.
  * Events: "records" {source, records} where source is null for the main log or the sub-agent's id,
@@ -40,8 +44,8 @@ export async function GET(req: Request) {
       };
 
       const readLog = async (abs: string, source: string | null) => {
-        let tail = tails.get(abs);
-        if (!tail) tails.set(abs, (tail = { offset: 0, pending: Buffer.alloc(0) }));
+        let tail = tails.get(pathKey(abs));
+        if (!tail) tails.set(pathKey(abs), (tail = { offset: 0, pending: Buffer.alloc(0) }));
         const { size } = await fs.stat(abs);
         if (size < tail.offset) {
           // File was truncated or rewritten: start over.
@@ -81,9 +85,12 @@ export async function GET(req: Request) {
         if (records.length) send("records", { source, records });
       };
 
+      const fileKey = pathKey(file);
+      const subKey = pathKey(subDir);
       const onPath = async (abs: string) => {
-        if (abs === file) return readLog(file, null);
-        if (path.dirname(abs) !== subDir) return;
+        const key = pathKey(abs);
+        if (key === fileKey) return readLog(file, null);
+        if (path.dirname(key) !== subKey) return;
         const m = AGENT_FILE.exec(path.basename(abs));
         if (!m) return;
         if (m[2] === "jsonl") return readLog(abs, m[1]);
@@ -104,13 +111,16 @@ export async function GET(req: Request) {
       // Watch the project folder (it always exists) but only this session's files, so helpers
       // that start later are picked up too. Docker Desktop bind mounts don't reliably forward
       // file events, so containers poll instead.
-      const allowed = new Set([projectDir, file, sessionDir, subDir]);
+      const allowed = new Set([projectDir, file, sessionDir, subDir].map(pathKey));
       const watcher = watch(projectDir, {
         ignoreInitial: true,
         depth: 2,
         usePolling: process.env.CC_TRACE_POLL === "1",
         interval: 1000,
-        ignored: (p: string) => !allowed.has(p) && path.dirname(p) !== subDir,
+        ignored: (p: string) => {
+          const key = pathKey(p);
+          return !allowed.has(key) && path.dirname(key) !== subKey;
+        },
       })
         .on("add", schedule)
         .on("change", schedule);
