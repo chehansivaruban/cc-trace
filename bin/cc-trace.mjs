@@ -32,6 +32,11 @@ See what Claude Code and its helper agents are doing, read from ~/.claude/projec
 }
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+// Next.js finds its files relative to the current folder, which breaks on Windows when you start
+// cc-trace from another drive (npx installs on C:, your project may be on D:). cc-trace never
+// needs the folder it was started from, so run from its own; resolve a relative config dir first.
+if (process.env.CLAUDE_CONFIG_DIR) process.env.CLAUDE_CONFIG_DIR = path.resolve(process.env.CLAUDE_CONFIG_DIR);
+process.chdir(dir);
 const app = next({ dev: false, dir });
 await app.prepare();
 const handle = app.getRequestHandler();
