@@ -1,0 +1,31 @@
+# Builds and runs cc-trace for real on Windows, macOS and Linux, on the oldest and current supported Node.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+        node: [20, 22]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      # The self-check runs TypeScript directly, which needs Node 22.6+.
+      - if: matrix.node == 22
+        run: pnpm check
+      - run: pnpm build
+      - run: pnpm smoke
+      # Same test against the package exactly as `npx cc-trace` installs it.
+      - run: pnpm smoke --packed
