@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "cc-trace-smoke-"));
-const PORT = 4870;
+const PORT = Number(process.env.SMOKE_PORT) || 4870;
 const t = new Date().toISOString();
 
 let bin = path.join(root, "bin", "cc-trace.mjs");

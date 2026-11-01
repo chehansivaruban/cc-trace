@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, CircleHelp, Folder, History, Moon, Sun, Workflow } from "lucide-react";
+import { Bookmark, ChevronDown, CircleHelp, Folder, GitCompare, History, LayoutDashboard, Menu, Moon, Radio, Search, Settings, Sun, Workflow } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { ProjectInfo, SessionInfo } from "@/lib/claude-logs";
+import type { AppPage } from "@/lib/route";
 import type { Live } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +43,8 @@ export function Header(props: {
   onSession: (s: SessionInfo) => void;
   onRefresh: () => void;
   onHelp: () => void;
+  onOpenPage: (page: AppPage) => void;
+  onSettings: () => void;
   live: Live;
   connected: boolean;
 }) {
@@ -117,9 +120,45 @@ export function Header(props: {
           <CircleHelp className="size-4" />
           <span className="hidden md:inline">How it works</span>
         </button>
+        <AppMenu onOpenPage={props.onOpenPage} onSettings={props.onSettings} />
         <ThemeToggle />
       </div>
     </motion.header>
+  );
+}
+
+const PAGE_LINKS = [
+  { page: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { page: "live", label: "Live now", icon: Radio },
+  { page: "search", label: "Search", icon: Search },
+  { page: "compare", label: "Compare", icon: GitCompare },
+  { page: "bookmarks", label: "Bookmarks", icon: Bookmark },
+] as const;
+
+// shortcut: a plain menu so the app pages are reachable; the integration task gives them proper navigation.
+function AppMenu({ onOpenPage, onSettings }: { onOpenPage: (page: AppPage) => void; onSettings: () => void }) {
+  const item = "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px]";
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-foreground/[0.07] hover:text-foreground data-popup-open:bg-foreground/[0.07]"
+        aria-label="More pages"
+      >
+        <Menu className="size-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="glass-strong w-[200px] rounded-xl p-1.5 shadow-2xl shadow-black/40 ring-0" align="end" sideOffset={10}>
+        {PAGE_LINKS.map(({ page, label, icon: Icon }) => (
+          <DropdownMenuItem key={page} onClick={() => onOpenPage(page)} className={item}>
+            <Icon className="size-4 text-muted-foreground" />
+            {label}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuItem onClick={onSettings} className={item}>
+          <Settings className="size-4 text-muted-foreground" />
+          Settings
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
