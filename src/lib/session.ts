@@ -7,7 +7,11 @@ export type LogRecord = Record<string, any>;
 export type AgentMeta = { agentType?: string; description?: string; toolUseId?: string; model?: string; requestShape?: string };
 export type AgentLog = { meta?: AgentMeta; records: LogRecord[] };
 
-export type Usage = { fresh: number; cached: number; written: number };
+/**
+ * Tokens of one reply (or a sum of replies). fresh = input + cacheWrite5m + cacheWrite1h (new to Claude),
+ * cached = re-read from the cache, written = Claude's output.
+ */
+export type Usage = { fresh: number; cached: number; written: number; input: number; cacheWrite5m: number; cacheWrite1h: number };
 
 export type ActorState = "working" | "done" | "failed" | "idle";
 export type Actor = {
@@ -47,6 +51,12 @@ export type Step = {
   ts: number;
   seq: number;
   usage?: Usage; // the reply this step came from
+  model?: string; // the model that wrote the reply this step came from
+  durationMs?: number; // tools: from the call to its result
+  thinking?: string; // the reply's recorded thinking (absent when hidden), on its first step
+  result?: unknown; // tools: Claude Code's raw toolUseResult (e.g. structuredPatch for edits)
+  images?: { mediaType: string; data: string }[]; // base64 images in your message or a tool result
+  event?: "api_error" | "hook" | "interrupted" | "compact" | "recap";
   /** For "memory" steps: which earlier requests Claude still had in mind. */
   memory?: { from: number; to: number; summarized: boolean; tokens: number };
 };
@@ -65,7 +75,31 @@ export type Turn = {
 
 export type Live = { active: boolean; sentence: string; helpersWorking: number; thinking: boolean };
 
-export type SessionModel = { actors: Record<string, Actor>; turns: Turn[]; live: Live; usage: Usage; stale: boolean };
+export type SessionMeta = {
+  customTitle?: string; // set with /rename
+  aiTitle?: string;
+  permissionMode?: string;
+  gitBranch?: string;
+  cwds: string[];
+  version?: string; // Claude Code version
+  entrypoint?: string; // cli, claude-vscode, claude-desktop, ...
+  models: string[];
+  firstTs: number;
+  lastTs: number;
+};
+
+/** A system record or hook run, kept raw for the health and hook views. */
+export type SessionEvent = { ts: number; actor: string; type: "system" | "hook"; subtype: string; data: Record<string, unknown> };
+
+export type SessionModel = {
+  actors: Record<string, Actor>;
+  turns: Turn[];
+  live: Live;
+  usage: Usage;
+  stale: boolean;
+  meta: SessionMeta;
+  events: SessionEvent[];
+};
 
 // A session whose last write is older than this was interrupted or finished, not still working.
 export const STALE_MS = 2 * 60_000;
@@ -99,20 +133,34 @@ function resultContent(content: unknown): unknown {
   return content;
 }
 
-const zero = (): Usage => ({ fresh: 0, cached: 0, written: 0 });
-const add = (a: Usage, b: Usage) => {
-  a.fresh += b.fresh;
-  a.cached += b.cached;
-  a.written += b.written;
-};
+const zero = (): Usage => ({ fresh: 0, cached: 0, written: 0, input: 0, cacheWrite5m: 0, cacheWrite1h: 0 });
+export const addUsage = (a: Usage, b: Usage): Usage => ({
+  fresh: a.fresh + b.fresh,
+  cached: a.cached + b.cached,
+  written: a.written + b.written,
+  input: a.input + b.input,
+  cacheWrite5m: a.cacheWrite5m + b.cacheWrite5m,
+  cacheWrite1h: a.cacheWrite1h + b.cacheWrite1h,
+});
 export const totalTokens = (u: Usage) => u.fresh + u.cached + u.written;
 
+const num = (n: unknown) => (typeof n === "number" && Number.isFinite(n) ? n : 0);
 function usageOf(u: any): Usage {
-  return {
-    fresh: (u?.input_tokens ?? 0) + (u?.cache_creation_input_tokens ?? 0),
-    cached: u?.cache_read_input_tokens ?? 0,
-    written: u?.output_tokens ?? 0,
-  };
+  const input = num(u?.input_tokens);
+  // Older logs only have the total cache write, which was always the 5-minute kind.
+  const split = u?.cache_creation && typeof u.cache_creation === "object";
+  const cacheWrite5m = split ? num(u.cache_creation.ephemeral_5m_input_tokens) : num(u?.cache_creation_input_tokens);
+  const cacheWrite1h = split ? num(u.cache_creation.ephemeral_1h_input_tokens) : 0;
+  return { fresh: input + cacheWrite5m + cacheWrite1h, cached: num(u?.cache_read_input_tokens), written: num(u?.output_tokens), input, cacheWrite5m, cacheWrite1h };
+}
+
+/** Base64 images in a message or tool result, ready for a data: URL. */
+function imagesOf(content: unknown): Step["images"] {
+  if (!Array.isArray(content)) return undefined;
+  const images = content
+    .filter((b) => b?.type === "image" && b.source?.type === "base64" && typeof b.source.data === "string")
+    .map((b) => ({ mediaType: String(b.source.media_type ?? "image/png"), data: b.source.data as string }));
+  return images.length ? images : undefined;
 }
 
 function shortName(s: string) {
@@ -127,7 +175,12 @@ function helperRole(meta: AgentMeta | undefined, input: any) {
   return parts.join(" · ");
 }
 
-export function buildSession(main: LogRecord[], agents: Record<string, AgentLog>, now = Date.now()): SessionModel {
+export function buildSession(rawMain: LogRecord[], rawAgents: Record<string, AgentLog>, now = Date.now()): SessionModel {
+  // A half-written or odd line can parse to null, a number or an array: skip it.
+  const clean = (recs: unknown) => (Array.isArray(recs) ? recs.filter((r): r is LogRecord => !!r && typeof r === "object" && !Array.isArray(r)) : []);
+  const main = clean(rawMain);
+  const agents: Record<string, AgentLog> = {};
+  for (const [id, a] of Object.entries(rawAgents ?? {})) agents[id] = { meta: a?.meta, records: clean(a?.records) };
   const actors: Record<string, Actor> = {
     you: { id: "you", kind: "you", name: "You", role: "the person asking", hue: 220, state: "idle", firstTs: 0, usage: zero() },
     lead: { id: "lead", kind: "lead", name: "Claude", role: "the lead", hue: 28, state: "idle", firstTs: 0, usage: zero() },
@@ -176,7 +229,11 @@ export function buildSession(main: LogRecord[], agents: Record<string, AgentLog>
 
   const steps: Step[] = [];
   const toolSteps = new Map<string, Step>();
-  const usageByMsg = new Map<string, { actor: string; ts: number; usage: Usage; step?: Step }>();
+  const usageByMsg = new Map<string, { actor: string; ts: number; usage: Usage }>();
+  // The first step of each reply carries its usage and thinking.
+  const firstStep = new Map<string, Step>();
+  const thinkingByMsg = new Map<string, string[]>();
+  const events: SessionEvent[] = [];
   const failed = new Map<string, string>();
   const compactions: number[] = [];
   let seq = 0;
@@ -192,10 +249,23 @@ export function buildSession(main: LogRecord[], agents: Record<string, AgentLog>
     const isLead = actorId === "lead";
     const actor = actors[actorId];
     let lastTs = 0;
-    for (const rec of recs) {
-      if (rec.type !== "user" && rec.type !== "assistant") continue;
+    for (const [i, rec] of recs.entries()) {
       // Older Claude Code versions wrote helper records into the main log; we read helpers from their own logs.
       if (isLead && rec.isSidechain) continue;
+      if (rec.type === "system" || (rec.type === "attachment" && /^hook_/.test(rec.attachment?.type ?? ""))) {
+        const ts = (lastTs = Date.parse(rec.timestamp) || lastTs);
+        const hook = rec.type === "attachment";
+        events.push({ ts, actor: actorId, type: hook ? "hook" : "system", subtype: String((hook ? rec.attachment.type : rec.subtype) ?? "unknown"), data: hook ? rec.attachment : rec });
+        if (rec.subtype === "api_error") {
+          const err = rec.error?.formatted ?? rec.error?.message ?? "unknown error";
+          const retry = rec.retryAttempt ? ` (try ${rec.retryAttempt}${rec.maxRetries ? ` of ${rec.maxRetries}` : ""})` : "";
+          push({ kind: "note", actor: actorId, icon: "stop", title: "Request failed", subtitle: String(err).slice(0, 48), doing: "Claude Code is retrying a failed request",
+            what: `Claude Code's request to Claude failed${retry}: “${err}”.`, why: "This happens with network problems, busy servers or usage limits. Claude Code retries on its own; it isn't something you did.",
+            status: "error", event: "api_error", ts });
+        }
+        continue;
+      }
+      if (rec.type !== "user" && rec.type !== "assistant") continue;
       const ts = (lastTs = Date.parse(rec.timestamp) || lastTs);
       const content = rec.message?.content;
 
@@ -205,6 +275,11 @@ export function buildSession(main: LogRecord[], agents: Record<string, AgentLog>
           const step = toolSteps.get(r.tool_use_id);
           if (!step) continue;
           step.output = resultContent(r.content);
+          if (ts >= step.ts && step.ts) step.durationMs = ts - step.ts;
+          // One result per record is the norm; with several, toolUseResult belongs to the last.
+          if (rec.toolUseResult !== undefined) step.result = rec.toolUseResult;
+          const images = imagesOf(r.content);
+          if (images) step.images = images;
           if (step.kind === "tool" || step.status === "running") step.status = r.is_error ? "error" : "success";
           // Older helpers have no log of their own: their report only exists as this tool result.
           if (step.kind === "brief" && !agents[step.actor]) {
@@ -228,30 +303,35 @@ export function buildSession(main: LogRecord[], agents: Record<string, AgentLog>
           compactions.push(ts);
           push({ kind: "note", actor: "lead", icon: "note", title: "Tidies its memory", subtitle: "summarised the conversation", doing: "Claude is summarising the conversation",
             what: "The conversation got long, so Claude replaced it with a summary to free up its [[context:working memory]].",
-            why: "Without this, Claude would run out of room and couldn't continue.", ts });
+            why: "Without this, Claude would run out of room and couldn't continue.", event: "compact", ts });
           continue;
         }
         const text = promptText(rec);
         if (!text) continue;
         if (text.startsWith("[Request interrupted")) {
           push({ kind: "stop", actor: "you", icon: "stop", title: "You stopped Claude", subtitle: "pressed Esc / Stop", doing: "You stopped Claude",
-            what: "You interrupted Claude before it finished.", why: "Claude stops right away and waits for your next message.", ts });
+            what: "You interrupted Claude before it finished.", why: "Claude stops right away and waits for your next message.", event: "interrupted", ts });
           continue;
         }
         push({ kind: "prompt", actor: "you", icon: "prompt", title: "Your request", subtitle: `“${text.replace(/\s+/g, " ").slice(0, 48)}”`,
           doing: "You sent Claude a message", what: "You wrote:", quote: text,
-          why: "Everything starts with your message. Claude reads it, decides how to handle it, and may bring in helpers.", ts });
+          why: "Everything starts with your message. Claude reads it, decides how to handle it, and may bring in helpers.", images: imagesOf(content), ts });
         continue;
       }
 
       // assistant: Claude Code writes one record per content block, all sharing the reply's usage.
-      const msgId = rec.message?.id ?? rec.uuid;
+      const msgId: string = rec.message?.id ?? rec.uuid ?? `${actorId}#${i}`;
       const u = usageByMsg.get(msgId);
-      if (rec.message?.usage) usageByMsg.set(msgId, { actor: actorId, ts: u?.ts ?? ts, usage: usageOf(rec.message.usage), step: u?.step });
+      if (rec.message?.usage) usageByMsg.set(msgId, { actor: actorId, ts: u?.ts ?? ts, usage: usageOf(rec.message.usage) });
       const final = rec.message?.stop_reason === "end_turn" || rec.message?.stop_reason === "stop_sequence";
       const made: Step[] = [];
 
       for (const block of Array.isArray(content) ? content : []) {
+        // Thinking is often hidden (recorded as ""): only keep what was actually written.
+        if (block?.type === "thinking" && typeof block.thinking === "string" && block.thinking.trim()) {
+          thinkingByMsg.set(msgId, [...(thinkingByMsg.get(msgId) ?? []), block.thinking.trim()]);
+          continue;
+        }
         if (block?.type === "text" && block.text?.trim()) {
           const text: string = block.text.trim();
           if (final && isLead) {
@@ -267,7 +347,7 @@ export function buildSession(main: LogRecord[], agents: Record<string, AgentLog>
           }
           continue;
         }
-        if (block?.type !== "tool_use") continue;
+        if (block?.type !== "tool_use" || typeof block.name !== "string") continue;
         const name: string = block.name;
         const input = block.input;
 
@@ -313,7 +393,7 @@ export function buildSession(main: LogRecord[], agents: Record<string, AgentLog>
           continue;
         }
         if (name === "AskUserQuestion") {
-          const qs = (input?.questions ?? []).map((q: any) => q?.question).filter(Boolean).join("\n");
+          const qs = (Array.isArray(input?.questions) ? input.questions : []).map((q: any) => q?.question).filter(Boolean).join("\n");
           const step = push({ kind: "message", actor: "you", from: actorId, icon: "ask", title: "Asks you", subtitle: `${actor.name} → You`, doing: `${actor.name} is waiting for your answer`,
             what: "Claude needed a decision from you:", quote: qs, why: "Some choices are yours to make, so Claude stops and asks.", status: "running", tool: name, input, ts, id: block.id });
           toolSteps.set(block.id, step);
@@ -325,12 +405,24 @@ export function buildSession(main: LogRecord[], agents: Record<string, AgentLog>
         toolSteps.set(block.id, step);
         made.push(step);
       }
-      const entry = usageByMsg.get(msgId);
-      if (entry && !entry.step && made[0]) entry.step = made[0];
+      const model = typeof rec.message?.model === "string" && rec.message.model !== "<synthetic>" ? rec.message.model : undefined;
+      for (const s of made) {
+        if (model) s.model = model;
+        // Claude Code writes errors (usage limits, failed requests) as fake "<synthetic>" replies.
+        if (rec.isApiErrorMessage) s.event = "api_error";
+      }
+      if (made[0] && !firstStep.has(msgId)) firstStep.set(msgId, made[0]);
     }
   }
 
-  for (const { step, usage } of usageByMsg.values()) if (step) step.usage = usage;
+  for (const [msgId, { usage }] of usageByMsg) {
+    const step = firstStep.get(msgId);
+    if (step) step.usage = usage;
+  }
+  for (const [msgId, parts] of thinkingByMsg) {
+    const step = firstStep.get(msgId);
+    if (step) step.thinking = parts.join("\n\n");
+  }
 
   // Background helpers that stopped early only show up as a notification to the lead.
   for (const [id, summary] of failed) {
@@ -381,14 +473,14 @@ export function buildSession(main: LogRecord[], agents: Record<string, AgentLog>
     const t = s.kind === "prompt" ? turns.find((t) => t.ts === s.ts && !t.steps.some((x) => x.kind === "prompt")) ?? turnAt(s.ts) : turnAt(s.ts);
     t.steps.push(s);
   }
-  const usage = zero();
   const firstLeadReply = new Map<Turn, number>();
+  let usage = zero();
   for (const { ts, actor, usage: u } of usageByMsg.values()) {
-    add(usage, u);
-    if (actors[actor]) add(actors[actor].usage, u);
+    usage = addUsage(usage, u);
+    if (actors[actor]) actors[actor].usage = addUsage(actors[actor].usage, u);
     if (!turns.length) continue;
     const t = turnAt(ts);
-    add(t.usage, u);
+    t.usage = addUsage(t.usage, u);
     // Everything Claude read before its first reply: instructions, the whole conversation so far and your new message.
     if (actor === "lead" && ts < (firstLeadReply.get(t) ?? Infinity)) {
       firstLeadReply.set(t, ts);
@@ -430,7 +522,41 @@ export function buildSession(main: LogRecord[], agents: Record<string, AgentLog>
     t.actors = [...seen].filter((id) => actors[id]);
   }
 
-  return { actors, turns, live: liveState(main, steps, actors, stale), usage, stale };
+  events.sort((a, b) => a.ts - b.ts);
+  return { actors, turns, live: liveState(main, steps, actors, stale), usage, stale, meta: sessionMeta(main, agents), events };
+}
+
+/** Titles, mode, branch, folders, versions and models, from the records that carry them. */
+function sessionMeta(main: LogRecord[], agents: Record<string, AgentLog>): SessionMeta {
+  const meta: SessionMeta = { cwds: [], models: [], firstTs: 0, lastTs: 0 };
+  const cwds = new Set<string>();
+  const models = new Set<string>();
+  const str = (v: unknown) => (typeof v === "string" && v ? v : undefined);
+  for (const [lead, recs] of [[true, main], ...Object.values(agents).map((a) => [false, a.records])] as [boolean, LogRecord[]][]) {
+    for (const rec of recs) {
+      if (lead && rec.isSidechain) continue;
+      const ts = Date.parse(rec.timestamp);
+      if (ts) {
+        if (!meta.firstTs || ts < meta.firstTs) meta.firstTs = ts;
+        if (ts > meta.lastTs) meta.lastTs = ts;
+      }
+      if (str(rec.cwd)) cwds.add(rec.cwd);
+      const model = str(rec.message?.model);
+      if (rec.type === "assistant" && model && model !== "<synthetic>") models.add(model);
+      if (!lead) continue;
+      // The latest value wins: titles can be renamed, the mode and branch can change mid-session.
+      if (rec.type === "custom-title") meta.customTitle = str(rec.customTitle) ?? meta.customTitle;
+      if (rec.type === "ai-title") meta.aiTitle = str(rec.aiTitle) ?? meta.aiTitle;
+      if (rec.type === "mode") meta.permissionMode = str(rec.mode) ?? meta.permissionMode;
+      else if (rec.type === "user") meta.permissionMode = str(rec.permissionMode) ?? meta.permissionMode;
+      meta.gitBranch = str(rec.gitBranch) ?? meta.gitBranch;
+      meta.version = str(rec.version) ?? meta.version;
+      meta.entrypoint = str(rec.entrypoint) ?? meta.entrypoint;
+    }
+  }
+  meta.cwds = [...cwds];
+  meta.models = [...models];
+  return meta;
 }
 
 const WHY_REPORT = "The lead never watches a helper work. This report is everything it learns about what the helper did.";

@@ -5,7 +5,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { buildSession, type AgentLog } from "../src/lib/session.ts";
+import { addUsage, buildSession, type AgentLog } from "../src/lib/session.ts";
+import { contextWindow } from "../src/lib/models.ts";
+import { maskSecrets } from "../src/lib/redact.ts";
 
 const t0 = Date.parse("2026-01-01T00:00:00.000Z");
 const at = (s: number) => new Date(t0 + s * 1000).toISOString();
@@ -62,8 +64,8 @@ assert.equal(m.actors.h1.name, "Fix login");
 assert.equal(m.actors.h1.parent, "lead");
 assert.equal(m.actors.h1.role, "helper · sonnet");
 // m1 counted once, plus the helper's reply.
-assert.deepEqual(t1.usage, { fresh: 200, cached: 2000, written: 100 });
-assert.deepEqual(m.actors.lead.usage, { fresh: 100, cached: 1000, written: 50 });
+assert.deepEqual(t1.usage, { fresh: 200, cached: 2000, written: 100, input: 20, cacheWrite5m: 180, cacheWrite1h: 0 });
+assert.deepEqual(m.actors.lead.usage, { fresh: 100, cached: 1000, written: 50, input: 10, cacheWrite5m: 90, cacheWrite1h: 0 });
 assert.equal(t2.steps[0].kind, "prompt");
 // Request 2 starts with what Claude carried over from request 1.
 assert.equal(t2.steps[1].kind, "memory");
@@ -82,6 +84,68 @@ assert.ok(m.turns[0].steps.some((s) => s.title === "Stopped early" && s.quote ==
 
 // Stale sessions are not "live".
 assert.equal(buildSession(main, { h1: helper }, now + 10 * 60_000).live.active, false);
+
+// Richer model: tokens per reply, session details, timings, thinking, images and system events.
+const tok = { input_tokens: 1000, output_tokens: 1000, cache_read_input_tokens: 1_000_000, cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 0 } };
+const toolUseResult = { stdout: "a.log", stderr: "", interrupted: false };
+const rich = [
+  { type: "custom-title", customTitle: "cc-trace tool setup", sessionId: "x" },
+  { type: "ai-title", aiTitle: "Set up the tool", sessionId: "x" },
+  { type: "mode", mode: "plan", sessionId: "x" },
+  { type: "attachment", timestamp: at(0), cwd: "/p/app", attachment: { type: "hook_non_blocking_error", hookName: "Stop", hookEvent: "Stop", exitCode: 1, stderr: "boom", command: "notify" } },
+  { type: "user", timestamp: at(0), cwd: "/p/app", gitBranch: "main", version: "2.1.309", entrypoint: "cli",
+    message: { content: [{ type: "image", source: { type: "base64", media_type: "image/png", data: "AAAA" } }, { type: "text", text: "check the logs" }] } },
+  { type: "assistant", timestamp: at(1), cwd: "/p/app", message: { id: "r1", model: "claude-sonnet-4-5", usage: tok, stop_reason: "tool_use", content: [{ type: "thinking", thinking: "Look at the log first.", signature: "x" }] } },
+  { type: "assistant", timestamp: at(1), cwd: "/p/app", message: { id: "r1", model: "claude-sonnet-4-5", usage: tok, stop_reason: "tool_use", content: [{ type: "tool_use", id: "t1", name: "Bash", input: { command: "ls" } }] } },
+  { type: "user", timestamp: at(3.5), cwd: "/p/app/sub", gitBranch: "feature", toolUseResult, message: { content: [{ type: "tool_result", tool_use_id: "t1", content: "a.log" }] } },
+  { type: "system", subtype: "api_error", timestamp: at(4), level: "error", error: { message: "Connection error.", formatted: "No response from API" }, retryAttempt: 1, maxRetries: 10 },
+  { type: "assistant", timestamp: at(5), message: { id: "r2", model: "mystery-1", stop_reason: "end_turn", content: [{ type: "thinking", thinking: "" }, { type: "text", text: "Done." }] } },
+  { type: "user", timestamp: at(6), message: { content: [{ type: "text", text: "[Request interrupted by user]" }] } },
+  { type: "user", timestamp: at(7), isCompactSummary: true, message: { content: "This session is being continued..." } },
+];
+m = buildSession(rich, {}, now);
+const steps = m.turns.flatMap((t) => t.steps);
+const bash = steps.find((s) => s.tool === "Bash")!;
+assert.deepEqual(bash.usage, { input: 1000, cacheWrite5m: 0, cacheWrite1h: 0, fresh: 1000, cached: 1_000_000, written: 1000 });
+assert.equal(bash.model, "claude-sonnet-4-5");
+assert.equal(bash.durationMs, 2500);
+assert.equal(bash.thinking, "Look at the log first.");
+assert.deepEqual(bash.result, toolUseResult);
+const done = steps.find((s) => s.kind === "reply")!;
+assert.equal(done.model, "mystery-1");
+assert.equal(done.thinking, undefined); // hidden thinking is recorded as an empty string
+assert.deepEqual(steps.find((s) => s.kind === "prompt")!.images, [{ mediaType: "image/png", data: "AAAA" }]);
+assert.equal(contextWindow("mystery-1"), 200_000);
+assert.equal(contextWindow(undefined), 200_000);
+assert.deepEqual(m.meta, {
+  customTitle: "cc-trace tool setup", aiTitle: "Set up the tool", permissionMode: "plan", gitBranch: "feature", cwds: ["/p/app", "/p/app/sub"],
+  version: "2.1.309", entrypoint: "cli", models: ["claude-sonnet-4-5", "mystery-1"], firstTs: t0, lastTs: t0 + 7000,
+});
+const apiError = steps.find((s) => s.event === "api_error")!;
+assert.equal(apiError.actor, "lead");
+assert.equal(apiError.status, "error");
+assert.ok(m.events.some((e) => e.type === "system" && e.subtype === "api_error" && e.actor === "lead" && e.ts === t0 + 4000));
+const hook = m.events.find((e) => e.type === "hook")!;
+assert.equal(hook.subtype, "hook_non_blocking_error");
+assert.equal(hook.data.exitCode, 1);
+assert.equal(steps.find((s) => s.kind === "stop")!.event, "interrupted");
+assert.equal(steps.find((s) => s.title === "Tidies its memory")!.event, "compact");
+assert.deepEqual(addUsage(bash.usage!, bash.usage!), { input: 2000, cacheWrite5m: 0, cacheWrite1h: 0, fresh: 2000, cached: 2_000_000, written: 2000 });
+
+// Broken or unknown records are skipped, never fatal.
+const junk = [{}, { type: "weird" }, { type: "assistant" }, { type: "user", message: null }];
+buildSession(junk, {});
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+buildSession([null, ...junk, { type: "assistant", message: { content: [null, { type: "tool_use" }] } }] as any, { x: { records: junk } });
+
+// Hiding sensitive text before showing or sharing it.
+const secret = maskSecrets("key sk-ant-api03-abc123def456 and ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 password=hunter2 me@x.com /Users/chehan/a", "/Users/chehan");
+for (const s of ["sk-ant-api03-abc123def456", "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", "hunter2", "me@x.com", "/Users/chehan"]) assert.ok(!secret.includes(s), `${s} still visible in: ${secret}`);
+assert.ok(secret.includes("~/a"));
+assert.ok(secret.includes("password=•••"));
+assert.equal(maskSecrets("AKIAABCDEFGHIJKLMNOP xoxb-123-abc eyJhbGc.eyJzdWIi.c2ln API_KEY: abc"), "••• ••• ••• API_KEY: •••");
+assert.equal(maskSecrets("/Users/chehanx/b and /Users/chehan", "/Users/chehan"), "/Users/chehanx/b and ~");
+assert.equal(maskSecrets("disk-usage-monitoring-service-name KEY=sk-proj-abcdefghijklmnopqrstuvwxyz"), "disk-usage-monitoring-service-name KEY=•••");
 
 if (process.argv.includes("--all")) {
   const root = path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude"), "projects");
