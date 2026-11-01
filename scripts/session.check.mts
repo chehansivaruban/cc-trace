@@ -147,6 +147,42 @@ assert.equal(maskSecrets("AKIAABCDEFGHIJKLMNOP xoxb-123-abc eyJhbGc.eyJzdWIi.c2l
 assert.equal(maskSecrets("/Users/chehanx/b and /Users/chehan", "/Users/chehan"), "/Users/chehanx/b and ~");
 assert.equal(maskSecrets("disk-usage-monitoring-service-name KEY=sk-proj-abcdefghijklmnopqrstuvwxyz"), "disk-usage-monitoring-service-name KEY=•••");
 
+// Quoted (JSON-style) keys keep their name readable and hide the value.
+for (const [input, keep] of [['{"password": "hunter2"}', '"password"'], ['{"api_key":"abc123"}', '"api_key"'], ["'secret' = 'x'", "'secret'"]] as const) {
+  const out = maskSecrets(input);
+  assert.ok(!/hunter2|abc123/.test(out) && out.includes(keep) && out.includes("•••"), `quoted secret not masked: ${out}`);
+}
+assert.ok(!maskSecrets("'secret' = 'x'").includes("'x'"));
+
+// Cache writes: an all-zero split with a non-zero total falls back to the total (5-minute kind).
+const cw = (cache_creation: unknown) => buildSession([
+  { type: "user", timestamp: at(0), message: { content: "hi" } },
+  { type: "assistant", timestamp: at(1), message: { id: "c1", model: "m", stop_reason: "end_turn", usage: { input_tokens: 5, cache_creation_input_tokens: 100, cache_creation, output_tokens: 1 }, content: [{ type: "text", text: "ok" }] } },
+], {}, now).turns[0].steps.find((s) => s.kind !== "prompt")!.usage!;
+assert.deepEqual(cw({ ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 0 }), { input: 5, cacheWrite5m: 100, cacheWrite1h: 0, fresh: 105, cached: 0, written: 1 });
+assert.equal(cw({ ephemeral_5m_input_tokens: 30, ephemeral_1h_input_tokens: 70 }).fresh, 105);
+
+// Retries collapse into one step; a step in between starts a new one. Every record stays in events.
+const apiErr = (s: number, n: number) => ({ type: "system", subtype: "api_error", timestamp: at(s), error: { formatted: "No response" }, retryAttempt: n, maxRetries: 10 });
+const retries = buildSession([{ type: "user", timestamp: at(0), message: { content: "go" } }, apiErr(1, 1), apiErr(2, 2), apiErr(3, 3)], {}, now);
+const retrySteps = retries.turns.flatMap((t) => t.steps).filter((s) => s.event === "api_error");
+assert.equal(retrySteps.length, 1);
+assert.ok(retrySteps[0].what.includes("try 3 of 10") && retrySteps[0].status === "error");
+assert.equal(retries.events.filter((e) => e.subtype === "api_error").length, 3);
+const split = buildSession([
+  { type: "user", timestamp: at(0), message: { content: "go" } }, apiErr(1, 1),
+  { type: "assistant", timestamp: at(2), message: { id: "q1", content: [{ type: "tool_use", id: "q", name: "Bash", input: { command: "ls" } }] } },
+  apiErr(3, 1),
+], {}, now);
+assert.equal(split.turns.flatMap((t) => t.steps).filter((s) => s.event === "api_error").length, 2);
+
+// A synthetic API-error reply is an error step too.
+const synth = buildSession([
+  { type: "user", timestamp: at(0), message: { content: "go" } },
+  { type: "assistant", timestamp: at(1), isApiErrorMessage: true, message: { id: "e1", model: "<synthetic>", content: [{ type: "text", text: "API Error: 529 overloaded" }] } },
+], {}, now).turns[0].steps.find((s) => s.event === "api_error")!;
+assert.equal(synth.status, "error");
+
 if (process.argv.includes("--all")) {
   const root = path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude"), "projects");
   const read = (f: string) => fs.readFileSync(f, "utf8").split("\n").filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });

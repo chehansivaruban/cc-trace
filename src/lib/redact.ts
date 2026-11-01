@@ -12,8 +12,8 @@ const PATTERNS: RegExp[] = [
   /eyJ[\w-]+\.[\w-]+\.[\w-]+/g, // JWT-like
   /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, // emails
 ];
-// "password=hunter2", "API_KEY: abc": keep the name, hide the value.
-const KEY_VALUE = /(password|passwd|secret|token|api[_-]?key)(\s*[:=]\s*)\S+/gi;
+// "password=hunter2", "API_KEY: abc", {"password": "x"}: keep the name, hide the value.
+const KEY_VALUE = /(password|passwd|secret|token|api[_-]?key)(["']?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|\S+)/gi;
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 

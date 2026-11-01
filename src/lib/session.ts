@@ -149,8 +149,10 @@ function usageOf(u: any): Usage {
   const input = num(u?.input_tokens);
   // Older logs only have the total cache write, which was always the 5-minute kind.
   const split = u?.cache_creation && typeof u.cache_creation === "object";
-  const cacheWrite5m = split ? num(u.cache_creation.ephemeral_5m_input_tokens) : num(u?.cache_creation_input_tokens);
+  let cacheWrite5m = split ? num(u.cache_creation.ephemeral_5m_input_tokens) : num(u?.cache_creation_input_tokens);
   const cacheWrite1h = split ? num(u.cache_creation.ephemeral_1h_input_tokens) : 0;
+  // A split that sums to 0 next to a real total is an empty breakdown: trust the total.
+  if (split && cacheWrite5m + cacheWrite1h === 0) cacheWrite5m = num(u?.cache_creation_input_tokens);
   return { fresh: input + cacheWrite5m + cacheWrite1h, cached: num(u?.cache_read_input_tokens), written: num(u?.output_tokens), input, cacheWrite5m, cacheWrite1h };
 }
 
@@ -249,6 +251,8 @@ export function buildSession(rawMain: LogRecord[], rawAgents: Record<string, Age
     const isLead = actorId === "lead";
     const actor = actors[actorId];
     let lastTs = 0;
+    // Retries arrive as back-to-back api_error records: they share one step.
+    let retryStep: Step | undefined;
     for (const [i, rec] of recs.entries()) {
       // Older Claude Code versions wrote helper records into the main log; we read helpers from their own logs.
       if (isLead && rec.isSidechain) continue;
@@ -259,9 +263,12 @@ export function buildSession(rawMain: LogRecord[], rawAgents: Record<string, Age
         if (rec.subtype === "api_error") {
           const err = rec.error?.formatted ?? rec.error?.message ?? "unknown error";
           const retry = rec.retryAttempt ? ` (try ${rec.retryAttempt}${rec.maxRetries ? ` of ${rec.maxRetries}` : ""})` : "";
-          push({ kind: "note", actor: actorId, icon: "stop", title: "Request failed", subtitle: String(err).slice(0, 48), doing: "Claude Code is retrying a failed request",
-            what: `Claude Code's request to Claude failed${retry}: “${err}”.`, why: "This happens with network problems, busy servers or usage limits. Claude Code retries on its own; it isn't something you did.",
-            status: "error", event: "api_error", ts });
+          const fields = { title: "Request failed", subtitle: String(err).slice(0, 48) + (rec.retryAttempt ? ` · try ${rec.retryAttempt}${rec.maxRetries ? ` of ${rec.maxRetries}` : ""}` : ""),
+            what: `Claude Code's request to Claude failed${retry}: “${err}”.`, ts };
+          if (retryStep && seq === retryStep.seq + 1) Object.assign(retryStep, fields);
+          else retryStep = push({ kind: "note", actor: actorId, icon: "stop", doing: "Claude Code is retrying a failed request", ...fields,
+            why: "This happens with network problems, busy servers or usage limits. Claude Code retries on its own; it isn't something you did.",
+            status: "error", event: "api_error" });
         }
         continue;
       }
@@ -409,7 +416,10 @@ export function buildSession(rawMain: LogRecord[], rawAgents: Record<string, Age
       for (const s of made) {
         if (model) s.model = model;
         // Claude Code writes errors (usage limits, failed requests) as fake "<synthetic>" replies.
-        if (rec.isApiErrorMessage) s.event = "api_error";
+        if (rec.isApiErrorMessage) {
+          s.event = "api_error";
+          s.status = "error";
+        }
       }
       if (made[0] && !firstStep.has(msgId)) firstStep.set(msgId, made[0]);
     }
