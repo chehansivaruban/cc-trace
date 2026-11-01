@@ -26,7 +26,7 @@
     "node": ">=20.9"
   },
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev --turbopack --port 4747",
     "build": "next build",
     "start": "node bin/cc-trace.mjs",
     "lint": "eslint",

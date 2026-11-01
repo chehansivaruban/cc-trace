@@ -10,9 +10,12 @@ import next from "next";
 // Keeps the "no network calls" promise: Next.js telemetry is opt-out.
 process.env.NEXT_TELEMETRY_DISABLED ??= "1";
 
+// 3000 clashes with React, Next.js and most dev servers; 4747 is rarely taken.
+const DEFAULT_PORT = "4747";
+
 const { values: args } = parseArgs({
   options: {
-    port: { type: "string", short: "p", default: process.env.PORT ?? "3000" },
+    port: { type: "string", short: "p", default: process.env.PORT ?? DEFAULT_PORT },
     "no-open": { type: "boolean", default: false },
     help: { type: "boolean", short: "h", default: false },
   },
@@ -21,7 +24,9 @@ const { values: args } = parseArgs({
 if (args.help) {
   console.log(`Usage: cc-trace [--port <n>] [--no-open]
 
-Live graph of your Claude Code sessions, read from ~/.claude/projects
+Opens http://localhost:${DEFAULT_PORT} (or the next free port).
+
+See what Claude Code and its helper agents are doing, read from ~/.claude/projects
 (or $CLAUDE_CONFIG_DIR/projects). Read-only, local-only, no API calls.`);
   process.exit(0);
 }

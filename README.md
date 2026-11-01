@@ -19,20 +19,20 @@ Works the same on macOS, Windows and Linux:
 npx cc-trace
 ```
 
-Opens `http://localhost:3000` (or the next free port). Options: `--port 4000`, `--no-open`.
+Opens `http://localhost:4747` (or the next free port). Options: `--port 5000`, `--no-open`.
 
 ### With Docker
 
 macOS / Linux:
 
 ```bash
-docker run --rm -p 127.0.0.1:3000:3000 -v ~/.claude:/claude:ro cc-trace
+docker run --rm -p 127.0.0.1:4747:4747 -v ~/.claude:/claude:ro cc-trace
 ```
 
 Windows (PowerShell):
 
 ```powershell
-docker run --rm -p 127.0.0.1:3000:3000 -v "$env:USERPROFILE\.claude:/claude:ro" cc-trace
+docker run --rm -p 127.0.0.1:4747:4747 -v "$env:USERPROFILE\.claude:/claude:ro" cc-trace
 ```
 
 Build the image first with `docker build -t cc-trace .` from this repo. The `:ro` mount means the container can't modify your logs. Inside Docker the app polls the log file once a second, because Docker Desktop doesn't reliably forward file-change events.
@@ -57,14 +57,14 @@ On Linux, if you get permission errors reading the logs, add `--user "$(id -u):$
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | Where to find `projects/` (same variable Claude Code uses). |
-| `PORT` | `3000` | Port for `npx cc-trace`. |
+| `PORT` | `4747` | Port for `npx cc-trace`. |
 | `CC_TRACE_POLL` | unset | Set to `1` to poll for file changes instead of using native events. |
 
 ## Develop
 
 ```bash
 pnpm install
-pnpm dev        # http://localhost:3000 with hot reload
+pnpm dev        # http://localhost:4747 with hot reload
 pnpm check      # self-check for the log → story mapping (Node 22.6+); add `-- --all` to run it on your real sessions
 pnpm build      # production build used by `npx cc-trace`
 pnpm smoke      # starts the built server against a fake log and checks it end to end
