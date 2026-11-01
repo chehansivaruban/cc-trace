@@ -143,6 +143,40 @@ try {
   );
   console.log("✓ picks up helper agents that start later");
 
+  // ── overview ──
+  {
+    // A second project with token usage, so the totals have something to add up.
+    const dir = path.join(config, "projects", "-Users-demo-overview");
+    fs.mkdirSync(dir, { recursive: true });
+    const usage = { input_tokens: 5, cache_creation_input_tokens: 100, cache_read_input_tokens: 900, output_tokens: 40 };
+    fs.writeFileSync(
+      path.join(dir, "o1.jsonl"),
+      [
+        { type: "user", cwd: "/Users/demo/overview", timestamp: t, message: { content: "count my tokens" } },
+        { type: "assistant", timestamp: t, message: { id: "o-m1", model: "claude-opus-5-5", usage, stop_reason: "end_turn", content: [{ type: "text", text: "Done." }] } },
+        {},
+      ]
+        .map((r) => JSON.stringify(r))
+        .join("\n") + "\n",
+    );
+    const res = await get("/api/overview?days=7");
+    assert.equal(res.status, 200, "overview");
+    const ov = JSON.parse(res.body);
+    assert.equal(ov.partial, false);
+    assert.equal(ov.days.length, 7);
+    assert.equal(ov.totals.cached, 900);
+    assert.equal(ov.days.at(-1).tokens, 1045);
+    assert.deepEqual(ov.byModel.map((r) => r.label), ["Opus 5.5"]);
+    assert.ok(ov.byProject.some((p) => p.key === "-Users-demo-overview" && p.label === "/Users/demo/overview"));
+    assert.ok(ov.tools.some((x) => x.tool === "Bash"), "tools from the first session");
+    assert.ok(!/\$|price|cost/i.test(res.body), "no money in the overview");
+    assert.equal(JSON.parse((await get("/api/overview")).body).days.length, 30, "30 days by default");
+    for (const bad of ["0", "366", "abc", "1.5", "-3", ""]) assert.equal((await get(`/api/overview?days=${encodeURIComponent(bad)}`)).status, 400, `days=${bad}`);
+    assert.equal((await get("/api/overview", { Host: "evil.example" })).status, 403);
+    console.log("✓ overview adds up token use across sessions");
+  }
+  // ── end overview ──
+
   console.log(`smoke test passed (${process.platform}, node ${process.version})`);
   finish(0);
 } catch (err) {
