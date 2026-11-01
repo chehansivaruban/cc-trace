@@ -4,8 +4,10 @@ import { useCallback, useEffect, useMemo, useState, type ComponentType } from "r
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import { DetailsPanel } from "@/components/details-panel";
+import { DropFile, DroppedBanner } from "@/components/drop-file";
 import { Header } from "@/components/header";
 import { HelpDialog } from "@/components/help-dialog";
+import { SessionInfoBar } from "@/components/session-info-bar";
 import { Welcome } from "@/components/welcome";
 import type { Selection } from "@/components/story-map";
 import { TurnList } from "@/components/turn-list";
@@ -19,7 +21,7 @@ import { SESSION_VIEWS, type SessionViewProps } from "@/components/views/registr
 import { useSessionStream } from "@/hooks/use-session-stream";
 import type { ProjectInfo, SessionInfo } from "@/lib/claude-logs";
 import { parseRoute, useRoute, type AppPage, type AppPageProps, type Navigate, type Route, type SessionView } from "@/lib/route";
-import { SESSION_START, buildSession } from "@/lib/session";
+import { SESSION_START, buildSession, type AgentLog, type LogRecord } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
 const sheet = { type: "spring", bounce: 0, duration: 0.4 } as const;
@@ -46,6 +48,9 @@ export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [requestsOpen, setRequestsOpen] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  // A log opened from disk (drag and drop): read in the browser only, shown instead of the URL's session.
+  const [dropped, setDropped] = useState<{ name: string; records: LogRecord[]; agents: Record<string, AgentLog> } | null>(null);
+  const [recheckedFile, setRecheckedFile] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     const res = await fetch("/api/sessions");
@@ -64,7 +69,7 @@ export default function Home() {
 
   // No session in the URL yet: open the newest one (of the chosen project, if any), as the first load always did.
   const fallbackFile = route.page === "session" && !route.file && projects
-    ? (projects.find((p) => p.dir === route.project) ?? (route.project ? undefined : projects[0]))?.sessions[0]?.file
+    ? (projects.find((p) => p.dir === route.project) ?? projects[0])?.sessions[0]?.file // an unknown project falls back to the newest
     : undefined;
   useEffect(() => {
     if (fallbackFile) navigate({ file: fallbackFile, project: undefined }, true);
@@ -77,8 +82,21 @@ export default function Home() {
     return () => clearInterval(t);
   }, [refresh]);
 
-  const { logs, connected } = useSessionStream(file);
-  const model = useMemo(() => buildSession(logs.main, logs.agents, now), [logs, now]);
+  // A file in the URL that isn't listed (deleted, or a link from another computer). Refresh once before saying so,
+  // in case it's a session that started after the list was loaded.
+  const listedAnywhere = !file || !projects || projects.some((p) => p.sessions.some((s) => s.file === file.replace(/\\/g, "/")));
+  useEffect(() => {
+    if (!listedAnywhere && file && recheckedFile !== file) void refresh().then(() => setRecheckedFile(file));
+  }, [listedAnywhere, file, recheckedFile, refresh]);
+  const missing = !listedAnywhere && recheckedFile === file;
+
+  useEffect(() => setDropped(null), [file]);
+  const { logs, connected } = useSessionStream(dropped || missing ? null : file);
+  // A dropped file is never live: "now" far in the future marks it finished.
+  const model = useMemo(
+    () => (dropped ? buildSession(dropped.records, dropped.agents, Number.MAX_SAFE_INTEGER) : buildSession(logs.main, logs.agents, now)),
+    [dropped, logs, now],
+  );
 
   const project = projects?.find((p) => p.dir === projectDir);
   const listed = project?.sessions.find((s) => s.file === file);
@@ -103,6 +121,7 @@ export default function Home() {
   };
   const pickSession = (s?: SessionInfo, project?: string) => {
     setActorPick(null);
+    setDropped(null);
     go({ file: s?.file, project: s ? undefined : project, turn: undefined, step: undefined, view: "map", q: undefined, other: undefined });
   };
   const pickTurn = (i: number) => {
@@ -127,7 +146,7 @@ export default function Home() {
         projects={projects ?? []}
         project={project}
         session={session}
-        onProject={(p) => pickSession(p.sessions[0], p.dir)}
+        fileName={dropped?.name}
         onSession={pickSession}
         onRefresh={refresh}
         onHelp={() => setHelp(true)}
@@ -146,6 +165,8 @@ export default function Home() {
           <div className="hidden w-[272px] shrink-0 border-r border-foreground/10 xl:block">{turnList}</div>
 
           <div className="flex min-w-0 flex-1 flex-col">
+            {turn && dropped && <DroppedBanner name={dropped.name} onClose={() => setDropped(null)} />}
+            {turn && !dropped && file && <SessionInfoBar model={model} file={file} />}
             {turn && (
               <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-foreground/10 px-3 pt-2" role="tablist">
                 {SESSION_VIEWS.map((v) => (
@@ -170,13 +191,13 @@ export default function Home() {
             )}
             <div className="relative min-h-0 flex-1">
               {turn && <Welcome onHelp={() => setHelp(true)} />}
-              {turn && file ? (
+              {turn && (file || dropped) ? (
                 <ActiveView
-                  key={`${file}:${view}`}
+                  key={`${dropped ? "dropped:" + dropped.name : file}:${view}`}
                   view={view}
                   model={model}
                   turn={turn}
-                  file={file}
+                  file={dropped ? `dropped:${dropped.name}` : file!}
                   selected={selected}
                   onSelect={setSelected}
                   onPickTurn={pickTurn}
@@ -184,7 +205,12 @@ export default function Home() {
                   onShowRequests={() => setRequestsOpen(true)}
                 />
               ) : (
-                <Empty projects={projects} loading={!!file && !connected} />
+                <Empty
+                  projects={projects}
+                  loading={!!file && !connected}
+                  missing={missing}
+                  onNewest={() => pickSession(projects?.[0]?.sessions[0])}
+                />
               )}
             </div>
           </div>
@@ -223,6 +249,13 @@ export default function Home() {
         )}
       </AnimatePresence>
 
+      <DropFile
+        onLoad={(records, name, agents) => {
+          setActorPick(null);
+          setDropped({ name, records, agents });
+          if (route.page !== "session") go({});
+        }}
+      />
       <HelpDialog open={help} onClose={() => setHelp(false)} />
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </main>
@@ -239,8 +272,27 @@ function AppPageView({ page, ...props }: { page: Exclude<AppPage, "session"> } &
   return <Page {...props} />;
 }
 
-function Empty({ projects, loading }: { projects: ProjectInfo[] | null; loading: boolean }) {
+function Empty({ projects, loading, missing, onNewest }: { projects: ProjectInfo[] | null; loading: boolean; missing: boolean; onNewest: () => void }) {
   if (!projects) return null;
+  if (missing)
+    return (
+      <div className="flex h-full items-center justify-center p-6">
+        <div className="max-w-sm text-center">
+          <p className="text-sm font-medium">That session isn&apos;t on this computer any more</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            Its log may have been deleted, or the link came from another computer.
+          </p>
+          {projects.some((p) => p.sessions.length) && (
+            <button
+              onClick={onNewest}
+              className="mt-4 h-8 rounded-lg border border-foreground/10 px-3 text-xs text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
+            >
+              Open the newest session
+            </button>
+          )}
+        </div>
+      </div>
+    );
   return (
     <div className="flex h-full items-center justify-center p-6">
       <div className="max-w-sm text-center">

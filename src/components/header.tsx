@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bookmark, ChevronDown, CircleHelp, Folder, GitCompare, History, LayoutDashboard, Menu, Moon, Radio, Search, Settings, Sun, Workflow } from "lucide-react";
+import { Bookmark, ChevronDown, CircleHelp, FileText, GitCompare, History, LayoutDashboard, Menu, Moon, Radio, Search, Settings, Sun, Workflow } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,35 +11,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { ProjectInfo, SessionInfo } from "@/lib/claude-logs";
 import type { AppPage } from "@/lib/route";
+import { maskSecrets } from "@/lib/redact";
 import type { Live } from "@/lib/session";
+import { homeOf, shortPath } from "@/lib/sessions-list";
+import { useSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
-
-const trigger =
-  "flex h-9 min-w-0 max-w-[240px] items-center gap-2 rounded-xl px-3 text-sm outline-none transition-colors hover:bg-foreground/[0.07] active:scale-[0.98] data-popup-open:bg-foreground/[0.07]";
-const menu = "glass-strong w-[380px] max-h-[60vh] rounded-xl p-1.5 shadow-2xl shadow-black/40 ring-0";
-
-function ago(ms: number) {
-  const s = Math.round((Date.now() - ms) / 1000);
-  if (s < 60) return "just now";
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
-}
-
-function kb(bytes: number) {
-  return bytes > 1e6 ? `${(bytes / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1e3))} KB`;
-}
-
-function shortPath(p: string) {
-  // Windows cwds use backslashes ("C:\Users\me\app").
-  return p.split(/[\\/]/).filter(Boolean).slice(-2).join("/") || p;
-}
+import { SessionBrowser } from "./session-browser";
 
 export function Header(props: {
   projects: ProjectInfo[];
   project?: ProjectInfo;
   session?: SessionInfo;
-  onProject: (p: ProjectInfo) => void;
+  fileName?: string; // a dropped log file being viewed instead of a session
   onSession: (s: SessionInfo) => void;
   onRefresh: () => void;
   onHelp: () => void;
@@ -49,81 +32,109 @@ export function Header(props: {
   connected: boolean;
 }) {
   const { projects, project, session, live, connected } = props;
+  const [{ maskSensitive }] = useSettings();
+  const [open, setOpen] = useState(false);
+  const m = (t: string) => (maskSensitive ? maskSecrets(t, homeOf(project?.path)) : t);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  const toggle = () => {
+    if (!open) props.onRefresh();
+    setOpen(!open);
+  };
 
   return (
-    <motion.header
-      initial={{ y: -24, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ type: "spring", bounce: 0, duration: 0.5 }}
-      className="glass fixed inset-x-3 top-3 z-30 flex h-[60px] items-center gap-1 rounded-2xl px-3 shadow-xl shadow-black/20"
-    >
-      <div className="mr-2 flex items-center gap-2 pl-1">
-        <div className="flex size-7 items-center justify-center rounded-lg bg-foreground text-background">
-          <Workflow className="size-4" />
+    <>
+      <motion.header
+        initial={{ y: -24, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: "spring", bounce: 0, duration: 0.5 }}
+        className="glass fixed inset-x-3 top-3 z-30 flex h-[60px] items-center gap-1 rounded-2xl px-3 shadow-xl shadow-black/20"
+      >
+        <div className="mr-2 flex items-center gap-2 pl-1">
+          <div className="flex size-7 items-center justify-center rounded-lg bg-foreground text-background">
+            <Workflow className="size-4" />
+          </div>
+          <span className="hidden text-sm font-medium tracking-tight whitespace-nowrap lg:inline">cc-trace</span>
         </div>
-        <span className="hidden text-sm font-medium tracking-tight whitespace-nowrap lg:inline">cc-trace</span>
-      </div>
 
-      <div className="h-5 w-px bg-foreground/10" />
+        <div className="h-5 w-px bg-foreground/10" />
 
-      <DropdownMenu onOpenChange={(open) => open && props.onRefresh()}>
-        <DropdownMenuTrigger className={trigger}>
-          <Folder className="size-4 shrink-0 text-muted-foreground" />
-          <span className="truncate">{project ? shortPath(project.path) : "Select project"}</span>
-          <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className={menu} align="start" sideOffset={10}>
-          {projects.map((p) => (
-            <DropdownMenuItem
-              key={p.dir}
-              onClick={() => props.onProject(p)}
-              className={cn("flex-col items-start gap-0.5 rounded-lg px-2.5 py-2", p.dir === project?.dir && "bg-foreground/[0.06]")}
-            >
-              <span className="w-full truncate text-[13px] font-medium">{shortPath(p.path)}</span>
-              <span className="w-full truncate text-[11px] text-muted-foreground">
-                {p.path} · {p.sessions.length} sessions · {ago(p.mtime)}
-              </span>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <DropdownMenu onOpenChange={(open) => open && props.onRefresh()}>
-        <DropdownMenuTrigger className={trigger} disabled={!project}>
-          <History className="size-4 shrink-0 text-muted-foreground" />
-          <span className="truncate">{session ? session.title : "Select session"}</span>
-          <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className={menu} align="start" sideOffset={10}>
-          {project?.sessions.map((s) => (
-            <DropdownMenuItem
-              key={s.id}
-              onClick={() => props.onSession(s)}
-              className={cn("flex-col items-start gap-0.5 rounded-lg px-2.5 py-2", s.id === session?.id && "bg-foreground/[0.06]")}
-            >
-              <span className="line-clamp-1 w-full text-[13px] font-medium">{s.title}</span>
-              <span className="text-[11px] text-muted-foreground">
-                {ago(s.mtime)} · {kb(s.size)}
-                {s.helpers ? ` · ${s.helpers} helper${s.helpers === 1 ? "" : "s"}` : ""}
-              </span>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <div className="ml-auto flex shrink-0 items-center gap-2">
-        <StatusPill live={live} connected={connected} active={!!session} />
         <button
-          onClick={props.onHelp}
-          className="flex h-9 items-center gap-1.5 rounded-xl px-2.5 text-sm text-muted-foreground transition-colors hover:bg-foreground/[0.07] hover:text-foreground"
+          onClick={toggle}
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          className={cn(
+            "flex h-11 min-w-0 max-w-[380px] flex-1 items-center sm:flex-initial gap-2 rounded-xl px-2.5 text-left outline-none transition-colors hover:bg-foreground/[0.07] focus-visible:ring-2 focus-visible:ring-foreground/20 active:scale-[0.98]",
+            open && "bg-foreground/[0.07]",
+          )}
         >
-          <CircleHelp className="size-4" />
-          <span className="hidden md:inline">How it works</span>
+          {props.fileName ? <FileText className="size-4 shrink-0 text-amber-500" /> : <History className="size-4 shrink-0 text-muted-foreground" />}
+          <span className="flex min-w-0 flex-col leading-tight">
+            <span className="truncate text-sm">
+              {props.fileName ? m(props.fileName) : session ? m(session.title) : projects.length ? "Choose a session" : "No sessions yet"}
+            </span>
+            {!props.fileName && project && (
+              <span className="hidden truncate text-[11px] text-muted-foreground sm:block">
+                {m(shortPath(project.path))}
+                {session?.live && " · live"}
+              </span>
+            )}
+          </span>
+          <ChevronDown className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
         </button>
-        <AppMenu onOpenPage={props.onOpenPage} onSettings={props.onSettings} />
-        <ThemeToggle />
-      </div>
-    </motion.header>
+
+        <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+          {!props.fileName && <StatusPill live={live} connected={connected} active={!!session} />}
+          <button
+            onClick={props.onHelp}
+            className="flex h-9 items-center gap-1.5 rounded-xl px-2.5 text-sm text-muted-foreground transition-colors hover:bg-foreground/[0.07] hover:text-foreground"
+          >
+            <CircleHelp className="size-4" />
+            <span className="hidden md:inline">How it works</span>
+          </button>
+          <AppMenu onOpenPage={props.onOpenPage} onSettings={props.onSettings} />
+          <ThemeToggle />
+        </div>
+      </motion.header>
+
+      <AnimatePresence>
+        {open && (
+          <>
+            <motion.div key="scrim" className="fixed inset-0 z-[45]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setOpen(false)} />
+            <motion.div
+              key="browser"
+              role="dialog"
+              aria-label="Sessions"
+              initial={{ opacity: 0, y: -8, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.98 }}
+              transition={{ type: "spring", bounce: 0, duration: 0.3 }}
+              className="glass-strong fixed inset-x-3 top-[80px] bottom-3 z-[45] origin-top-left overflow-hidden rounded-2xl shadow-2xl shadow-black/40 sm:right-auto sm:bottom-auto sm:h-[min(640px,calc(100dvh-100px))] sm:w-[600px]"
+            >
+              <SessionBrowser
+                projects={projects}
+                current={session}
+                onPick={(s) => {
+                  setOpen(false);
+                  props.onSession(s);
+                }}
+                onShowLive={() => {
+                  setOpen(false);
+                  props.onOpenPage("live");
+                }}
+                onClose={() => setOpen(false)}
+              />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
@@ -177,10 +188,11 @@ function StatusPill({ live, connected, active }: { live: Live; connected: boolea
       layout
       transition={{ type: "spring", bounce: 0, duration: 0.4 }}
       className={cn(
-        "flex items-center gap-2 overflow-hidden rounded-full border border-foreground/10 px-3 py-1.5 text-xs font-medium transition-shadow duration-500",
+        "flex items-center gap-2 overflow-hidden rounded-full border border-foreground/10 px-2.5 py-1.5 sm:px-3 text-xs font-medium transition-shadow duration-500",
         view.glow,
       )}
       role="status"
+      title={view.label}
     >
       <span className="relative flex size-2">
         {pulsing && <span className={cn("absolute inset-0 animate-ping rounded-full opacity-60", view.dot)} />}
@@ -193,7 +205,7 @@ function StatusPill({ live, connected, active }: { live: Live; connected: boolea
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-          className="max-w-[180px] truncate whitespace-nowrap"
+          className="hidden max-w-[180px] truncate whitespace-nowrap sm:inline"
         >
           {view.label}
         </motion.span>
