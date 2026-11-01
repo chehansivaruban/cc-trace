@@ -4,7 +4,7 @@
 
 **Goal:** Give cc-trace every rule-compliant feature of the five closest competitors plus nine new ones, released as 0.2.0.
 
-**Architecture:** A lead first lands shared foundations on `main` (richer session model, pricing, redaction, settings, URL router, view registry with stub views). Six agents then build in parallel, each in its own git worktree and owning disjoint files, filling in their stub views, analytics modules and API routes. The lead merges, integrates, reviews and releases.
+**Architecture:** A lead first lands shared foundations on `main` (richer session model, redaction, settings, URL router, view registry with stub views). Six agents then build in parallel, each in its own git worktree and owning disjoint files, filling in their stub views, analytics modules and API routes. The lead merges, integrates, reviews and releases.
 
 **Tech Stack:** Next.js 15 (App Router), React 19, TypeScript, Tailwind 4, framer-motion, lucide-react, chokidar 4. Node ≥ 20.9.
 
@@ -19,7 +19,7 @@
 - Plain English first: every new view opens with a one-sentence explanation; technical detail behind a "technical details" toggle; new jargon added to `GLOSSARY` in `src/lib/explain.ts` and marked `[[term:label]]`.
 - Windows/macOS/Linux: compare paths with `pathKey` semantics (see `src/app/api/stream/route.ts`); never assume `/` separators.
 - New runtime dependencies allowed (exact versions, each published ≥ 2 weeks ago): `react-markdown`, `remark-gfm`, `diff` (jsdiff), `@tanstack/react-virtual`. No other new runtime deps; charts are hand-written SVG.
-- Dollar costs are always labelled "estimate". Unknown model → show "cost unknown", never guess.
+- **No money features (owner decision 2026-11-01):** no pricing module, no dollar costs or estimates anywhere, nothing that calls an API or uses tokens. Token counts read from the logs are fine.
 - Commits: author is the repo's local identity; **no `Co-Authored-By` or any Claude/Anthropic attribution** in commits or PR text.
 - Keep `pnpm lint`, `npx tsc --noEmit -p .`, `pnpm check`, `pnpm build`, `pnpm smoke`, `pnpm smoke --packed` green.
 
@@ -35,25 +35,25 @@
 
 ## Phase 0 — Foundations (lead, sequential, on `main`)
 
-### Task 0.1: Richer model, pricing and redaction
+### Task 0.1: Richer model and redaction
 
 **Files:**
 - Modify: `src/lib/session.ts`
-- Create: `src/lib/pricing.ts`, `src/lib/redact.ts`
+- Create: `src/lib/models.ts`, `src/lib/redact.ts`
 - Test: `scripts/session.check.mts`
 
 **Interfaces — Produces:**
-- `Usage` becomes `{ fresh: number; cached: number; written: number; input: number; cacheWrite5m: number; cacheWrite1h: number; cost: number | null }` (`fresh` = input + all cache writes; `cost` USD, `null` when the model is unknown).
+- `Usage` becomes `{ fresh: number; cached: number; written: number; input: number; cacheWrite5m: number; cacheWrite1h: number }` (`fresh` = input + all cache writes); `addUsage(a, b): Usage`.
 - `Step` gains: `model?: string; durationMs?: number; thinking?: string; result?: unknown /* raw toolUseResult */; images?: { mediaType: string; data: string }[]; event?: "api_error" | "hook" | "interrupted" | "compact" | "recap"`.
 - `SessionModel` gains `meta: SessionMeta` and `events: SessionEvent[]`:
   - `SessionMeta = { customTitle?: string; aiTitle?: string; permissionMode?: string; gitBranch?: string; cwds: string[]; version?: string; entrypoint?: string; models: string[]; firstTs: number; lastTs: number }`
   - `SessionEvent = { ts: number; actor: string; type: "system" | "hook"; subtype: string; data: Record<string, unknown> }` (system records and `hook_*` attachments, raw).
-- `src/lib/pricing.ts`: `type Price = { input: number; output: number; cacheRead: number; cacheWrite5m: number; cacheWrite1h: number }` (USD per million tokens); `priceFor(model?: string): Price | undefined` (longest-prefix match, ignores date suffixes); `costOf(u: Omit<Usage, "cost">, model?: string): number | null`; `contextWindow(model?: string): number` (tokens; default 200_000).
+- `src/lib/models.ts`: `contextWindow(model?: string): number` (tokens; default 200_000).
 - `src/lib/redact.ts`: `maskSecrets(text: string, home?: string): string`.
 
 - [ ] **Step 1: Write failing tests** in `scripts/session.check.mts`:
-  - per-reply cost: fixture reply `model: "claude-sonnet-4-5"`, usage `{input_tokens:1000, output_tokens:1000, cache_read_input_tokens:1_000_000, cache_creation:{ephemeral_5m_input_tokens:0, ephemeral_1h_input_tokens:0}}` → `step.usage.cost` equals `priceFor("claude-sonnet-4-5")` arithmetic (assert with the table values).
-  - unknown model `"mystery-1"` → `cost === null`.
+  - per-reply tokens: fixture reply usage `{input_tokens:1000, output_tokens:1000, cache_read_input_tokens:1_000_000, cache_creation:{ephemeral_5m_input_tokens:0, ephemeral_1h_input_tokens:0}}` → `{input:1000, cacheWrite5m:0, cacheWrite1h:0, fresh:1000, cached:1_000_000, written:1000}`.
+  - `contextWindow("mystery-1") === 200_000`.
   - `meta.customTitle === "cc-trace tool setup"` from a `{type:"custom-title", customTitle:"cc-trace tool setup"}` record; `meta.aiTitle` from `ai-title`; `meta.permissionMode` from `{type:"mode", mode:"plan"}`; `meta.gitBranch` and `meta.cwds` from record fields.
   - `durationMs` of a tool step = tool_result record ts − tool_use ts (fixture 2.5 s → 2500).
   - thinking text from a `thinking` block attaches to the first step of the same reply.
@@ -62,9 +62,9 @@
   - robustness: `buildSession([{}, {type:"weird"}, {type:"assistant"}, {type:"user", message:null}], {})` does not throw.
   - `maskSecrets("key sk-ant-api03-abc123def456 and ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 password=hunter2 me@x.com /Users/chehan/a", "/Users/chehan")` → contains none of the secrets, contains `/~/a` replaced as `~/a`.
 - [ ] **Step 2: Run** `pnpm check` → FAIL on the new assertions.
-- [ ] **Step 3: Implement.** Pricing values come from the `claude-api` skill's pricing reference (load it; do not use memory). Include current and previous Opus, Sonnet and Haiku generations and the models seen in local logs (`grep -ho '"model":"claude[^"]*"' ~/.claude/projects/*/*.jsonl | sort -u`); unknown → `undefined`. Redaction patterns: `sk-ant-[\w-]{8,}`, `sk-[\w-]{20,}`, `gh[pousr]_[A-Za-z0-9]{20,}`, `xox[abpr]-[\w-]+`, `AKIA[0-9A-Z]{16}`, `(?i)(password|passwd|secret|token|api[_-]?key)\s*[:=]\s*\S+` (keep the key name, mask the value), emails, JWT-like `eyJ[\w-]+\.[\w-]+\.[\w-]+`, and the `home` prefix → `~`. Mask with `•••`.
+- [ ] **Step 3: Implement.** Redaction patterns: `sk-ant-[\w-]{8,}`, `sk-[\w-]{20,}`, `gh[pousr]_[A-Za-z0-9]{20,}`, `xox[abpr]-[\w-]+`, `AKIA[0-9A-Z]{16}`, `(?i)(password|passwd|secret|token|api[_-]?key)\s*[:=]\s*\S+` (keep the key name, mask the value), emails, JWT-like `eyJ[\w-]+\.[\w-]+\.[\w-]+`, and the `home` prefix → `~`. Mask with `•••`.
 - [ ] **Step 4: Run** `pnpm check && pnpm check -- --all` → PASS, and still 0 helpers without a brief.
-- [ ] **Step 5: Commit** `feat: richer session model, offline pricing and secret masking`.
+- [ ] **Step 5: Commit** `feat: richer session model and secret masking`.
 
 ### Task 0.2: Router, settings and view registry with stubs
 
@@ -97,7 +97,7 @@ Every agent: owns only the files listed in its task; may add (not edit) entries 
 **Files:** Modify `src/lib/claude-logs.ts`, `src/app/api/sessions/route.ts`, `src/components/header.tsx`. Create `src/app/api/live/route.ts`, `src/components/session-browser.tsx`, `src/components/pages/live-page.tsx` (replace stub), `src/components/session-info-bar.tsx`, `src/components/drop-file.tsx`, `scripts/sessions.check.mts`; extend `scripts/smoke.mjs` (sessions + live sections only).
 
 **Interfaces — Produces:**
-- `SessionInfo` gains `customTitle?`, `aiTitle?`, `model?`, `requests: number`, `tokens: number`, `cost: number | null`, `durationMs: number`, `gitBranch?`, `live: boolean`, `version?`, `entrypoint?`, `worktreeOf?: string` (main project dir when the cwd is a git worktree: path contains `/.claude/worktrees/` or `.git` is a file).
+- `SessionInfo` gains `customTitle?`, `aiTitle?`, `model?`, `requests: number`, `tokens: number`, `durationMs: number`, `gitBranch?`, `live: boolean`, `version?`, `entrypoint?`, `worktreeOf?: string` (main project dir when the cwd is a git worktree: path contains `/.claude/worktrees/` or `.git` is a file).
 - `GET /api/live` → `{ sessionId: string; pid: number; cwd: string; startedAt: number; version?: string; entrypoint?: string; file?: string }[]` from `~/.claude/sessions/*.json` (alive = pid exists via `process.kill(pid, 0)` in try/catch).
 - `<SessionBrowser projects onPick />`, `<SessionInfoBar model file />` (permission mode, branch, cwds, version, entrypoint, live badge), `<DropFile onLoad={(records: LogRecord[]) => void} />`.
 - Copy actions: `cd '<cwd>' && claude --resume <id>`, same with `--fork-session`, and session id.
@@ -106,24 +106,24 @@ Every agent: owns only the files listed in its task; may add (not edit) entries 
 
 ### Task 2: Conversation view and tool renderers (B1–B7, N4 on screen, N6)
 
-**Files:** Replace stub `src/components/views/conversation-view.tsx`; create `src/components/tools/{index,edit,write,read,bash,search,web,question,todo,image,generic}.tsx`, `src/components/markdown.tsx`, `src/components/find-bar.tsx`, `src/lib/analytics/explanations.ts`, `scripts/conversation.check.mts`. Modify `src/components/details-panel.tsx` (StepCard uses `<ToolRenderer>`; shows `durationMs`, cost, thinking), `src/components/code-block.tsx` (applies `maskSecrets` when `settings.maskSensitive`).
+**Files:** Replace stub `src/components/views/conversation-view.tsx`; create `src/components/tools/{index,edit,write,read,bash,search,web,question,todo,image,generic}.tsx`, `src/components/markdown.tsx`, `src/components/find-bar.tsx`, `src/lib/analytics/explanations.ts`, `scripts/conversation.check.mts`. Modify `src/components/details-panel.tsx` (StepCard uses `<ToolRenderer>`; shows `durationMs`, tokens, thinking), `src/components/code-block.tsx` (applies `maskSecrets` when `settings.maskSensitive`).
 
 **Interfaces — Produces:** `<ToolRenderer step={Step} />` (picks renderer by `step.tool`, falls back to generic JSON); `<Markdown text masked? />`; `nearestExplanation(turn: Turn, stepId: string): Step | undefined` (closest preceding `note` step by the same actor within the same turn); `<FindBar target={RefObject<HTMLElement>} />` (⌘/Ctrl+F, n of N, Enter/Shift+Enter, Esc).
 
-- [ ] Steps (TDD): tests for `nearestExplanation`; word-level diff helper `diffWords(old, new)` returns marked segments; Edit renderer prefers `step.result.structuredPatch` when present. Conversation lists every step of the turn in chat form (your messages, Claude replies with markdown, tool rows collapsed to one line with the renderer on expand, helper messages indented with the helper colour, compaction / API error / interrupted rows), virtualized via `@tanstack/react-virtual` above 200 rows; per-message model badge, tokens, estimated cost, copy button; thinking collapsed with length or "not recorded". All text goes through `maskSecrets` when the setting is on. Commit `feat: conversation view and rich tool renderers`.
+- [ ] Steps (TDD): tests for `nearestExplanation`; word-level diff helper `diffWords(old, new)` returns marked segments; Edit renderer prefers `step.result.structuredPatch` when present. Conversation lists every step of the turn in chat form (your messages, Claude replies with markdown, tool rows collapsed to one line with the renderer on expand, helper messages indented with the helper colour, compaction / API error / interrupted rows), virtualized via `@tanstack/react-virtual` above 200 rows; per-message model badge, tokens, copy button; thinking collapsed with length or "not recorded". All text goes through `maskSecrets` when the setting is on. Commit `feat: conversation view and rich tool renderers`.
 
-### Task 3: Stats, costs and dashboard (D1–D6, F4, N8)
+### Task 3: Stats, token use and dashboard (D1–D6, F4, N8)
 
 **Files:** Replace stubs `src/components/views/stats-view.tsx`, `src/components/pages/dashboard-page.tsx`; create `src/lib/analytics/stats.ts`, `src/lib/analytics/tips.ts`, `src/components/charts/{line,bars,donut}.tsx` (SVG), `src/app/api/overview/route.ts`, `scripts/stats.check.mts`; extend `scripts/smoke.mjs` (overview section).
 
 **Interfaces — Produces:**
 - `sessionStats(m: SessionModel): { totals: Usage; cacheHitPct: number; byModel: Row[]; byAgent: Row[]; byRequest: Row[]; tools: { tool: string; count: number; failed: number; longest?: Step }[] }` where `Row = { key: string; label: string; usage: Usage; steps: number; durationMs: number; jumpTo?: { turn: number; step?: string } }`.
-- `burnSeries(m: SessionModel, turn?: number): { ts: number; tokens: number; cost: number | null }[]` (cumulative).
+- `burnSeries(m: SessionModel, turn?: number): { ts: number; tokens: number }[]` (cumulative).
 - `contextGauge(turn: Turn, m: SessionModel): { used: number; window: number; pct: number }`.
 - `tipsFor(turn: Turn, m: SessionModel): { id: string; text: string; severity: "info" | "warn" }[]` (N8: memory > 70 % of window → suggest /compact or /clear; same file read ≥ 3 times; helper briefs > 20 k chars; cache hit < 50 % on long requests).
-- `GET /api/overview?days=30` → `{ days: { date: string; tokens: number; cost: number | null; sessions: number }[]; byModel: Row[]; byProject: Row[]; tools: …; totals: Usage }`, built with `buildSession` per log (helpers included), cached in memory by path+mtime+size, time-boxed to 20 s with a `partial: true` flag.
+- `GET /api/overview?days=30` → `{ days: { date: string; tokens: number; sessions: number }[]; byModel: Row[]; byProject: Row[]; tools: …; totals: Usage }`, built with `buildSession` per log (helpers included), cached in memory by path+mtime+size, time-boxed to 20 s with a `partial: true` flag.
 
-- [ ] Steps (TDD): stats on a two-model fixture match hand-computed rows; cost `null` propagation (any unknown model → row cost null, totals show "partly unknown"); 50k-step generated model computes in < 1 s; tips fire on threshold fixtures and not below. Stats view: cards (requests, tokens, est. cost, cache hit %), sortable tables with click-to-jump, burn chart, output-per-reply bars (click to jump), tool ranking with success rate, per-helper table with "most expensive helper", context gauge per request, tips panel. Dashboard: totals, 30-day chart, cost by model donut, by project table, top tools, link into sessions. Every cost labelled "estimate — not your bill". Commit `feat: stats, cost estimates and dashboard`.
+- [ ] Steps (TDD): stats on a two-model fixture match hand-computed rows; 50k-step generated model computes in < 1 s; tips fire on threshold fixtures and not below. Stats view: cards (requests, tokens, cache hit %), sortable tables with click-to-jump, burn chart, output-per-reply bars (click to jump), tool ranking with success rate, per-helper table with "helper that used the most tokens", context gauge per request, tips panel. Dashboard: totals, 30-day chart, tokens by model donut, by project table, top tools, link into sessions. No dollar amounts anywhere. Commit `feat: stats, token use and dashboard`.
 
 ### Task 4: Health, files, risks and phases (E1–E3, N2, N3, N5)
 

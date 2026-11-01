@@ -38,18 +38,18 @@ Grouped into work areas. "Source" names which competitors have it.
 - A1. Session browser: sessions grouped by date (Today / Yesterday / This week / This month / Older), search by title,
   first prompt, id and model, project filter, sort by activity or start. Source: all five.
 - A2. Rich session cards: title from `/rename` (`custom-title`) or Claude's auto title (`ai-title`), else first prompt;
-  model; requests; tokens; estimated cost; duration; helper count; git branch; **Live** badge. Source: claude-code-trace, Lition13, agents-observe.
+  model; requests; tokens; duration; helper count; git branch; **Live** badge. Source: claude-code-trace, Lition13, agents-observe.
 - A3. Live sessions: read Claude Code's running-session registry (`~/.claude/sessions/*.json`) to show which sessions are
   running now, plus Claude Code version and app. Source: claude-session-visualizer, claude-code-trace.
 - A4. Worktree and fork grouping: sessions run in a git worktree shown under their main project. Source: claude-code-trace, agents-observe.
-- A5. Totals across listed sessions (tokens, cost). Source: claude-code-trace.
+- A5. Totals across listed sessions (tokens). Source: claude-code-trace.
 - A6. Deep links: the URL records project, session, request, view and step; back/forward work; a clear "not found" page. Source: agents-observe.
 - A7. Copy resume command, copy fork command, copy session id. Source: agents-observe, claude-code-trace, drapermcp.
 - A8. Open a .jsonl file by drag and drop (view a log someone sent you, read in the browser only). Source: claude-trace-replay.
 
 ### B. Reading a request in full (new "Conversation" view)
 - B1. Chat-style transcript: your messages, Claude's replies with markdown and code highlighting, timestamps, model badge,
-  per-message tokens and cost, copy button. Source: all.
+  per-message tokens, copy button. Source: all.
 - B2. Special rows: compaction separator, API errors, interrupted / denied / orphan tool calls, recaps. Source: claude-code-trace.
 - B3. Thinking blocks when recorded (collapsed, length); a plain note when hidden. Source: claude-session-visualizer, Lition13.
 - B4. Rich tool renderers (shared by Conversation and step details): Edit as a red/green diff with word highlights
@@ -65,15 +65,14 @@ Grouped into work areas. "Source" names which competitors have it.
 - C2. Map and conversation filters: category pills (Your messages, Tools, Helpers, Errors, Permissions, Memory/compaction,
   Connectors), auto pills per tool and per command (git, npm…), agent filter, text filter, "showing X of Y". Source: agents-observe, claude-session-visualizer, claude-trace-replay.
 
-### D. Understanding cost and effort (new "Stats" view)
-- D1. Built-in, offline pricing table per model (Opus, Sonnet, Haiku generations, prefix matching), incl. cache read and
-  cache write (5 min / 1 h). Estimated cost shown everywhere tokens are. Clearly labelled "estimate; not your bill; plans differ". Source: claude-code-trace, Lition13, agents-observe.
+### D. Understanding effort and token use (new "Stats" view)
+- D1. ~~Pricing / dollar costs~~ dropped by owner decision 2026-11-01 (no money features).
 - D2. Session stats: totals, cache hit %, tables by model, by agent and by request (sortable, click to jump). Source: agents-observe.
-- D3. Charts: cumulative tokens and cost over the session; output per reply (click a bar to jump); tool ranking with
+- D3. Charts: cumulative tokens over the session; output per reply (click a bar to jump); tool ranking with
   success rate and longest call. Source: claude-session-visualizer, Lition13, claude-trace-replay, agents-observe.
 - D4. Files touched: lists of files read, created and changed, with counts; click to see each change. Source: drapermcp, agents-observe.
 - D5. Context gauge: how full Claude's memory was at each request, relative to the model's window. Source: claude-code-trace (improved: per-model window).
-- D6. Overview across all sessions (new "Dashboard"): totals, last-30-days daily trend, cost by model, by project, top
+- D6. Overview across all sessions (new "Dashboard"): totals, last-30-days daily trend, tokens by model, by project, top
   tools. Computed by scanning on demand. Source: Lition13.
 
 ### E. Problems and health (new "Health" view)
@@ -88,7 +87,7 @@ Grouped into work areas. "Source" names which competitors have it.
 - F1. Agent tree: who created whom, nested, with collapse/expand and status (in who's-who and whole-session view). Source: claude-session-visualizer, claude-code-trace.
 - F2. Task board: tasks and to-dos created by Claude/helpers, with status and owner. Source: claude-code-trace, Lition13.
 - F3. Teams: team members, colours, messages between teammates. Source: claude-code-trace, Lition13.
-- F4. Per-helper totals: tokens, cost, tool calls, duration; most expensive helper. Source: claude-trace-replay, agents-observe.
+- F4. Per-helper totals: tokens, tool calls, duration; helper that used the most tokens. Source: claude-trace-replay, agents-observe.
 
 ### G. Live and attention
 - G1. "Needs you" alert when Claude is waiting (a question, a plan to approve, a permission request): badge on the
@@ -113,7 +112,7 @@ Grouped into work areas. "Source" names which competitors have it.
 | AI "analyze" / retrospective / AI comparison (xAI, claude CLI, Jev) | Zero tokens, data leaves machine | E2 local health checks and N1 story summary |
 | Hooks + Docker + SQLite event database | Installs into Claude Code, stores copies, adds latency | Read the logs Claude already writes |
 | Delete / archive / move / rename sessions on disk | Read-only | Copy resume/fork commands |
-| Pricing fetched from the internet | Local-only | Built-in pricing table |
+| Pricing and dollar costs (online or built-in) | Owner decision 2026-11-01: no money features | Token counts only |
 | Images stored in IndexedDB | No extra copies | Render images straight from the log |
 | Reading arbitrary project files ("file viewer") | Reads beyond Claude's logs | Show file contents/diffs as recorded in the log |
 | Authenticated REST API for scripts, background service | Scope; security surface | Not needed |
@@ -144,7 +143,7 @@ Grouped into work areas. "Source" names which competitors have it.
   - New `/api/search?q=` streams matches across logs; new `/api/overview` scans all logs for the dashboard; new
     `/api/live` reads the running-session registry; new `/api/debug-log` reads the debug log for a session.
   - Each stays bounded (time/size limits) and refuses paths outside the Claude folder.
-- **Model (`src/lib/session.ts`)** gains: costs (via new `src/lib/pricing.ts`), per-tool duration, permission mode, git
+- **Model (`src/lib/session.ts`)** gains: per-tool duration, permission mode, git
   branch, compaction and API-error rows, thinking, images, task and team records, hook records, risk flags, phases.
 - **Analytics (`src/lib/analytics/*`)**: pure functions over the model: stats tables, files touched, health checks,
   errors and recovery, story summary, tips. Each is tested in the self-check.
@@ -158,12 +157,12 @@ Grouped into work areas. "Source" names which competitors have it.
 ## How the work is split (multiple agents)
 
 Phase 0 (lead, sequential): shared foundations so agents don't collide: the view switcher and router, the extended
-model types, pricing, the analytics folder layout, the tool-renderer registry, and test scaffolding.
+model types, the analytics folder layout, the tool-renderer registry, and test scaffolding.
 
 Phase 1 (parallel agents, each in its own git worktree, each owning separate files):
 1. Sessions & navigation: A1–A8, G2, I3 (server `/api/sessions`, `/api/live`; picker and home components).
 2. Conversation & renderers: B1–B7, N4, N6 (conversation view, tool renderers, find-in-request).
-3. Stats & costs: D1–D6, F4, N8 (stats view, dashboard, `/api/overview`, charts).
+3. Stats & token use: D1–D6, F4, N8 (stats view, dashboard, `/api/overview`, charts).
 4. Health & files: E1–E3, N2, N3, N5 (health view, files view, analytics heuristics).
 5. Agents & sharing: F1–F3, N7, H1, H2, C1, C2, N1 (agents view, export, compare, search).
 6. Settings, keyboard, attention, onboarding, bookmarks: I1, I2, I4, G1, N9, J1.
