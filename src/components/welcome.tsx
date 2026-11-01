@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
+import { startTour } from "./tour";
 
 const KEY = "cc-trace:welcomed";
 
@@ -53,9 +54,18 @@ export function Welcome({ onHelp }: { onHelp: () => void }) {
               <b>3.</b> Click any box for an explanation, or press <b>Replay</b> to watch it happen step by step.
             </li>
           </ol>
-          <div className="mt-4 flex gap-2">
+          <div className="mt-4 flex flex-wrap gap-2">
             <button onClick={close} className="h-8 rounded-lg bg-foreground px-3.5 text-xs font-medium text-background transition-transform duration-150 active:scale-[0.97]">
               Got it
+            </button>
+            <button
+              onClick={() => {
+                close();
+                startTour();
+              }}
+              className="h-8 rounded-lg border border-foreground/15 px-3.5 text-xs font-medium transition-[background-color,transform] duration-150 hover:bg-foreground/[0.06] active:scale-[0.97]"
+            >
+              Take the tour
             </button>
             <button
               onClick={() => {

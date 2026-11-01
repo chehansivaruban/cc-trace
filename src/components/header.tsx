@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Bookmark, ChevronDown, CircleHelp, Folder, GitCompare, History, LayoutDashboard, Menu, Moon, Radio, Search, Settings, Sun, Workflow } from "lucide-react";
 import {
@@ -12,6 +11,8 @@ import {
 import type { ProjectInfo, SessionInfo } from "@/lib/claude-logs";
 import type { AppPage } from "@/lib/route";
 import type { Live } from "@/lib/session";
+import { updateSettings } from "@/lib/settings";
+import { useDarkMode } from "./settings-provider";
 import { cn } from "@/lib/utils";
 
 const trigger =
@@ -203,19 +204,8 @@ function StatusPill({ live, connected, active }: { live: Live; connected: boolea
 }
 
 function ThemeToggle() {
-  const [dark, setDark] = useState(true);
-  useEffect(() => setDark(document.documentElement.classList.contains("dark")), []);
-
-  const toggle = () => {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.classList.toggle("dark", next);
-    try {
-      localStorage.setItem("theme", next ? "dark" : "light");
-    } catch {
-      // storage blocked: theme just won't persist
-    }
-  };
+  const dark = useDarkMode();
+  const toggle = () => updateSettings({ theme: dark ? "light" : "dark" });
 
   return (
     <button
