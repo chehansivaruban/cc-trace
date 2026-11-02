@@ -5,7 +5,7 @@ See what [Claude Code](https://docs.claude.com/en/docs/claude-code) is actually 
 cc-trace turns a Claude Code session into an interactive map: one row for you, one for Claude, and one for every helper agent Claude brings in. Each step is a box that explains itself ("Reads a file", "Runs the tests", "Brief to Reviewer") and every message between agents is an arrow you can follow. Watch it live while Claude works, or press **Replay** to watch any request unfold step by step.
 
 - **Costs nothing.** cc-trace never talks to Claude or any AI service. Running it uses zero tokens and has no effect on Claude Code.
-- **Saves nothing.** It only reads the logs Claude Code already writes to `~/.claude/projects`, never writes to them, and keeps no copies. Close the tab and it's gone.
+- **Read-only.** It only reads the logs Claude Code already writes to `~/.claude`, never changes them and keeps no copies of your history.
 - **Local-only.** The server listens on `127.0.0.1` and refuses non-localhost requests. No telemetry, no network calls.
 - **Live.** New steps appear as Claude works, including helpers that start later.
 
@@ -41,16 +41,70 @@ On Linux, if you get permission errors reading the logs, add `--user "$(id -u):$
 
 ## Features
 
-- **Project and session pickers:** every project Claude Code has run in, newest sessions first, with how many helpers each session used.
-- **Your requests:** each message you sent is listed on the left; pick one to see everything it set off.
-- **The map:** one row per agent, time running left to right. Boxes explain each step in plain words; ✓ worked, ✕ didn't (Claude usually tries another way).
-- **Agents talking to each other:** briefs, follow-up messages and reports are dashed arrows between rows, and an envelope travels along them during replay. Tick **Only messages between agents** to see just the conversation.
-- **Replay:** play, pause, step with ← and →, scrub, change speed, or jump back to **Live**.
-- **Explanations:** click any box for what happened and why, with the technical details hidden behind a toggle. Click an agent's name for who it is, who created it, its brief and how much it did.
-- **Request summary:** what happened in plain words: helpers used, messages passed, files read and changed, test runs, problems, time taken and Claude's answer.
-- **Real token counts:** taken from the logs (not estimated), split into re-read (cached), new and written, per request and per agent.
-- **How it works guide** and **hover-to-explain words** (helper, brief, tokens, tests…) for newcomers.
-- **Light and dark mode,** and layouts for small screens.
+### Find a session
+
+- **Session browser:** every session on your computer, newest first, grouped by day, with search (titles, first messages, ids, models), a project filter that keeps worktrees under their project, and "Running now".
+- **Live now:** the sessions Claude Code has open on this computer right now; pick one to watch it as it happens.
+- **Search everything:** find a word in every session at once and jump straight to the request or step.
+- **Dashboard:** how much you used Claude Code over the last days and weeks, in tokens, sessions and requests.
+- **Open a log file:** drag a `.jsonl` log onto the page (or use "Open a log file…") to read one someone sent you. It stays in your browser.
+
+### Read it
+
+- **The map:** one row per agent, time running left to right. Boxes explain each step in plain words; ✓ worked, ✕ didn't (Claude usually tries another way). Messages between agents are dashed arrows, with an envelope travelling along them during a replay.
+- **Replay:** play, pause, step through, scrub, change speed, or jump back to **Live**.
+- **Conversation:** the same request read like a chat, with Claude's replies formatted, each tool step one line that opens into a readable view (commands and their output, before-and-after changes, searches, web pages, to-do lists, questions Claude asked you). Find in a request with ⌘F / Ctrl+F.
+- **Filter steps:** show only your messages, tools, helpers, errors, a tool, a command, an agent or some text, on the Map and the Conversation.
+- **Explanations:** click any box for what happened and why, with the technical details behind a toggle. Hover a dotted word (helper, brief, tokens, tests…) for a one-line explanation.
+
+### Understand it
+
+- **Agents:** who created whom, the to-do lists they kept, the messages they sent each other, and a short written story of the session.
+- **Stats:** tokens per request, per agent and per model, how much was re-read from cache, how full Claude's memory got, and how long things took.
+- **Health:** a rough score with what stood out: repeated steps, loops, errors, hooks, and commands worth a second look ("Take care" and "Risky"). Risky steps also get a dot on the map, and a band above the map shows what Claude was mostly doing when.
+- **Files:** every file Claude read, changed or created, with the changes.
+- **Whole session:** how each request led to the next, and what Claude still remembered.
+- **Compare:** two sessions, or two requests, side by side to see which took more effort: tokens, time, errors and the models used.
+- **"Claude needs you":** when Claude is waiting on a question, a plan or (probably) your permission, the tab title and icon change, and you can turn on a desktop notification.
+- **Debug log:** Claude Code's own diary for the session (only there when Claude Code ran with `--debug`), with filters.
+
+### Share it
+
+- **Export:** a request or the whole session as a web page that opens without cc-trace, as Markdown, or as raw data.
+- **Copy commands:** copy the command that reopens a session in Claude Code, or starts a new one from a copy of it.
+- **Links:** every session, request, view and step has its own address, so the back button works and links can be saved.
+
+### Make it yours
+
+- **Bookmarks:** bookmark a session or a single step, name sessions, tag them, and find them again in Bookmarks or the session browser.
+- **Settings:** light or dark, text size (Smaller to Largest), reduce motion, technical details shown by default, "Hide sensitive text", and desktop notifications.
+- **Keyboard shortcuts** and a short **tour** of the screen, plus a **How it works** guide for newcomers.
+- Works on small screens too.
+
+## Keyboard shortcuts
+
+Press `?` in the app to see them.
+
+| Keys | What they do |
+| --- | --- |
+| `?` | Show the shortcuts |
+| `/` | Search all sessions |
+| `g` then `d` | Go to the dashboard |
+| `g` then `l` | Go to Live now |
+| `1` to `7` | Switch view: Map, Conversation, Agents, Stats, Health, Files, Whole session |
+| `j` or `↓` | Next request (`↓` on the map and the whole-session view) |
+| `k` or `↑` | Previous request (`↑` on the map and the whole-session view) |
+| `g` then `g` | First request |
+| `G` | Newest request |
+| `[` or `]` | Previous or next session |
+| `b` | Bookmark the selected step, or the session |
+| `Esc` | Close a panel or dialog |
+| `←` or `→` | Step through the request on the map |
+| `Space` | Play or pause the replay |
+| `+` or `−` | Zoom the map in or out |
+| `0` | Fit the map to the screen |
+
+Shortcuts pause while you type in a box.
 
 ## Configuration
 
@@ -65,7 +119,7 @@ On Linux, if you get permission errors reading the logs, add `--user "$(id -u):$
 ```bash
 pnpm install
 pnpm dev        # http://localhost:4747 with hot reload
-pnpm check      # self-check for the log → story mapping (Node 22.6+); add `-- --all` to run it on your real sessions
+pnpm check      # self-checks (Node 22.6+); add `-- --all` to also run the model on your real sessions
 pnpm build      # production build used by `npx cc-trace-map`
 pnpm smoke      # starts the built server against a fake log and checks it end to end
 ```
@@ -78,9 +132,11 @@ Stack: Next.js 15 (App Router), React 19, Tailwind CSS 4, shadcn/ui, Framer Moti
 | --- | --- |
 | `src/lib/claude-logs.ts` | Finds projects and sessions; validates requested paths. |
 | `src/lib/session.ts` | Turns the main log and each sub-agent log into agents, steps, messages and requests. |
-| `src/lib/explain.ts` | Plain-English explanations of each tool, and the glossary. |
+| `src/lib/explain.ts` | Plain-English explanations of each tool, and the glossary (`GLOSSARY`). |
+| `src/lib/analytics/` | Stats, health, risks, phases, files, filters and stories, worked out from the model. |
+| `src/lib/redact.ts` | "Hide sensitive text": masks secrets, home folders and user names. |
 | `src/app/api/stream/route.ts` | SSE endpoint that replays a session and its sub-agent logs, then tails them. |
-| `src/components/` | Header, request list, map, explanation panel, help guide. |
+| `src/components/` | Header, request list, map, explanation panel, help guide; `views/` and `pages/` hold the tabs and app pages. |
 | `bin/cc-trace.mjs` | The `npx cc-trace-map` entry point (installed as `cc-trace` and `cc-trace-map`). |
 | `scripts/smoke.mjs` | Cross-platform end-to-end test of the real server. |
 
@@ -90,9 +146,13 @@ Stack: Next.js 15 (App Router), React 19, Tailwind CSS 4, shadcn/ui, Framer Moti
 npm publish     # runs the check and a production build first
 ```
 
-## Privacy note
+## Privacy
 
-Session logs contain everything you and Claude typed, including any secrets that appeared in prompts or tool output. cc-trace keeps them on your machine, but don't expose its port to a network or share screenshots without checking them.
+- **No tokens, no money, no network.** cc-trace never calls Claude, any AI service or any other host. Nothing you see costs anything, and token numbers are read from the logs, never estimated.
+- **Read-only.** It never changes, moves or deletes anything in your Claude folder and never installs hooks. It keeps no copies of your history: logs are read when you open them and held in memory only.
+- **Stays in this browser.** Your settings, bookmarks, tags and session names are saved in this browser's storage, nowhere else. A log you drag onto the page is read in the browser and never sent to the server.
+- **Hide sensitive text.** Session logs contain everything you and Claude typed, including any secrets that appeared in prompts or tool output. Turn on **Settings → Hide sensitive text** before taking screenshots or exporting: it hides passwords, API keys, tokens, your home folder and your user name on screen and in exports (each export can also switch it on or off).
+- Don't expose cc-trace's port to a network.
 
 ## License
 
