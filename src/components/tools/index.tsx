@@ -36,6 +36,8 @@ const RENDERERS: Record<string, ComponentType<{ step: Step }>> = {
   TaskUpdate: TodoView,
   mcp__ccd_turn__update_plan: TodoView,
 };
+// Renderers that say for themselves that no result came back yet.
+const OWN_PENDING = new Set(["Bash", "bash", "PowerShell", "AskUserQuestion"]);
 // Renderers that show the step's images themselves.
 const OWN_IMAGES = new Set<ComponentType<{ step: Step }>>([ReadView]);
 
@@ -47,9 +49,14 @@ export function ToolRenderer({ step }: { step: Step }) {
   return (
     <div className="min-w-0 space-y-3">
       {View && <View step={step} />}
+      {step.tool && step.output === undefined && !OWN_PENDING.has(step.tool) && (
+        <p data-find-skip className="text-xs text-muted-foreground">
+          No result yet.
+        </p>
+      )}
       {step.images?.length && !(View && OWN_IMAGES.has(View)) ? <ImageList images={step.images} /> : null}
       {rich && (step.input !== undefined || step.output !== undefined) && (
-        <div>
+        <div data-find-skip>
           <button onClick={() => setRaw(!raw)} className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground" aria-expanded={raw}>
             <ChevronRight className={cn("size-3 transition-transform", raw && "rotate-90")} />
             {raw ? "Hide" : "Show"} the raw data

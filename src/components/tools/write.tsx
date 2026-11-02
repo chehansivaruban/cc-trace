@@ -1,7 +1,8 @@
 "use client";
 
 // Write: a whole file written in one go. New files show their contents; replaced files show what changed.
-import { editDiff, langOf } from "@/lib/conversation";
+import { useMemo } from "react";
+import { langOf, stepDiff } from "@/lib/conversation";
 import type { Step } from "@/lib/session";
 import { CodeBlock } from "../code-block";
 import { DiffView } from "./edit";
@@ -15,7 +16,7 @@ export function WriteView({ step }: { step: Step }) {
   const lang = langOf(input.file_path);
   const created = result?.type === "create";
   const replaced = result?.type === "update";
-  const diff = replaced ? editDiff("Write", input, result) : undefined;
+  const diff = useMemo(() => stepDiff(step), [step]);
   return (
     <div className="space-y-2.5">
       <FilePath path={input.file_path} />

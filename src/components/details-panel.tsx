@@ -303,7 +303,7 @@ function StepCard(props: {
 
       <H>Why</H>
       <p className="text-[13px] leading-relaxed text-foreground/85">
-        <TermText text={s.why} />
+        <TermText text={mask(s.why)} />
       </p>
 
       {s.usage && (
@@ -334,7 +334,6 @@ function StepCard(props: {
             <div className="mt-3 space-y-3">
               {s.tool && <p className="text-xs text-muted-foreground">Tool: <code className="text-foreground">{s.tool}</code>{s.model ? <> · model <code className="text-foreground">{s.model}</code></> : null}</p>}
               <ToolRenderer step={s} />
-              {s.tool && s.output === undefined && <p className="text-xs text-muted-foreground">No result yet.</p>}
             </div>
           )}
         </>

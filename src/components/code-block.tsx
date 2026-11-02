@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, Copy } from "lucide-react";
+import { CAPS } from "@/lib/conversation";
 import { useMask } from "@/lib/mask";
 import { cn } from "@/lib/utils";
 
 // shortcut: render cap keeps huge tool outputs from freezing the drawer; copy still gets everything.
-const MAX_RENDER = 60_000;
+const MAX_RENDER = CAPS.code;
 
 const TOKEN = /("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false|null)\b|-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/g;
 
@@ -70,15 +71,19 @@ export function CodeBlock({ label, value, lang, className }: { label: string; va
   const [copied, setCopied] = useState(false);
   const mask = useMask();
   const isText = typeof value === "string";
-  const text = mask(isText ? value : JSON.stringify(value, null, 2) ?? String(value));
-  const shown = text.length > MAX_RENDER ? text.slice(0, MAX_RENDER) : text;
+  // Work on the raw text once; mask only the part that's shown (and the copy, when it's made).
+  const text = useMemo(() => (isText ? value : JSON.stringify(value, null, 2) ?? String(value)), [isText, value]);
+  const shown = useMemo(() => mask(text.length > MAX_RENDER ? text.slice(0, MAX_RENDER) : text), [text, mask]);
   const language = lang?.toLowerCase();
-  const body = !isText || language === "json" ? highlightJson(shown) : language && !PLAIN.has(language) ? highlightCode(shown, language) : shown;
+  const body = useMemo(
+    () => (!isText || language === "json" ? highlightJson(shown) : language && !PLAIN.has(language) ? highlightCode(shown, language) : shown),
+    [isText, language, shown],
+  );
 
   const copy = async () => {
     // With "Hide sensitive text" on, the copy is masked too: it's meant for sharing.
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(mask(text));
       setCopied(true);
       setTimeout(() => setCopied(false), 1400);
     } catch {
@@ -88,7 +93,7 @@ export function CodeBlock({ label, value, lang, className }: { label: string; va
 
   return (
     <section className={cn("overflow-hidden rounded-xl border border-foreground/10 bg-neutral-950/90 text-neutral-200", className)}>
-      <header className="flex items-center justify-between gap-2 border-b border-white/5 px-3 py-2">
+      <header data-find-skip className="flex items-center justify-between gap-2 border-b border-white/5 px-3 py-2">
         <span className="min-w-0 truncate text-[11px] font-medium tracking-wide text-neutral-400 uppercase">
           {label}
           {language && language !== label.toLowerCase() && <span className="ml-2 font-normal tracking-normal text-neutral-500 normal-case">{language}</span>}
@@ -114,8 +119,8 @@ export function CodeBlock({ label, value, lang, className }: { label: string; va
       </header>
       <pre className="max-h-[50vh] overflow-auto p-3 font-mono text-[12px] leading-relaxed break-words whitespace-pre-wrap">
         {body}
-        {shown !== text && (
-          <span className="mt-2 block text-neutral-500">
+        {text.length > MAX_RENDER && (
+          <span data-find-skip className="mt-2 block text-neutral-500">
             … {(text.length - MAX_RENDER).toLocaleString()} more characters (copy to get all)
           </span>
         )}

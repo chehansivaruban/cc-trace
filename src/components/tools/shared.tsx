@@ -1,7 +1,9 @@
 "use client";
 
-// Small building blocks shared by the tool renderers.
+// Small building blocks shared by the tool renderers. UI wording (labels, badges, buttons) carries
+// `data-find-skip` so find-in-request only searches what came from the log (see src/lib/find-text.ts).
 import { useState, type ReactNode } from "react";
+import { CAPS, textBoxText } from "@/lib/conversation";
 import { useMask } from "@/lib/mask";
 import { cn } from "@/lib/utils";
 
@@ -13,7 +15,7 @@ export const plural = (n: number, word: string) => `${fmt(n)} ${word}${n === 1 ?
 export const asText = (v: unknown) => (typeof v === "string" ? v : "");
 
 export function Label({ children }: { children: ReactNode }) {
-  return <div className="mb-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{children}</div>;
+  return <div data-find-skip className="mb-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{children}</div>;
 }
 
 const TONES = {
@@ -25,7 +27,7 @@ const TONES = {
 };
 export function Pill({ tone = "muted", children, title }: { tone?: keyof typeof TONES; children: ReactNode; title?: string }) {
   return (
-    <span title={title} className={cn("inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium", TONES[tone])}>
+    <span data-find-skip title={title} className={cn("inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium", TONES[tone])}>
       {children}
     </span>
   );
@@ -36,7 +38,7 @@ export function Facts({ items }: { items: ReactNode[] }) {
   const shown = items.filter((x) => x !== null && x !== undefined && x !== false && x !== "");
   if (!shown.length) return null;
   return (
-    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
+    <div data-find-skip className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
       {shown.map((x, i) => (
         <span key={i} className="flex items-center gap-1.5">
           {i > 0 && <span aria-hidden>·</span>}
@@ -65,13 +67,13 @@ export function FilePath({ path }: { path: unknown }) {
 export function TextBox({ text, mono, className }: { text: string; mono?: boolean; className?: string }) {
   const mask = useMask();
   const [open, setOpen] = useState(false);
-  const long = text.length > 1200;
-  const shown = mask(long && !open ? text.slice(0, 1200) + "…" : text);
+  const long = text.length > CAPS.textBox;
+  const shown = mask(open ? text : textBoxText(text));
   return (
     <div className={cn("rounded-xl bg-foreground/[0.05] px-3 py-2.5 text-[13px] leading-relaxed", className)}>
       <div className={cn("break-words whitespace-pre-wrap", mono && "font-mono text-[12px]")}>{shown}</div>
       {long && (
-        <button onClick={() => setOpen(!open)} className="mt-1.5 text-xs font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground">
+        <button data-find-skip onClick={() => setOpen(!open)} className="mt-1.5 text-xs font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground">
           {open ? "Show less" : `Show all (${fmt(text.length)} characters)`}
         </button>
       )}

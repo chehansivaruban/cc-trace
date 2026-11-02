@@ -1,27 +1,18 @@
 "use client";
 
 // Read: which file, which part of it, in what language, and what Claude saw.
-import { langOf, outputText } from "@/lib/conversation";
+import { langOf, readData } from "@/lib/conversation";
 import type { Step } from "@/lib/session";
 import { CodeBlock } from "../code-block";
 import { ImageList } from "./image";
-import { Facts, FilePath, Pill, fmt, plural, type Json } from "./shared";
-
-// Claude Code numbers each line it shows Claude ("    12\t…" or "    12→…"); the raw file has no numbers.
-const NUMBERED = /^\s*\d+[\t→]/;
-function stripNumbers(text: string) {
-  const lines = text.split("\n");
-  return lines.every((l) => !l.trim() || NUMBERED.test(l)) ? lines.map((l) => l.replace(NUMBERED, "")).join("\n") : text;
-}
+import { Facts, FilePath, Pill, fmt, plural } from "./shared";
 
 export function ReadView({ step }: { step: Step }) {
-  const input = (step.input ?? {}) as Json;
-  const file = (step.result as Json)?.file as Json;
-  const lang = langOf(input.file_path);
-  const content = typeof file?.content === "string" ? file.content : stripNumbers(outputText(step.output));
-  const start = Number(file?.startLine ?? input.offset ?? 1) || 1;
-  const count = typeof file?.numLines === "number" ? file.numLines : undefined;
-  const totalLines = typeof file?.totalLines === "number" ? file.totalLines : undefined;
+  const { input, file, path, content, isImage } = readData(step);
+  const lang = langOf(path);
+  const start = Number(file.startLine ?? input.offset ?? 1) || 1;
+  const count = typeof file.numLines === "number" ? file.numLines : undefined;
+  const totalLines = typeof file.totalLines === "number" ? file.totalLines : undefined;
   const part =
     count !== undefined && totalLines !== undefined && count < totalLines
       ? `lines ${fmt(start)}–${fmt(start + Math.max(count, 1) - 1)} of ${fmt(totalLines)}`
@@ -30,10 +21,9 @@ export function ReadView({ step }: { step: Step }) {
         : input.offset || input.limit
           ? `from line ${fmt(Number(input.offset) || 1)}${input.limit ? `, up to ${plural(Number(input.limit), "line")}` : ""}`
           : null;
-  const isImage = !!step.images?.length || file?.type === "image";
   return (
     <div className="space-y-2.5">
-      <FilePath path={input.file_path} />
+      <FilePath path={path} />
       <Facts items={[part, typeof input.pages === "string" ? `pages ${input.pages}` : null, lang]} />
       {step.status === "error" && <Pill tone="bad">Couldn&apos;t read it</Pill>}
       {step.images?.length ? <ImageList images={step.images} /> : null}

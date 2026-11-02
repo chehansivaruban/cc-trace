@@ -15,7 +15,12 @@ import {
   toolOutcome,
   toolTime,
 } from "../src/lib/conversation.ts";
-import { maskText } from "../src/lib/mask.ts";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { findAll, joinPieces, markdownText, rowSearchText, toolBodyText } from "../src/lib/find-text.ts";
+import { maskText, rememberHomes } from "../src/lib/mask.ts";
 import { buildSession, type Actor, type Step, type Turn } from "../src/lib/session.ts";
 
 const step = (id: string, kind: Step["kind"], actor: string, extra: Partial<Step> = {}): Step => ({
@@ -159,6 +164,23 @@ assert.equal(formatDuration(-1), "");
   assert.equal(maskText("/tmp/x/-Users-alice-Developer-app/s.jsonl"), "/tmp/x/-Users-~-Developer-app/s.jsonl");
   assert.equal(maskText("C--Users-bob-app and -home-carol-src"), "C--Users-~-app and -home-~-src");
   assert.equal(maskText("disk-usage-monitor"), "disk-usage-monitor");
+  // Home folders only at a path boundary: not inside a URL.
+  assert.equal(maskText("see https://example.com/home/page and https://x.io/Users/bob/1"), "see https://example.com/home/page and https://x.io/Users/bob/1");
+  assert.equal(maskText('cd /home/carol && x="/Users/dan/a" (C:\\Users\\eve\\b) PATH=/Users/fay/bin:/home/gus/bin'), 'cd ~ && x="~/a" (~\\b) PATH=~/bin:~/bin');
+  // Private keys, including a block cut off before its end, keep their line count.
+  const key = "a\n-----BEGIN RSA PRIVATE KEY-----\nMIIEabc\nQWERTY\n-----END RSA PRIVATE KEY-----\nb";
+  const mk = maskText(key);
+  assert.ok(!/MIIE|QWERTY/.test(mk), mk);
+  assert.equal(mk.split("\n").length, key.split("\n").length);
+  assert.ok(!/MIIE/.test(maskText("-----BEGIN PRIVATE KEY-----\nMIIEcut")));
+  // A user name seen in a home folder is masked anywhere after that (ls -l owners, prompts), as a whole word.
+  rememberHomes(["/Users/zelda/app", "C:\\Users\\yorick\\x", "/tmp"]);
+  assert.equal(maskText("-rw-r--r-- 1 zelda staff 10 a.txt; yorick@host; zeldas"), "-rw-r--r-- 1 ••• staff 10 a.txt; •••@host; zeldas");
+  maskText("cd /home/quentin/src");
+  assert.equal(maskText("owner quentin"), "owner •••");
+  // Short names would hide ordinary words, so they're left alone.
+  rememberHomes(["/Users/bo/x"]);
+  assert.equal(maskText("bo knows"), "bo knows");
   assert.equal(maskText("plain words"), "plain words");
 }
 
@@ -211,6 +233,92 @@ assert.equal(formatDuration(-1), "");
   // Malformed actors map never crashes.
   const lonely: Record<string, Actor> = {};
   assert.equal(conversationRows(turn, lonely, { open: false }).length, rows.length);
+}
+
+// ── big edits: plain before/after instead of a slow diff; row limit ──
+{
+  const big = "line\n".repeat(30_000); // 150 KB each side, 300 KB together
+  const d = editDiff("Edit", { old_string: big, new_string: big + "more\n" }, undefined)!;
+  assert.equal(d.hunks.length, 1);
+  assert.equal(d.removed, 30_000);
+  assert.equal(d.added, 30_001);
+  const t0 = Date.now();
+  assert.equal(diffRows(d.hunks[0], 400).length, 400);
+  assert.ok(Date.now() - t0 < 500);
+  const h = { oldStart: 1, oldLines: 3, newStart: 1, newLines: 3, lines: ["-a1", "-a2", "+b1", "+b2", " c"] };
+  assert.deepEqual(diffRows(h, 3).map((r) => r.text), ["a1", "a2", "b1"]);
+}
+
+// ── find text: markdown renders to the same blocks react-markdown makes ──
+{
+  // Blocks of rendered HTML: text inside the same block element is joined, a new block element starts a new one.
+  const BLOCK = /^(p|li|h[1-6]|td|th|pre|blockquote|ul|ol|table|thead|tbody|tr|div)$/;
+  const decode = (t: string) => t.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+  const htmlBlocks = (html: string) => {
+    const pieces: { text: string; block: unknown }[] = [];
+    const stack: number[] = [0];
+    let id = 0;
+    for (const m of html.matchAll(/<(\/?)([a-z0-9]+)[^>]*?(\/?)>|([^<]+)/g)) {
+      if (m[4]) pieces.push({ text: decode(m[4]), block: stack.at(-1) });
+      else if (BLOCK.test(m[2]) && !m[3]) {
+        if (m[1]) stack.pop();
+        else stack.push(++id);
+      }
+    }
+    return joinPieces(pieces).text.split("\n").map((b) => b.replace(/\n$/, "")).filter((b) => b.trim());
+  };
+  const render = (src: string) => htmlBlocks(renderToStaticMarkup(createElement(Markdown, { remarkPlugins: [remarkGfm] }, src)));
+  const samples = [
+    "Just one line.",
+    "## Summary\n\nI fixed **two** bugs in `src/app.ts`:\n\n1. The [login page](https://x.com) crashed when *empty*.\n2. Tests: `pnpm test` all ~~fail~~ pass.",
+    "- [x] done item\n- nested\n  - inner item\n\n> Note: snake_case_name stays.",
+    "| File | Change |\n|------|--------|\n| a.ts | added `x` |\n| b.ts | **removed** |",
+    "Line one\nline two with &amp; entity and <b>html</b>.\n\n---\nFinal *words*.",
+    "Title\n=====\n\nText with an image ![alt](http://x/y.png) inside and <https://auto.link>.",
+  ];
+  for (const src of samples) {
+    const html = render(src).join("\n");
+    // Code panels are compared without their trailing newline; everything else exactly.
+    assert.equal(markdownText(src).join("\n"), html, src);
+  }
+  // Fenced code is one block, kept as written.
+  assert.deepEqual(markdownText("Run:\n\n```sh\nnpm i\nnpm test\n```\nDone."), ["Run:", "npm i\nnpm test", "Done."]);
+
+  // joinPieces / findAll
+  const j = joinPieces([{ text: "const ", block: 1 }, { text: "x", block: 1 }, { text: "next", block: 2 }]);
+  assert.equal(j.text, "const x\nnext");
+  assert.deepEqual(j.starts, [0, 6, 8]);
+  assert.deepEqual(findAll("Foo foo FOO", "foo"), [0, 4, 8]);
+  assert.deepEqual(findAll("aaaa", "aa"), [0, 2]);
+  assert.deepEqual(findAll("x", ""), []);
+}
+
+// ── find text: rows, including folded tool details and masking ──
+{
+  const id = (t: string) => t;
+  const bash = step("b", "tool", "lead", { tool: "Bash", title: "Runs a command", subtitle: "list files", what: "Claude typed a [[command:command]] into the terminal.",
+    input: { command: "ls /Users/alice" }, result: { stdout: "notes.txt\nsecret.md\n", stderr: "warn: x", interrupted: false }, status: "success" });
+  const toolRow = { id: "b", kind: "tool" as const, step: bash, speaker: "lead", depth: 0 };
+  const text = rowSearchText(toolRow, id);
+  assert.deepEqual(text.split("\n"), ["Runs a command", "list files", "Claude typed a command into the terminal.", "ls /Users/alice", "notes.txt", "secret.md", "warn: x"]);
+  assert.ok(rowSearchText(toolRow, maskText).includes("ls ~"), "masked like the page");
+  // The exit-code line is a badge in the page, not output text.
+  assert.deepEqual(toolBodyText({ ...bash, result: "Error: Exit code 2\nboom", status: "error" }, id), ["ls /Users/alice", "boom"]);
+  // A message row searches the rendered markdown and its thinking, not the markdown source or UI words.
+  const reply = step("r", "reply", "you", { from: "lead", quote: "Fixed **the bug** in [app](http://x)", thinking: "check tests first" });
+  assert.equal(rowSearchText({ id: "r", kind: "text", step: reply, speaker: "lead", depth: 0 }, id), "Fixed the bug in app\ncheck tests first");
+  // Edits: the path and each diff line.
+  const edit = step("e", "tool", "lead", { tool: "Edit", title: "Changes a file", subtitle: "a.ts", what: "w", input: { file_path: "/p/a.ts", old_string: "x = 1", new_string: "x = 2" }, status: "success" });
+  assert.deepEqual(toolBodyText(edit, id), ["/p/a.ts", "x = 1", "x = 2"]);
+  // Questions: question, options, descriptions, your own answer.
+  const ask = step("q", "message", "you", { tool: "AskUserQuestion", status: "success",
+    input: { questions: [{ question: "Which name?", header: "Name", options: [{ label: "cc-trace", description: "short" }, { label: "other" }] }] },
+    result: { answers: { "Which name?": "my own" } } });
+  assert.deepEqual(toolBodyText(ask, id), ["Which name?", "cc-trace", "short", "other", "my own"]);
+  // Special rows other than errors have no searchable text; your message is searched as written.
+  const you = step("p", "prompt", "you", { quote: "make it **blue**" });
+  assert.equal(rowSearchText({ id: "p", kind: "you", step: you, speaker: "you", depth: 0 }, id), "make it **blue**");
+  assert.equal(rowSearchText({ id: "m", kind: "memory", step: step("m", "memory", "lead"), speaker: "lead", depth: 0 }, id), "");
 }
 
 console.log("conversation checks passed");

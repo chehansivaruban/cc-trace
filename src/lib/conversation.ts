@@ -40,7 +40,21 @@ function finish(hunks: Hunk[], fromLog: boolean): EditDiff {
   const count = (c: string) => clean.reduce((n, h) => n + h.lines.filter((l) => l[0] === c).length, 0);
   return { hunks: clean, fromLog, added: count("+"), removed: count("-") };
 }
-const compute = (a: string, b: string) => structuredPatch("a", "b", a, b, "", "", { context: 3 }).hunks as Hunk[];
+// Above this size a line diff can take seconds: show the old text as removed and the new as added instead.
+export const DIFF_MAX_CHARS = 200_000;
+const linesOf = (t: string) => (t ? t.replace(/\n$/, "").split("\n") : []);
+/** One hunk that removes all of `a` and adds all of `b`: the plain before/after. */
+function plainHunk(a: string, b: string): Hunk {
+  const old = linesOf(a);
+  const neu = linesOf(b);
+  return { oldStart: 1, oldLines: old.length, newStart: 1, newLines: neu.length, lines: [...old.map((l) => "-" + l), ...neu.map((l) => "+" + l)] };
+}
+function compute(a: string, b: string): Hunk[] {
+  if (a.length + b.length > DIFF_MAX_CHARS) return [plainHunk(a, b)];
+  // A time limit as well: some inputs are slow even when small.
+  const patch = structuredPatch("a", "b", a, b, "", "", { context: 3, timeout: 1500 });
+  return patch ? (patch.hunks as Hunk[]) : [plainHunk(a, b)];
+}
 
 /**
  * The diff of a file-changing tool call. Prefers the `structuredPatch` Claude Code logged (it has the real
@@ -58,16 +72,31 @@ export function editDiff(tool: string | undefined, input: unknown, result: unkno
   return undefined;
 }
 
+// Steps never change once their result is in, so a diff is worked out once per step (the view and
+// find-in-request both need it). Running steps aren't cached: their result may still arrive.
+const diffCache = new WeakMap<Step, EditDiff | undefined>();
+/** `editDiff` for a step, cached. Write only diffs when it replaced a file. */
+export function stepDiff(step: Step): EditDiff | undefined {
+  if (diffCache.has(step)) return diffCache.get(step);
+  const write = step.tool === "Write";
+  const d = write && (step.result as any)?.type !== "update" ? undefined : editDiff(step.tool, step.input, step.result);
+  if (step.status !== "running") diffCache.set(step, d);
+  return d;
+}
+
 export type DiffRow = { type: "same" | "added" | "removed"; text: string; oldNo?: number; newNo?: number; words?: WordSegment[] };
 
-/** Splits a hunk into display rows. A removed line followed by its replacement gets word-level highlights. */
-export function diffRows(hunk: Hunk): DiffRow[] {
+/**
+ * Splits a hunk into display rows, in line order. A removed line followed by its replacement gets word-level
+ * highlights. Stops after `max` rows (word diffs are only worked out for rows that will be shown).
+ */
+export function diffRows(hunk: Hunk, max = Infinity): DiffRow[] {
   const lines = hunk.lines.filter((l) => !l.startsWith("\\"));
   const rows: DiffRow[] = [];
   let o = hunk.oldStart;
   let n = hunk.newStart;
   let i = 0;
-  while (i < lines.length) {
+  while (i < lines.length && rows.length < max) {
     const c = lines[i][0];
     if (c !== "-" && c !== "+") {
       rows.push({ type: "same", text: lines[i].slice(1), oldNo: o++, newNo: n++ });
@@ -78,11 +107,18 @@ export function diffRows(hunk: Hunk): DiffRow[] {
     const adds: string[] = [];
     while (i < lines.length && lines[i][0] === "-") dels.push(lines[i++].slice(1));
     while (i < lines.length && lines[i][0] === "+") adds.push(lines[i++].slice(1));
-    const pairs = dels.map((d, k) => (k < adds.length ? similarWords(d, adds[k]) : undefined));
-    dels.forEach((text, k) => rows.push({ type: "removed", text, oldNo: o++, words: pairs[k]?.filter((w) => w.type !== "added") }));
-    adds.forEach((text, k) => rows.push({ type: "added", text, newNo: n++, words: pairs[k]?.filter((w) => w.type !== "removed") }));
+    const room = max - rows.length;
+    const pairs = dels.map((d, k) => (k < adds.length && k < room ? similarWords(d, adds[k]) : undefined));
+    for (const [k, text] of dels.entries()) if (rows.length < max) rows.push({ type: "removed", text, oldNo: o++, words: pairs[k]?.filter((w) => w.type !== "added") });
+    for (const [k, text] of adds.entries()) if (rows.length < max) rows.push({ type: "added", text, newNo: n++, words: pairs[k]?.filter((w) => w.type !== "removed") });
   }
   return rows;
+}
+
+/** Masks lines as one text, so a secret spread over several lines (a private key) is caught; one entry per line. */
+export function maskLines(lines: string[], mask: (t: string) => string): string[] {
+  const out = mask(lines.join("\n")).split("\n");
+  return out.length === lines.length ? out : lines.map(mask);
 }
 
 /** Word highlights only help when the two lines are mostly alike. */
@@ -262,4 +298,91 @@ export function formatDuration(ms: number): string {
   const m = Math.floor(s / 60);
   if (m < 60) return s % 60 ? `${m} min ${s % 60} s` : `${m} min`;
   return m % 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${Math.floor(m / 60)} h`;
+}
+
+// ── what each renderer shows ──
+// The renderers and find-in-request (src/lib/find-text.ts) both read these, so a search sees the same text.
+
+/** How much of a long text the UI renders before "Show all" (or "copy to get all"). */
+export const CAPS = { code: 60_000, markdown: 20_000, textBox: 1200, diffRows: 400, files: 60, webResults: 12 } as const;
+
+/** The text a code panel renders for a value: strings as written, anything else as JSON, cut at CAPS.code. */
+export function codeText(value: unknown): string {
+  const text = typeof value === "string" ? value : JSON.stringify(value, null, 2) ?? String(value);
+  return text.length > CAPS.code ? text.slice(0, CAPS.code) : text;
+}
+
+/** The text a collapsed text box renders. */
+export const textBoxText = (text: string) => (text.length > CAPS.textBox ? text.slice(0, CAPS.textBox) + "…" : text);
+
+const obj = (v: unknown): Record<string, any> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, any>) : {});
+
+// Claude Code numbers each line it shows Claude ("    12\t…" or "    12→…"); the raw file has no numbers.
+const NUMBERED = /^\s*\d+[\t→]/;
+export function stripLineNumbers(text: string): string {
+  const lines = text.split("\n");
+  return lines.every((l) => !l.trim() || NUMBERED.test(l)) ? lines.map((l) => l.replace(NUMBERED, "")).join("\n") : text;
+}
+
+export function readData(step: Step) {
+  const input = obj(step.input);
+  const file = obj(obj(step.result).file);
+  const content = typeof file.content === "string" ? file.content : stripLineNumbers(outputText(step.output));
+  return { input, file, path: str(input.file_path), content, isImage: !!step.images?.length || file.type === "image" };
+}
+
+export function searchData(step: Step) {
+  const input = obj(step.input);
+  const r = step.result && typeof step.result === "object" ? obj(step.result) : undefined;
+  const files: string[] = Array.isArray(r?.filenames) ? r.filenames.filter((f: unknown) => typeof f === "string") : [];
+  const content = str(r?.content);
+  return { input, result: r, pattern: String(input.pattern ?? ""), files, content, text: outputText(step.output), count: typeof r?.numFiles === "number" ? r.numFiles : files.length };
+}
+
+export function webSearchData(step: Step) {
+  const r = obj(step.result);
+  const links: { title: string; url: string }[] = [];
+  const notes: string[] = [];
+  for (const item of Array.isArray(r.results) ? r.results : []) {
+    if (typeof item === "string") notes.push(item);
+    else for (const c of Array.isArray(item?.content) ? item.content : []) if (typeof c?.url === "string") links.push({ title: str(c.title) || c.url, url: c.url });
+  }
+  const summary = notes.join("\n\n") || (links.length ? "" : outputText(step.output));
+  return { query: str(obj(step.input).query), links, summary, result: r };
+}
+/** A URL as shown under a search result: without the scheme. */
+export const shortUrl = (url: string) => url.replace(/^https?:\/\//, "");
+
+export function webFetchData(step: Step) {
+  const input = obj(step.input);
+  const r = obj(step.result);
+  return { url: str(input.url), prompt: str(input.prompt), text: str(r.result) || outputText(step.output), result: r };
+}
+
+export type QuestionData = { header: string; question: string; multi: boolean; options: { label: string; description: string; chosen: boolean }[]; other: string[] };
+/** AskUserQuestion: the questions, their options, and what you picked (from the result, or the text Claude saw). */
+export function questionData(step: Step): { questions: QuestionData[]; answered: boolean; out: string } {
+  const answers: Record<string, string[]> = {};
+  const a = obj(step.result).answers;
+  const out = outputText(step.output);
+  if (a && typeof a === "object") for (const [q, v] of Object.entries(a)) answers[q] = (Array.isArray(v) ? v : [v]).map(String);
+  else for (const m of out.matchAll(/"([^"]+)"="([^"]*)"/g)) answers[m[1]] = m[2].split(/,\s*/);
+  const list: any[] = Array.isArray(obj(step.input).questions) ? obj(step.input).questions : [];
+  const questions = list.map((q) => {
+    const question = str(q?.question);
+    const picked = answers[question] ?? [];
+    const options = (Array.isArray(q?.options) ? q.options : []).map((o: any) => ({ label: str(o?.label), description: str(o?.description), chosen: picked.includes(str(o?.label)) }));
+    const labels = options.map((o: { label: string }) => o.label);
+    return { header: str(q?.header), question, multi: q?.multiSelect === true, options, other: picked.filter((p) => p && !labels.includes(p)) };
+  });
+  return { questions, answered: Object.keys(answers).length > 0, out };
+}
+
+export type TodoItem = { text: string; status: string };
+export function todoItems(input: unknown): TodoItem[] {
+  const i = obj(input);
+  const list = Array.isArray(i.todos) ? i.todos : Array.isArray(i.items) ? i.items : [];
+  return list
+    .map((t: any) => ({ text: str(t?.content) || str(t?.subject) || str(t?.title) || str(t?.activeForm), status: str(t?.status) || "pending" }))
+    .filter((t: TodoItem) => t.text);
 }

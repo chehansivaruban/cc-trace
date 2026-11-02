@@ -2,6 +2,7 @@
 
 // Everything else: helper briefs and messages as text, connectors by name, and the raw data for the rest.
 import { mcpLabel, outputText } from "@/lib/conversation";
+import { useMask } from "@/lib/mask";
 import type { Step } from "@/lib/session";
 import { CodeBlock } from "../code-block";
 import { Markdown } from "../markdown";
@@ -19,13 +20,14 @@ function Message({ title, text }: { title: string; text: string }) {
 }
 
 export function GenericView({ step }: { step: Step }) {
+  const mask = useMask();
   const input = step.input as Json;
   const out = outputText(step.output);
   const mcp = mcpLabel(step.tool);
   if (step.tool === "Agent" || step.tool === "Task") {
     return (
       <div className="space-y-3">
-        <Facts items={[asText(input?.subagent_type), asText(input?.model), input?.run_in_background ? "works in the background" : null]} />
+        <Facts items={[mask(asText(input?.subagent_type)), mask(asText(input?.model)), input?.run_in_background ? "works in the background" : null]} />
         {asText(input?.prompt) && <Message title="The brief" text={input.prompt} />}
         {out && <Message title="What came back" text={out} />}
       </div>
@@ -35,7 +37,7 @@ export function GenericView({ step }: { step: Step }) {
     const msg = typeof input?.message === "string" ? input.message : outputText(input?.message);
     return (
       <div className="space-y-3">
-        {msg && <Message title={step.tool === "SendMessage" ? `Message${input?.to ? ` to ${input.to}` : ""}` : "The report"} text={msg} />}
+        {msg && <Message title={step.tool === "SendMessage" ? `Message${input?.to ? ` to ${mask(String(input.to))}` : ""}` : "The report"} text={msg} />}
         {out && step.tool === "SendMessage" && <Message title="What came back" text={out} />}
       </div>
     );
@@ -43,13 +45,13 @@ export function GenericView({ step }: { step: Step }) {
   return (
     <div className="space-y-3">
       {mcp && (
-        <p className="text-[13px]">
+        <p data-find-skip className="text-[13px]">
           Used the <b>{mcp.server || "unnamed"}</b> connector to <b>{mcp.tool}</b>.
         </p>
       )}
       {step.status === "error" && <Pill tone="bad">This didn&apos;t work</Pill>}
       {input !== undefined && <CodeBlock label="What Claude sent" value={input} />}
-      {step.output !== undefined ? <CodeBlock label="What came back" value={out || step.output} /> : step.status === "running" ? <p className="text-xs text-muted-foreground">No result yet.</p> : null}
+      {step.output !== undefined && <CodeBlock label="What came back" value={out || step.output} />}
     </div>
   );
 }

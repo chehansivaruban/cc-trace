@@ -2,9 +2,10 @@
 
 // Claude's replies are markdown. Rendered safely: no raw HTML, no remote images (nothing is ever fetched),
 // links open in a new tab, code blocks get the dark code panel.
-import { isValidElement, memo, type ReactNode } from "react";
+import { isValidElement, memo, useState, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { CAPS } from "@/lib/conversation";
 import { maskText, useMask } from "@/lib/mask";
 import { cn } from "@/lib/utils";
 import { CodeBlock } from "./code-block";
@@ -27,7 +28,7 @@ const COMPONENTS: Components = {
   ),
   // Never load images from the internet: show what they are instead.
   img: ({ alt, src }) => (
-    <span className="rounded bg-foreground/[0.06] px-1 text-muted-foreground" title={typeof src === "string" ? src : undefined}>
+    <span data-find-skip className="rounded bg-foreground/[0.06] px-1 text-muted-foreground" title={typeof src === "string" ? src : undefined}>
       [image{alt ? `: ${alt}` : ""}]
     </span>
   ),
@@ -69,14 +70,22 @@ const Rendered = memo(function Rendered({ text }: { text: string }) {
 
 /**
  * Markdown text from the logs. `masked` forces "Hide sensitive text" on (true) or off (false);
- * left out, it follows the setting.
+ * left out, it follows the setting. Very long text is cut before it's parsed, with "Show all".
  */
 export function Markdown({ text, masked, className }: { text: string; masked?: boolean; className?: string }) {
   const mask = useMask();
-  const shown = masked === undefined ? mask(text) : masked ? maskText(text) : text;
+  const [all, setAll] = useState(false);
+  const long = text.length > CAPS.markdown;
+  const cut = long && !all ? text.slice(0, CAPS.markdown) : text;
+  const shown = masked === undefined ? mask(cut) : masked ? maskText(cut) : cut;
   return (
     <div className={cn("min-w-0 text-[13px] leading-relaxed break-words", className)}>
       <Rendered text={shown} />
+      {long && (
+        <button data-find-skip onClick={() => setAll(!all)} className="mt-1 text-xs font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground">
+          {all ? "Show less" : `Show all (${(text.length - CAPS.markdown).toLocaleString()} more characters)`}
+        </button>
+      )}
     </div>
   );
 }

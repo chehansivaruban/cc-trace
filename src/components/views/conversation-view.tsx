@@ -13,9 +13,10 @@ import { TermText } from "@/components/term-text";
 import { ToolRenderer } from "@/components/tools";
 import { ImageList } from "@/components/tools/image";
 import { nearestExplanation } from "@/lib/analytics/explanations";
-import { conversationRows, formatDuration, modelLabel, rowText, toolTime, type ConvRow } from "@/lib/conversation";
+import { conversationRows, formatDuration, modelLabel, toolTime, type ConvRow } from "@/lib/conversation";
 import { ERROR_NOTE } from "@/lib/explain";
-import { useMask } from "@/lib/mask";
+import { rowSearchText } from "@/lib/find-text";
+import { rememberHomes, useMask } from "@/lib/mask";
 import { SESSION_START, totalTokens, type Actor, type Step, type Usage } from "@/lib/session";
 import { useSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
@@ -34,6 +35,8 @@ export function ConversationView(props: SessionViewProps) {
 
 function Conversation({ model, turn, selected, onSelect }: SessionViewProps) {
   const [settings] = useSettings();
+  // The session's folders tell the masker whose home folder this is, so the user name is hidden everywhere.
+  useMemo(() => rememberHomes(model.meta.cwds), [model.meta.cwds]);
   const mask = useMask();
   const [techPick, setTech] = useState<boolean | null>(null);
   const tech = techPick ?? settings.showTechnical;
@@ -41,7 +44,8 @@ function Conversation({ model, turn, selected, onSelect }: SessionViewProps) {
   const rows = useMemo(() => conversationRows(turn, model.actors, { open }), [turn, model.actors, open]);
   const index = useMemo(() => new Map(rows.map((r, i) => [r.id, i])), [rows]);
   const virtual = rows.length > VIRTUAL_AT;
-  const texts = useMemo(() => (virtual ? rows.map((r) => mask(rowText(r))) : undefined), [virtual, rows, mask]);
+  // Find searches each row's text from the data (folded tool details too), worked out only while finding.
+  const searchTexts = useCallback(() => rows.map((r) => rowSearchText(r, mask)), [rows, mask]);
 
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [flash, setFlash] = useState<string | null>(null);
@@ -71,10 +75,13 @@ function Conversation({ model, turn, selected, onSelect }: SessionViewProps) {
     window.setTimeout(() => setFlash((f) => (f === id ? null : f)), 1800);
   }, []);
 
-  // A step picked elsewhere (the map, a deep link): bring it into view, opened.
+  // A step picked elsewhere (the map, a deep link): bring it into view, opened. A pick made here (Explain this
+  // step) is skipped once; picking the same step again later from elsewhere scrolls as usual.
   const pickedId = selected?.type === "step" ? selected.id : null;
   useEffect(() => {
-    if (!pickedId || pickedId === localPick.current) return;
+    const local = localPick.current;
+    localPick.current = null;
+    if (!pickedId || pickedId === local) return;
     const i = index.get(pickedId);
     if (i === undefined) return;
     if (rows[i].kind === "tool") setExpanded((s) => new Set(s).add(pickedId));
@@ -110,6 +117,18 @@ function Conversation({ model, turn, selected, onSelect }: SessionViewProps) {
     },
     [turn, index, scrollToRow, flashRow],
   );
+  // Find: bring row i into the page and unfold a tool step, so its match can be shown.
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
+  const scrollRef2 = useRef(scrollToRow);
+  scrollRef2.current = scrollToRow;
+  const reveal = useCallback((i: number) => {
+    const row = rowsRef.current[i];
+    if (!row) return;
+    if (row.kind === "tool") setExpanded((s) => (s.has(row.id) ? s : new Set(s).add(row.id)));
+    // Rows in the page are scrolled to the exact match by the find bar; virtualized ones must mount first.
+    if (!listRef.current?.querySelector(`[data-find-row="${i}"]`)) scrollRef2.current(i);
+  }, []);
   const details = useCallback(
     (id: string) => {
       localPick.current = id;
@@ -166,7 +185,7 @@ function Conversation({ model, turn, selected, onSelect }: SessionViewProps) {
                 {allOpen ? "Close all steps" : "Open all steps"}
               </button>
             )}
-            <FindBar target={listRef} texts={texts} reveal={virtual ? scrollToRow : undefined} />
+            <FindBar target={listRef} texts={searchTexts} reveal={reveal} />
           </div>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -234,6 +253,7 @@ type RowProps = {
 
 const RowView = memo(function RowView(p: RowProps) {
   const { row } = p;
+  const mask = useMask();
   const hue = p.actors[row.speaker]?.hue ?? (row.speaker === "you" ? 220 : 28);
   const body =
     row.kind === "you" ? (
@@ -256,7 +276,11 @@ const RowView = memo(function RowView(p: RowProps) {
         )}
         style={row.depth > 0 ? { marginLeft: (Math.min(row.depth, 3) - 1) * 14, borderColor: hueColor(hue, 0.6) } : undefined}
       >
-        {row.depth > 0 && row.kind === "tool" && <span className="sr-only">{p.actors[row.speaker]?.name}: </span>}
+        {row.depth > 0 && row.kind === "tool" && (
+          <span data-find-skip className="sr-only">
+            {mask(p.actors[row.speaker]?.name ?? "A helper")}:{" "}
+          </span>
+        )}
         {body}
       </div>
     </div>
@@ -309,16 +333,43 @@ function ModelBadge({ model, tech }: { model?: string; tech: boolean }) {
   );
 }
 
+/**
+ * Folded content find can open: the element carries data-find-reveal="closed" while folded, and the find bar
+ * sends it a "cc-find-reveal" event when the current match is inside.
+ */
+function useFindReveal(open: () => void) {
+  const ref = useRef<HTMLDivElement>(null);
+  const cb = useRef(open);
+  cb.current = open;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const on = () => cb.current();
+    el.addEventListener("cc-find-reveal", on);
+    return () => el.removeEventListener("cc-find-reveal", on);
+  }, []);
+  return ref;
+}
+
+/** Claude's private thinking, folded. Its text stays in the page (hidden) so find can reach it. */
 function Thinking({ text }: { text: string }) {
   const mask = useMask();
   const [open, setOpen] = useState(false);
+  const ref = useFindReveal(() => setOpen(true));
   return (
     <div className="mt-1.5">
-      <button onClick={() => setOpen(!open)} className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground" aria-expanded={open}>
+      <button data-find-skip onClick={() => setOpen(!open)} className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground" aria-expanded={open}>
         <ChevronRight className={cn("size-3 transition-transform", open && "rotate-90")} />
         <Brain className="size-3" /> Claude&apos;s thinking · {fmt(text.length)} characters
       </button>
-      {open && <div className="mt-1.5 rounded-lg bg-foreground/[0.04] px-3 py-2 text-[12px] leading-relaxed break-words whitespace-pre-wrap text-foreground/75 italic">{mask(text)}</div>}
+      <div
+        ref={ref}
+        hidden={!open}
+        data-find-reveal={open ? "open" : "closed"}
+        className="mt-1.5 rounded-lg bg-foreground/[0.04] px-3 py-2 text-[12px] leading-relaxed break-words whitespace-pre-wrap text-foreground/75 italic"
+      >
+        {mask(text)}
+      </div>
     </div>
   );
 }
@@ -326,14 +377,16 @@ function Thinking({ text }: { text: string }) {
 /** Long text collapses behind a "Show all" button. */
 function Collapsible({ long, children, fade = "from-background" }: { long: boolean; children: ReactNode; fade?: string }) {
   const [open, setOpen] = useState(false);
+  const ref = useFindReveal(() => setOpen(true));
+  const folded = long && !open;
   return (
     <>
-      <div className={cn(long && !open && "relative max-h-72 overflow-hidden")}>
+      <div ref={ref} data-find-reveal={folded ? "closed" : "open"} className={cn(folded && "relative max-h-72 overflow-hidden")}>
         {children}
-        {long && !open && <div className={cn("pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t to-transparent", fade)} />}
+        {folded && <div className={cn("pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t to-transparent", fade)} />}
       </div>
       {long && (
-        <button onClick={() => setOpen(!open)} className="mt-1 text-xs font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground">
+        <button data-find-skip onClick={() => setOpen(!open)} className="mt-1 text-xs font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground">
           {open ? "Show less" : "Show all"}
         </button>
       )}
@@ -346,7 +399,7 @@ function YouRow({ step }: { step: Step }) {
   const text = typeof step.quote === "string" ? step.quote : "";
   return (
     <div className="ml-auto w-fit max-w-[min(88%,620px)]">
-      <div className="mb-1 flex items-center justify-end gap-1.5 text-[11px] text-muted-foreground">
+      <div data-find-skip className="mb-1 flex items-center justify-end gap-1.5 text-[11px] text-muted-foreground">
         <span className="font-semibold" style={{ color: hueColor(220) }}>
           You
         </span>
@@ -368,10 +421,12 @@ function YouRow({ step }: { step: Step }) {
 }
 
 function TextRow({ row, actors, hue, tech, onDetails }: { row: ConvRow; actors: Record<string, Actor>; hue: number; tech: boolean; onDetails: (id: string) => void }) {
+  const mask = useMask();
   const s = row.step;
   const text = typeof s.quote === "string" ? s.quote : "";
-  const name = actors[row.speaker]?.name ?? "Claude";
-  const to = s.from ? actors[s.actor]?.name : undefined;
+  // Helper names come from their briefs, so they're log text too.
+  const name = mask(actors[row.speaker]?.name ?? "Claude");
+  const to = s.from && actors[s.actor] ? mask(actors[s.actor].name) : undefined;
   const label =
     s.kind === "reply"
       ? "answered you"
@@ -384,7 +439,7 @@ function TextRow({ row, actors, hue, tech, onDetails }: { row: ConvRow; actors: 
             : "while working";
   return (
     <div className="max-w-full">
-      <div className="mb-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground">
+      <div data-find-skip className="mb-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground">
         <span className="size-2 shrink-0 rounded-[3px]" style={{ background: hueColor(hue) }} />
         <span className="font-semibold text-foreground">{name}</span>
         <span>{label}</span>
@@ -403,10 +458,22 @@ function TextRow({ row, actors, hue, tech, onDetails }: { row: ConvRow; actors: 
       </div>
       <div className={cn("rounded-2xl rounded-tl-md border px-3.5 py-2.5", s.kind === "reply" ? "border-foreground/15 bg-background" : "border-foreground/10 bg-foreground/[0.025]")}>
         <Collapsible long={text.length > LONG_TEXT} fade="from-background/0">
-          {text ? <Markdown text={text} /> : <p className="text-[13px] text-muted-foreground">(no text)</p>}
+          {text ? (
+            <Markdown text={text} />
+          ) : (
+            <p data-find-skip className="text-[13px] text-muted-foreground">
+              (no text)
+            </p>
+          )}
         </Collapsible>
       </div>
-      {s.thinking ? <Thinking text={s.thinking} /> : s.usage ? <p className="mt-1 text-[11px] text-muted-foreground/70">Thinking not recorded</p> : null}
+      {s.thinking ? (
+        <Thinking text={s.thinking} />
+      ) : s.usage ? (
+        <p data-find-skip className="mt-1 text-[11px] text-muted-foreground/70">
+          Thinking not recorded
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -433,10 +500,18 @@ function ToolRow({ row, open, tech, canWhy, onToggle, onWhy, onDetails, hue }: R
           <span className="flex size-6 shrink-0 items-center justify-center rounded-md" style={{ background: hueColor(hue, 0.16), color: hueColor(hue) }}>
             <StepIcon icon={s.icon} className="size-3.5" />
           </span>
-          <span className="shrink-0 text-[13px] font-medium">{s.title}</span>
-          <span className="min-w-0 truncate text-xs text-muted-foreground">{mask(s.subtitle)}</span>
-          {tech && s.tool && <code className="hidden max-w-[180px] shrink-0 truncate text-[10.5px] text-muted-foreground sm:inline">{s.tool}</code>}
-          <span className="ml-auto flex shrink-0 items-center gap-1.5 pl-1">
+          <span data-find-block className="shrink-0 text-[13px] font-medium">
+            {mask(s.title)}
+          </span>
+          <span data-find-block className="min-w-0 truncate text-xs text-muted-foreground">
+            {mask(s.subtitle)}
+          </span>
+          {tech && s.tool && (
+            <code data-find-skip className="hidden max-w-[180px] shrink-0 truncate text-[10.5px] text-muted-foreground sm:inline">
+              {s.tool}
+            </code>
+          )}
+          <span data-find-skip className="ml-auto flex shrink-0 items-center gap-1.5 pl-1">
             {outcome ? (
               <span className={cn("rounded-full px-1.5 py-px text-[10.5px] font-medium whitespace-nowrap", outcome.cls)}>{outcome.text}</span>
             ) : s.status === "error" ? (
@@ -449,6 +524,7 @@ function ToolRow({ row, open, tech, canWhy, onToggle, onWhy, onDetails, hue }: R
         </button>
         {canWhy && (
           <button
+            data-find-skip
             onClick={() => onWhy(s.id)}
             className="shrink-0 rounded-md px-1.5 py-1 text-[11px] font-medium text-muted-foreground underline-offset-2 hover:bg-foreground/[0.05] hover:text-foreground hover:underline"
             title="Jump to what Claude said before doing this"
@@ -462,12 +538,24 @@ function ToolRow({ row, open, tech, canWhy, onToggle, onWhy, onDetails, hue }: R
           <p className="text-[13px] leading-relaxed">
             <TermText text={mask(s.what)} />
           </p>
-          {s.status === "error" && !row.outcome && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-[12px] leading-relaxed text-red-600 dark:text-red-300">{ERROR_NOTE}</p>}
-          {row.outcome === "orphan" && <p className="text-xs text-muted-foreground">No result was ever logged for this step: the request ended or was cut off before it finished.</p>}
-          {row.outcome === "denied" && <p className="text-xs text-muted-foreground">Claude asked for permission to do this and you said no, so it didn&apos;t happen.</p>}
+          {s.status === "error" && !row.outcome && (
+            <p data-find-skip className="rounded-lg bg-red-500/10 px-3 py-2 text-[12px] leading-relaxed text-red-600 dark:text-red-300">
+              {ERROR_NOTE}
+            </p>
+          )}
+          {row.outcome === "orphan" && (
+            <p data-find-skip className="text-xs text-muted-foreground">
+              No result was ever logged for this step: the request ended or was cut off before it finished.
+            </p>
+          )}
+          {row.outcome === "denied" && (
+            <p data-find-skip className="text-xs text-muted-foreground">
+              Claude asked for permission to do this and you said no, so it didn&apos;t happen.
+            </p>
+          )}
           <ToolRenderer step={s} />
           {s.thinking && <Thinking text={s.thinking} />}
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+          <div data-find-skip className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
             <span>{time(s.ts)}</span>
             {s.durationMs !== undefined && <span>· took {formatDuration(s.durationMs)}</span>}
             <ModelBadge model={s.model} tech={tech} />
@@ -488,7 +576,7 @@ function SpecialRow({ row, onDetails }: { row: ConvRow; onDetails: (id: string) 
   if (row.kind === "memory") {
     const tokens = s.memory?.tokens ?? 0;
     return (
-      <button onClick={() => onDetails(s.id)} className="flex w-full items-center gap-3 py-1 text-[11px] text-muted-foreground hover:text-foreground">
+      <button data-find-skip onClick={() => onDetails(s.id)} className="flex w-full items-center gap-3 py-1 text-[11px] text-muted-foreground hover:text-foreground">
         <span className="h-px flex-1 bg-foreground/10" />
         <span className="flex items-center gap-1.5 text-center">
           <Brain className="size-3.5 shrink-0" /> Claude re-read the conversation so far{tokens ? ` · ${short(tokens)} tokens` : ""}
@@ -499,7 +587,7 @@ function SpecialRow({ row, onDetails }: { row: ConvRow; onDetails: (id: string) 
   }
   if (row.kind === "compact")
     return (
-      <div className="flex items-center gap-3 py-1 text-[11px] text-amber-700 dark:text-amber-300">
+      <div data-find-skip className="flex items-center gap-3 py-1 text-[11px] text-amber-700 dark:text-amber-300">
         <span className="h-px flex-1 bg-amber-500/40" />
         <span className="flex items-center gap-1.5 text-center">
           <Scissors className="size-3.5 shrink-0" /> Claude summarised the conversation here to make room in its memory
@@ -509,7 +597,7 @@ function SpecialRow({ row, onDetails }: { row: ConvRow; onDetails: (id: string) 
     );
   if (row.kind === "interrupted")
     return (
-      <div className="flex justify-center py-0.5">
+      <div data-find-skip className="flex justify-center py-0.5">
         <span className="flex items-center gap-1.5 rounded-full bg-amber-500/12 px-3 py-1 text-[12px] font-medium text-amber-700 dark:text-amber-300">
           <OctagonX className="size-3.5" /> You stopped Claude here · {time(s.ts)}
         </span>
@@ -518,19 +606,19 @@ function SpecialRow({ row, onDetails }: { row: ConvRow; onDetails: (id: string) 
   if (row.kind === "error")
     return (
       <div className="rounded-xl bg-red-500/[0.08] px-3.5 py-2.5 text-[13px]">
-        <p className="flex flex-wrap items-center gap-1.5 font-medium text-red-700 dark:text-red-300">
-          <TriangleAlert className="size-3.5 shrink-0" /> {s.title === "Request failed" ? "A request to Claude failed" : s.title}
+        <p data-find-skip className="flex flex-wrap items-center gap-1.5 font-medium text-red-700 dark:text-red-300">
+          <TriangleAlert className="size-3.5 shrink-0" /> {s.title === "Request failed" ? "A request to Claude failed" : mask(s.title)}
           <span className="font-normal text-muted-foreground">· {time(s.ts)}</span>
         </p>
         <p className="mt-1 leading-relaxed break-words">{s.kind === "note" ? <TermText text={mask(s.what)} /> : mask(typeof s.quote === "string" ? s.quote : s.what)}</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          <TermText text={s.kind === "note" ? s.why : "Claude Code couldn't get a reply from Claude, often because of a usage limit or a network problem. It isn't something you did."} />
+        <p data-find-skip className="mt-1 text-xs text-muted-foreground">
+          <TermText text={s.kind === "note" ? mask(s.why) : "Claude Code couldn't get a reply from Claude, often because of a usage limit or a network problem. It isn't something you did."} />
         </p>
       </div>
     );
   return (
-    <div className="rounded-xl bg-foreground/[0.04] px-3.5 py-2 text-[12px] text-muted-foreground">
-      <span className="font-medium text-foreground">{s.title}</span> · <TermText text={mask(s.what)} />
+    <div data-find-skip className="rounded-xl bg-foreground/[0.04] px-3.5 py-2 text-[12px] text-muted-foreground">
+      <span className="font-medium text-foreground">{mask(s.title)}</span> · <TermText text={mask(s.what)} />
     </div>
   );
 }
