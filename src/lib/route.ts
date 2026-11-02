@@ -126,6 +126,16 @@ export function formatRoute(r: Route): string {
   return q ? `#/s${q}` : "";
 }
 
+/**
+ * The route after `patch`. On the same page, fields merge (pass `undefined` to clear one). Moving to another
+ * page starts from that page's defaults: only what `patch` names is carried, so Compare's `a=` (stored in
+ * `file`) or a search's `q` never leaks into the next page.
+ */
+export function nextRoute(current: Route, patch: Partial<Route>): Route {
+  if (patch.page !== undefined && patch.page !== current.page) return { ...defaultRoute(), ...patch } as Route;
+  return { ...current, ...patch };
+}
+
 // --- React hook ------------------------------------------------------------------------------------
 
 const ROUTE_EVENT = "cc-trace:route"; // pushState/replaceState don't fire hashchange
@@ -151,7 +161,7 @@ export function useRoute(): [Route, Navigate] {
   const hash = useSyncExternalStore(subscribe, getHash, getServerHash);
   const route = useMemo(() => parseRoute(hash), [hash]);
   const navigate = useCallback<Navigate>((patch, replace = false) => {
-    const next = formatRoute({ ...parseRoute(window.location.hash), ...patch });
+    const next = formatRoute(nextRoute(parseRoute(window.location.hash), patch));
     if (next === formatRoute(parseRoute(window.location.hash))) return;
     const url = window.location.pathname + window.location.search + next;
     try {

@@ -1,7 +1,7 @@
 // Self-check for the URL hash <-> route mapping.
 //   node --experimental-strip-types scripts/route.check.mts
 import assert from "node:assert/strict";
-import { formatRoute, parseRoute } from "../src/lib/route.ts";
+import { formatRoute, nextRoute, parseRoute } from "../src/lib/route.ts";
 import { DEFAULT_SETTINGS, parseSettings } from "../src/lib/settings.ts";
 
 const DEFAULT = { page: "session", view: "map" };
@@ -73,6 +73,23 @@ for (const h of ["", "#", "#/", "/", "#/nope", "#/session", "#/s/%E0%A4%A/map", 
 assert.equal(formatRoute({ page: "session", view: "map" }), "");
 // An unknown view in a hand-made route never reaches the URL.
 assert.equal(formatRoute({ page: "session", file: "a.jsonl", view: "bogus" as "map" }), "#/s/a.jsonl/map");
+
+// A project together with a file, and an unknown view after a turn.
+assert.equal(formatRoute(parseRoute(`#/s/${enc(posix)}/map?project=${enc("-Users-me-app")}`)), `#/s/${enc(posix)}/map?project=${enc("-Users-me-app")}`);
+assert.deepEqual(parseRoute(`#/s/${enc(posix)}/map?project=${enc("-Users-me-app")}`), { page: "session", project: "-Users-me-app", file: posix, view: "map" });
+assert.deepEqual(parseRoute("#/s/a.jsonl/3/bogus"), { page: "session", file: "a.jsonl", turn: 3, view: "map" });
+assert.equal(formatRoute(parseRoute("#/s/a.jsonl/3/bogus")), "#/s/a.jsonl/3/map");
+
+// Moving to another page only carries what belongs to it: Compare's a= never becomes the session's file.
+const compareAt = parseRoute(`#/compare?a=${enc("x/a.jsonl")}&b=${enc("x/b.jsonl")}`);
+assert.deepEqual(nextRoute(compareAt, { page: "session" }), { page: "session", view: "map" });
+assert.deepEqual(nextRoute(compareAt, { page: "session", file: "y/c.jsonl" }), { page: "session", file: "y/c.jsonl", view: "map" });
+assert.deepEqual(nextRoute(parseRoute("#/search?q=bug"), { page: "dashboard" }), { page: "dashboard", view: "map" });
+assert.deepEqual(nextRoute(parseRoute(`#/s/${enc(posix)}/2/stats?step=s1`), { page: "compare" }), { page: "compare", view: "map" });
+// On the same page, fields merge as before.
+assert.deepEqual(nextRoute(parseRoute(`#/s/${enc(posix)}/2/stats`), { step: "s9" }), { page: "session", file: posix, turn: 2, view: "stats", step: "s9" });
+assert.deepEqual(nextRoute(compareAt, { other: "x/z.jsonl" }), { ...compareAt, other: "x/z.jsonl" });
+assert.deepEqual(nextRoute(parseRoute(`#/s/${enc(posix)}/2/stats`), { page: "session", turn: undefined }), { page: "session", file: posix, turn: undefined, view: "stats" });
 
 console.log("route checks passed");
 
