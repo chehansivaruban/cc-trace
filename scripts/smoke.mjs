@@ -255,6 +255,122 @@ try {
   assert.equal((await get("/api/search?q=hello", { Host: "evil.example" })).status, 403);
   console.log("✓ searches across sessions and refuses one-letter searches");
   // ── end search ──
+  // ── live updates (Review Focus 5) ──
+  {
+    // A session still being written: a step appended while the page is open shows up exactly once, and a
+    // /clear-style rewrite (the file shrinks) starts the page over cleanly. The records are kept the way
+    // useSessionStream keeps them, then built into the model the page shows.
+    const liveDir = path.join(config, "projects", "C--Users-demo-live");
+    fs.mkdirSync(liveDir, { recursive: true });
+    const liveLog = path.join(liveDir, "live.jsonl");
+    const add = (rec) => fs.appendFileSync(liveLog, JSON.stringify(rec) + "\n");
+    add({ type: "user", cwd: "C:\\Users\\demo\\live", timestamp: t, message: { content: "watch me live" } });
+    add({ type: "assistant", timestamp: t, message: { content: [{ type: "text", text: "On it." }] } });
+    const liveFile = encodeURIComponent(path.join("C--Users-demo-live", "live.jsonl"));
+
+    /** Opens the stream and keeps {main, agents} like the page does; `script(state, waitFor)` drives the test. */
+    const follow = (script) =>
+      new Promise((resolve, reject) => {
+        const state = { main: [], agents: {}, resets: 0, events: [] };
+        const waiters = [];
+        const check = () => {
+          for (const w of [...waiters]) {
+            if (!w.test(state)) continue;
+            waiters.splice(waiters.indexOf(w), 1);
+            w.done();
+          }
+        };
+        const waitFor = (test, what) =>
+          new Promise((done, bad) => {
+            const timer = setTimeout(() => bad(new Error(`live stream: timed out waiting for ${what}`)), 15_000);
+            waiters.push({ test, done: () => (clearTimeout(timer), done()) });
+            check();
+          });
+        let buf = "";
+        let ready = false;
+        const req = http.get({ host: "127.0.0.1", port: PORT, path: `/api/stream?file=${liveFile}` }, (res) => {
+          res.on("data", (d) => {
+            buf += d;
+            lastStream = (lastStream + d).slice(-600);
+            let i;
+            while ((i = buf.indexOf("\n\n")) >= 0) {
+              const block = buf.slice(0, i);
+              buf = buf.slice(i + 2);
+              const event = /^event: (.*)$/m.exec(block)?.[1];
+              const data = /^data: (.*)$/m.exec(block)?.[1];
+              if (!event) continue;
+              state.events.push(event);
+              if (event === "records") {
+                const { source, records } = JSON.parse(data);
+                if (source === null) state.main = state.main.concat(records);
+                else state.agents[source] = { ...state.agents[source], records: (state.agents[source]?.records ?? []).concat(records) };
+              } else if (event === "reset") {
+                state.resets++;
+                state.main = [];
+                state.agents = {};
+              } else if (event === "ready" && !ready) {
+                ready = true;
+                script(state, waitFor).then(
+                  () => (req.destroy(), resolve(state)),
+                  (err) => (req.destroy(), reject(err)),
+                );
+              }
+              check();
+            }
+          });
+        });
+        req.on("error", (err) => err.code !== "ECONNRESET" && reject(err));
+      });
+
+    // Builds the model with the app's own code. Node 20 can't run TypeScript: there the record checks still run.
+    const [major, minor] = process.versions.node.split(".").map(Number);
+    const canModel = major > 22 || (major === 22 && minor >= 6);
+    const model = (state) =>
+      JSON.parse(
+        execSync(`"${process.execPath}" --no-warnings --experimental-strip-types "${path.join(root, "scripts", "live-model.mts")}"`, {
+          input: JSON.stringify({ main: state.main, agents: state.agents }),
+        }).toString(),
+      );
+    const uses = (state, id) => state.main.filter((r) => r.message?.content?.some?.((b) => b.type === "tool_use" && b.id === id)).length;
+    const results = (state, id) => state.main.filter((r) => r.message?.content?.some?.((b) => b.type === "tool_result" && b.tool_use_id === id)).length;
+
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    await follow(async (state, waitFor) => {
+      // The tool call, then its result written in two halves (a line caught mid-write).
+      add({ type: "assistant", timestamp: t, message: { stop_reason: "tool_use", content: [{ type: "tool_use", id: "rf5-tool", name: "Bash", input: { command: "echo rf5" } }] } });
+      await waitFor((s) => uses(s, "rf5-tool") > 0, "the tool call");
+      const result = JSON.stringify({ type: "user", timestamp: t, message: { content: [{ type: "tool_result", tool_use_id: "rf5-tool", content: "rf5-done" }] } }) + "\n";
+      fs.appendFileSync(liveLog, result.slice(0, 40));
+      await sleep(400);
+      fs.appendFileSync(liveLog, result.slice(40));
+      await waitFor((s) => results(s, "rf5-tool") > 0, "the tool result");
+      await sleep(1500); // room for a duplicate to show up, if one were coming
+      assert.equal(uses(state, "rf5-tool"), 1, "the tool call arrives once");
+      assert.equal(results(state, "rf5-tool"), 1, "the tool result arrives once");
+      assert.equal(state.main.length, 4, "nothing else was re-sent");
+      if (canModel) {
+        const m = model(state);
+        const steps = m.steps.filter((s) => s.id === "rf5-tool");
+        assert.equal(steps.length, 1, "the new step is in the model exactly once");
+        assert.equal(steps[0].status, "success");
+        assert.equal(new Set(m.steps.map((s) => s.id)).size, m.steps.length, "no step id twice");
+      }
+
+      // /clear-style: the log is rewritten shorter. The page must start over, with no old steps left.
+      const resetsBefore = state.resets;
+      fs.writeFileSync(liveLog, JSON.stringify({ type: "user", timestamp: t, message: { content: "after-clear" } }) + "\n");
+      await waitFor((s) => s.resets > resetsBefore && s.main.some((r) => r.message?.content === "after-clear"), "the restart after the log shrank");
+      await sleep(800);
+      assert.equal(state.main.length, 1, "only the rewritten log is left");
+      if (canModel) {
+        const m = model(state);
+        assert.equal(m.turns, 1);
+        assert.ok(!m.steps.some((s) => s.id === "rf5-tool"), "old steps are gone after the restart");
+      }
+    });
+    console.log(`✓ live updates: a new step arrives once, a shrinking log starts over${canModel ? "" : " (model check needs Node 22.6+)"}`);
+  }
+  // ── end live updates ──
 
   console.log(`smoke test passed (${process.platform}, node ${process.version})`);
   finish(0);
