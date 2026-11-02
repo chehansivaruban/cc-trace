@@ -31,7 +31,7 @@
     "build": "next build",
     "start": "node bin/cc-trace.mjs",
     "lint": "eslint",
-    "check": "node --no-warnings --experimental-strip-types scripts/route.check.mts && node --no-warnings --experimental-strip-types scripts/sessions.check.mts && node --no-warnings --experimental-strip-types scripts/stats.check.mts && node --no-warnings --experimental-strip-types scripts/ux.check.mts && node --no-warnings --experimental-strip-types scripts/session.check.mts",
+    "check": "node --no-warnings --experimental-strip-types scripts/route.check.mts && node --no-warnings --experimental-strip-types scripts/sessions.check.mts && node --no-warnings --experimental-strip-types scripts/stats.check.mts && node --no-warnings --experimental-strip-types scripts/ux.check.mts && node --no-warnings --experimental-strip-types scripts/health.check.mts && node --no-warnings --experimental-strip-types scripts/session.check.mts",
     "prepublishOnly": "pnpm check && pnpm build",
     "smoke": "node scripts/smoke.mjs"
   },

@@ -4,8 +4,10 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Check, ListOrdered, Loader2, Mail, Pause, Play, Radio, SkipBack, SkipForward, X } from "lucide-react";
 import { useZoom } from "@/hooks/use-zoom";
+import { riskOf } from "@/lib/analytics/risk";
 import { MESSAGE_KINDS, type Actor, type Live, type Step, type Turn } from "@/lib/session";
 import { cn } from "@/lib/utils";
+import { PhaseBand } from "./phase-band";
 import { StepIcon, hueColor } from "./step-icon";
 import { ZoomControls } from "./zoom-controls";
 
@@ -248,6 +250,7 @@ export function StoryMap(props: {
           Only messages between agents
         </label>
       </div>
+      <PhaseBand turn={turn} selected={selectedStep} onPick={(id) => onSelect({ type: "step", id })} />
 
       <div className="relative min-h-0 flex-1">
         <div ref={scroller} className="h-full cursor-grab overflow-auto data-[panning]:cursor-grabbing data-[panning]:select-none">
@@ -430,6 +433,8 @@ const StepNode = memo(function StepNode(props: {
 }) {
   const { step: s, hue } = props;
   const message = !!s.from || s.kind === "prompt";
+  const { tool, input } = s;
+  const risk = useMemo(() => riskOf({ tool, input } as Step), [tool, input]);
   return (
     <button
       onClick={props.onClick}
@@ -463,6 +468,13 @@ const StepNode = memo(function StepNode(props: {
       <span className="absolute top-1.5 right-1.5">
         <Status status={s.status} stale={props.stale} />
       </span>
+      {risk && (
+        <span
+          className={cn("absolute -top-1 -left-1 size-2.5 rounded-full ring-2 ring-background", risk.level === "danger" ? "bg-red-500" : "bg-amber-400")}
+          title={risk.why}
+          aria-label={`Worth a second look: ${risk.why}`}
+        />
+      )}
     </button>
   );
 });
