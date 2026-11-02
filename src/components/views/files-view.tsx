@@ -187,7 +187,7 @@ function FileDetail({ entry: file, model, mask, tech, onBack, ...props }: { entr
       {changes.length > 0 && (
         <ol className="relative mt-5 space-y-6 border-l border-foreground/10 pl-5">
           {changes.map(({ step, turn }, i) => {
-            const who = model.actors[step.actor]?.name ?? "Claude";
+            const who = mask(model.actors[step.actor]?.name ?? "Claude");
             return (
               <li key={step.id} className="relative">
                 <span className="absolute top-1.5 -left-[1.5625rem] size-2.5 rounded-full bg-violet-400 ring-4 ring-background" />

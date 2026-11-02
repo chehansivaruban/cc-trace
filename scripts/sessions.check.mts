@@ -2,6 +2,7 @@
 // commands, search, and the live-session registry.
 //   node --no-warnings --experimental-strip-types scripts/sessions.check.mts
 import assert from "node:assert/strict";
+import { maskText } from "../src/lib/redact.ts";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -76,10 +77,12 @@ try {
   assert.equal(pickTitle(head, {}), "Early AI title", "a title in the head counts when the tail has none");
   assert.equal(pickTitle({ ...head, aiTitle: undefined }, {}), "fix the login bug");
   assert.equal(pickTitle({}, {}), "Untitled session");
-  // Long titles are cut at a word boundary with a visible "…", so masking later still sees whole words.
-  assert.equal(pickTitle({ firstPrompt: "word ".repeat(100) }, {}), `${"word ".repeat(60).trim()}…`);
+  // Long titles are cut after a whole word with a visible "…", so masking later still sees whole words.
+  assert.equal(pickTitle({ firstPrompt: "word ".repeat(100) }, {}), `${"word ".repeat(61).trim()}…`);
   const longKey = pickTitle({ firstPrompt: "a".repeat(290) + " sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWX tail" }, {});
-  assert.ok(!longKey.includes("sk-ant") && longKey.endsWith("…"), longKey);
+  assert.ok(!maskText(longKey).includes("sk-ant") && longKey.endsWith("…"), longKey);
+  // One very long word is kept (not a bare "…" title).
+  assert.ok(pickTitle({ firstPrompt: "z".repeat(400) }, {}).startsWith("zzzz"));
   assert.deepEqual(scanTail(""), {});
   console.log("✓ head and tail scans pick the title");
 

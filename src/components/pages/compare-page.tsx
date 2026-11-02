@@ -11,6 +11,7 @@ import type { ProjectInfo } from "@/lib/claude-logs";
 import type { AppPageProps } from "@/lib/route";
 import { SESSION_START, buildSession, type SessionModel } from "@/lib/session";
 import { cn } from "@/lib/utils";
+import { maskClip } from "@/lib/redact";
 
 const shortPath = (p: string) => p.split(/[\\/]/).filter(Boolean).slice(-2).join("/") || p;
 
@@ -52,11 +53,10 @@ function Picker(props: {
         {!file && <option value="">Pick a session…</option>}
         {file && projects.length > 0 && !projects.some((p) => p.sessions.some((s) => s.file === file)) && <option value={file}>A session that wasn&apos;t found</option>}
         {projects.map((p) => (
-          <optgroup key={p.dir} label={shortPath(p.path)}>
+          <optgroup key={p.dir} label={mask(shortPath(p.path))}>
             {p.sessions.map((s) => (
               <option key={s.file} value={s.file}>
-                {/* The listing cuts titles at 120 characters before any masking. */}
-                {mask(s.title).slice(0, 80)}
+                {maskClip(s.title, 80, mask)}
               </option>
             ))}
           </optgroup>

@@ -103,6 +103,10 @@ export function userNamesFrom(paths: readonly (string | undefined | null)[]): st
   return out;
 }
 
+/**
+ * `names` are matched as whole words and case-insensitively, on purpose: a user named "Mark" also hides the
+ * word "mark" in ordinary text. That's the price of catching "mark", "MARK" and "Mark" in shell output.
+ */
 export type MaskOptions = { home?: string; names?: readonly string[] };
 export type Masker = (text: string) => string;
 
@@ -136,12 +140,24 @@ export function maskThenClip(text: string, max: number, mask: Masker): string {
 }
 
 /**
- * Shortens text without splitting a word, so masking it afterwards still sees every secret whole, and adds
- * "…" so the cut is visible. A single word longer than `max` is dropped entirely.
+ * Masks, then cuts at `max` characters and adds "…" when something was cut: for short previews on screen.
+ */
+export function maskClip(text: string, max: number, mask: Masker): string {
+  const out = maskThenClip(text, max, mask);
+  return text.length > max && out.length >= max ? `${out}…` : out;
+}
+
+/**
+ * Shortens text that is stored or sent before anything can mask it (titles, subtitles, helper names). It
+ * never cuts inside a word: the word that crosses `max` is kept whole, then "…", so masking afterwards still
+ * sees every secret whole, and one long word isn't lost. A word longer than CLIP_MARGIN is cut at that hard
+ * limit (masking still recognises the start of most keys). The page shortens the result further on screen.
  */
 export function safeClip(text: string, max: number): string {
   if (text.length <= max) return text;
-  const cut = text.slice(0, max + 1);
-  const space = cut.search(/\s\S*$/);
-  return `${space > 0 ? cut.slice(0, space).trimEnd() : ""}…`;
+  const space = text.slice(max).search(/\s/);
+  if (space < 0) return text.length <= max + CLIP_MARGIN ? text : `${text.slice(0, max + CLIP_MARGIN)}…`;
+  if (space > CLIP_MARGIN) return `${text.slice(0, max + CLIP_MARGIN)}…`;
+  const head = text.slice(0, max + space).trimEnd();
+  return head.length < text.trimEnd().length ? `${head}…` : head;
 }

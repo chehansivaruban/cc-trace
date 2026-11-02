@@ -220,6 +220,15 @@ const risky: [string, "caution" | "danger" | undefined][] = [
   ["pwsh -c 'Remove-Item -Recurse -Force C:\\x'", "danger"],
   ["cmd.exe /c \"del /s C:\\x\"", "danger"],
   ['tool /c "rm -rf /"', undefined],
+  // Flags that take values before -c / -Command still wrap a command.
+  ['powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Remove-Item -Recurse -Force C:\\x"', "danger"],
+  ["bash -o pipefail -c 'rm -rf docs'", "danger"],
+  ["sh -e -u -c 'rm -rf docs'", "danger"],
+  ['grep -c "rm -rf /" f && echo "rm -rf /"', undefined],
+  ["bash run.sh && grep -c 'rm -rf /' f", undefined],
+  // ".." after a rebuildable folder climbs back out of it.
+  ["rm -rf node_modules/..", "danger"],
+  ["rm -rf dist/../src", "danger"],
   // Force refspecs: "+src:dst" and "src:+dst".
   ["git push origin HEAD:+main", "danger"],
   ["git push origin feature:+refs/heads/main", "danger"],

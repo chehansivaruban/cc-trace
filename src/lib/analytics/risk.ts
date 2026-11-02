@@ -59,14 +59,17 @@ const EXPECTED_OUTSIDE = /^(\/tmp|\/private\/tmp|\/var\/folders|\/private\/var\/
 
 const HEREDOC = /<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?(?:\n\s*\2(?=\s|$)|$)/g;
 // A quoted argument right after one of these is itself a command: `bash -c '…'`, `ssh host "…"`, `cmd /c "…"`.
-// The -c, -Command and /c flags only count after a shell's name (`grep -c "…"` just counts matches).
+// The -c, -Command and /c flags only count once a shell's name was seen earlier in the same command segment
+// (`grep -c "…"` just counts matches); other flags and their values may sit in between
+// (`bash -o pipefail -c`, `powershell -ExecutionPolicy Bypass -Command`).
 const SHELL_WORD = String.raw`(?:^|[\s;&|(/\\])`;
+const SAME_SEGMENT = String.raw`(?:\s[^;&|\n]*)?`;
 const WRAPPER = new RegExp(
   "(?:" +
     [
-      String.raw`${SHELL_WORD}(?:sh|bash|zsh|fish|dash|ksh)(?:\.exe)?(?:\s+-[\w-]+)*\s+-\w*c`,
-      String.raw`${SHELL_WORD}(?:pwsh|powershell)(?:\.exe)?(?:\s+-[\w-]+)*\s+-(?:c|command|encodedcommand)`,
-      String.raw`${SHELL_WORD}cmd(?:\.exe)?(?:\s+\/\w+)*\s+\/[ck]`,
+      String.raw`${SHELL_WORD}(?:sh|bash|zsh|fish|dash|ksh)(?:\.exe)?${SAME_SEGMENT}\s-\w*c`,
+      String.raw`${SHELL_WORD}(?:pwsh|powershell)(?:\.exe)?${SAME_SEGMENT}\s-(?:c|command|encodedcommand|ec)`,
+      String.raw`${SHELL_WORD}cmd(?:\.exe)?${SAME_SEGMENT}\s\/[ck]`,
       String.raw`(?:^|[\s;&|(])eval`,
       String.raw`(?:^|[\s;&|(])ssh(?:\s+[^\s;&|"']+)+`,
       String.raw`${SHELL_WORD}(?:sh|bash|zsh|fish|dash|ksh|pwsh|powershell|cmd)(?:\.exe)?`,
@@ -138,10 +141,11 @@ function deletions(cmd: string): Deletion[] {
 
 /** A folder the project rebuilds, written relative to the project or as a path inside it. */
 function rebuildable(target: string, cwds: string[]): boolean {
-  if (!REBUILDABLE.test(target)) return false;
   if (/^[~$%]/.test(target)) return false; // the home folder or a variable: can't tell where it points
-  // "../node_modules" climbs out of the project: someone else's folder.
-  if (!isAbsolutePath(target)) return !normalizePath(target).startsWith("..");
+  // Judged on the resolved path: "node_modules/.." is the project itself, "../node_modules" someone else's.
+  const resolved = normalizePath(target);
+  if (!resolved || !REBUILDABLE.test(resolved)) return false;
+  if (!isAbsolutePath(target)) return !resolved.startsWith("..");
   return cwds.some((dir) => isInside(target, dir));
 }
 

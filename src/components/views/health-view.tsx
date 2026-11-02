@@ -226,7 +226,7 @@ export function HealthView(props: SessionViewProps) {
                       <span className="mt-1 block text-[0.8125rem] leading-relaxed text-foreground/85">{risk.why}</span>
                       <span className="mt-0.5 block text-xs text-muted-foreground">
                         {scope === "session" && <>Request {t + 1} · </>}
-                        {model.actors[step.actor]?.name ?? "Claude"}
+                        {mask(model.actors[step.actor]?.name ?? "Claude")}
                       </span>
                       {tech && typeof cmd === "string" && (
                         <code className="mt-1.5 block max-h-24 overflow-hidden rounded-lg bg-foreground/[0.05] px-2.5 py-1.5 text-[0.6875rem] break-all whitespace-pre-wrap">{mask(cmd)}</code>

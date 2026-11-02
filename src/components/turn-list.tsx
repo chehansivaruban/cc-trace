@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useMask } from "@/hooks/use-mask";
-import { safeClip } from "@/lib/redact";
+import { maskClip } from "@/lib/redact";
 import type { Actor, Turn } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
@@ -48,7 +48,7 @@ export function TurnList(props: { turns: Turn[]; actors: Record<string, Actor>; 
                 )}
                 <span className="ml-auto">{ago(t.ts)}</span>
               </div>
-              <p className="mt-0.5 line-clamp-2 text-[0.8125rem] leading-snug">{mask(safeClip(t.text, 400))}</p>
+              <p className="mt-0.5 line-clamp-2 text-[0.8125rem] leading-snug">{maskClip(t.text, 400, mask)}</p>
               <p className="mt-1 text-[0.6875rem] text-muted-foreground">
                 {t.steps.length} steps{helpers ? ` · ${helpers} helper${helpers === 1 ? "" : "s"}` : ""}
               </p>

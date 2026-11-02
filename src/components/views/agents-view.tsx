@@ -225,7 +225,7 @@ function TreeNode({ node, depth, mask, tech, selectedId, onPick }: { node: Agent
           </span>
           {tech && (
             <span className="w-full truncate pl-[1.125rem] font-mono text-[0.6875rem] text-muted-foreground">
-              {[a.role, a.model, a.kind === "helper" ? a.id : null].filter(Boolean).join(" · ")}
+              {mask([a.role, a.model, a.kind === "helper" ? a.id : null].filter(Boolean).join(" · "))}
             </span>
           )}
         </button>

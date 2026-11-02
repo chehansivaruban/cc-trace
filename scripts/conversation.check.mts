@@ -24,7 +24,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { findAll, joinPieces, markdownText, rowSearchText, toolBodyText } from "../src/lib/find-text.ts";
-import { createMasker, homeFromCwds, homeOfPath, maskThenClip, safeClip, userNamesFrom } from "../src/lib/redact.ts";
+import { createMasker, homeFromCwds, homeOfPath, maskClip, maskThenClip, safeClip, userNamesFrom } from "../src/lib/redact.ts";
 import { buildSession, type Actor, type Step, type Turn } from "../src/lib/session.ts";
 
 const step = (id: string, kind: Step["kind"], actor: string, extra: Partial<Step> = {}): Step => ({
@@ -184,6 +184,8 @@ assert.equal(formatDuration(-1), "");
   // as a whole word, in any case.
   assert.deepEqual(userNamesFrom(["/Users/zelda/app", "C:\\Users\\yorick\\x", "/tmp", "/mnt/c/Users/wanda/p", "/c/Users/xena/q", "/home/quentin", undefined]), ["zelda", "yorick", "wanda", "xena", "quentin"]);
   const named = createMasker({ names: userNamesFrom(["/Users/zelda/app", "C:\\Users\\yorick\\x"]) });
+  // Case-insensitive on purpose: a user named Mark also hides the word "mark".
+  assert.equal(createMasker({ names: ["Mark"] })("mark the spot, Mark"), "••• the spot, •••");
   assert.equal(named("-rw-r--r-- 1 zelda staff 10 a.txt; yorick@host; zeldas; Zelda"), "-rw-r--r-- 1 ••• staff 10 a.txt; •••@host; zeldas; •••");
   // Names are never learned from log text: a home folder seen in text is masked as a path only.
   assert.equal(maskText("cd /home/quentin/src"), "cd ~/src");
@@ -233,13 +235,22 @@ assert.equal(formatDuration(-1), "");
   assert.ok(!/sk-ant|ABCDEF/.test(maskThenClip("w".repeat(90) + key, 100, mask)));
 }
 
-// ── safeClip: cuts at a word boundary so masking afterwards still sees whole words ──
+// ── safeClip: never cuts inside a word, so masking afterwards still sees whole words ──
 {
   assert.equal(safeClip("short", 10), "short");
-  assert.equal(safeClip("one two three", 9), "one two…");
-  assert.equal(safeClip("abcdefghijk", 5), "…");
-  const cut = safeClip("x".repeat(40) + " sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWX more", 48);
-  assert.ok(!cut.includes("sk-ant"), cut);
+  // The word that crosses the limit is kept whole, then "…".
+  assert.equal(safeClip("one two three four", 9), "one two three…");
+  assert.equal(safeClip("one two three", 9), "one two three", "nothing left to cut");
+  // One over-long word isn't dropped (no bare "…" titles): it's kept whole, up to a hard limit.
+  assert.equal(safeClip("abcdefghijk more", 5), "abcdefghijk…");
+  assert.equal(safeClip("x".repeat(5000), 10).length, 10 + 2000 + 1);
+  const mask = createMasker();
+  const cut = safeClip("x".repeat(40) + " sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWX more words", 48);
+  assert.ok(cut.endsWith("…") && !mask(cut).includes("sk-ant"), cut);
+  // For display: mask first, then cut by characters, with "…".
+  assert.equal(maskClip("abcdefghijk", 5, mask), "abcde…");
+  assert.equal(maskClip("abc", 5, mask), "abc");
+  assert.ok(!/sk-ant|ABCDEF/.test(maskClip("w".repeat(30) + " sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWX", 40, mask)));
 }
 
 // ── conversationRows on a real-shaped session ──

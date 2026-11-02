@@ -42,6 +42,7 @@ export function StoryMap(props: {
   filter?: StepFilter;
 }) {
   const { turn, actors, isLatest, live, stale, selected, onSelect, filter } = props;
+  const mask = useMask();
   const [messagesOnly, setMessagesOnly] = useState(false);
   const steps = useMemo(() => {
     const base = filter && !isFilterEmpty(filter) ? filterSteps(turn.steps, filter) : turn.steps;
@@ -173,10 +174,11 @@ export function StoryMap(props: {
   const contentW = colX(steps.length) + 20;
   const contentH = rowTop(lanes.length) + 16;
   const current = cursor !== null ? steps[cursor] : undefined;
+  // Both name helpers (from their descriptions) and can quote log text, e.g. a search pattern.
   const now = current
-    ? { text: current.doing, pulse: false }
+    ? { text: mask(current.doing), pulse: false }
     : isLatest && live.active
-      ? { text: live.sentence, pulse: true }
+      ? { text: mask(live.sentence), pulse: true }
       : { text: isLatest ? "Finished. Waiting for your next message" : `Request ${turn.index + 1} is finished`, pulse: false };
 
   return (

@@ -5,7 +5,7 @@ import { Brain, ChevronRight } from "lucide-react";
 import type { Actor, Step, Turn } from "@/lib/session";
 import { useMask } from "@/hooks/use-mask";
 import { useZoom } from "@/hooks/use-zoom";
-import { safeClip } from "@/lib/redact";
+import { maskClip } from "@/lib/redact";
 import { cn } from "@/lib/utils";
 import { hueColor } from "./step-icon";
 import { Term } from "./term-text";
@@ -168,7 +168,7 @@ function Row(props: {
   const mask = useMask();
   // Cut at a word boundary first (the card shows two lines), then masked: masking still sees whole words.
   const reply = t.steps.findLast((s: Step) => s.kind === "reply")?.quote;
-  const shortReply = typeof reply === "string" && reply ? mask(safeClip(reply, 400)) : undefined;
+  const shortReply = typeof reply === "string" && reply ? maskClip(reply, 400, mask) : undefined;
   const helpers = t.actors.filter((id) => actors[id]?.kind === "helper");
   const mem = memoryOf(t);
   const tag = props.remembered ? "remembered" : props.summarised ? "summary only" : null;
@@ -203,7 +203,7 @@ function Row(props: {
           )}
           <span className="ml-auto">{ago(t.ts)}</span>
         </span>
-        <span className="mt-1 line-clamp-2 text-[0.8438rem] leading-snug font-medium">{mask(safeClip(t.text, 400))}</span>
+        <span className="mt-1 line-clamp-2 text-[0.8438rem] leading-snug font-medium">{maskClip(t.text, 400, mask)}</span>
         {shortReply && <span className="mt-1.5 line-clamp-2 text-xs leading-snug text-muted-foreground">Claude: {shortReply}</span>}
         <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.6875rem] text-muted-foreground">
           {mem ? (

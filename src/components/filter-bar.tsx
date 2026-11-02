@@ -135,7 +135,7 @@ export function FilterBar({
             <Group label="Tools">
               {tools.map((t) => (
                 <Pill key={t.name} on={value.tools.has(t.name)} count={t.count} onClick={() => set({ tools: toggle(value.tools, t.name) })}>
-                  {t.name}
+                  {mask(t.name)}
                 </Pill>
               ))}
               {opts.tools.length > TOP && (
@@ -149,7 +149,7 @@ export function FilterBar({
             <Group label="Commands">
               {opts.commands.slice(0, 24).map((c) => (
                 <Pill key={c.name} on={value.commands.has(c.name)} count={c.count} onClick={() => set({ commands: toggle(value.commands, c.name) })}>
-                  {c.name}
+                  {mask(c.name)}
                 </Pill>
               ))}
             </Group>

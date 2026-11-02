@@ -15,6 +15,7 @@ import { Term, TermText } from "./term-text";
 import { ToolRenderer } from "./tools";
 import { BookmarkButton } from "./bookmark-button";
 import { fmt } from "@/components/view-kit";
+import { maskClip } from "@/lib/redact";
 
 const EDITS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
 
@@ -419,6 +420,7 @@ const MAX_LISTED = 12;
 
 /** The earlier requests a "Remembers earlier" step carried over, each with Claude's answer. */
 function Remembered({ memory, turns, onPickTurn }: { memory: NonNullable<Step["memory"]>; turns: Turn[]; onPickTurn: (i: number) => void }) {
+  const mask = useMask();
   const all = turns.slice(memory.from, memory.to + 1);
   const shown = all.slice(-MAX_LISTED);
   return (
@@ -443,9 +445,9 @@ function Remembered({ memory, turns, onPickTurn }: { memory: NonNullable<Step["m
               <button onClick={() => onPickTurn(t.index)} className="w-full rounded-lg px-2.5 py-2 text-left hover:bg-foreground/[0.06]">
                 <span className="line-clamp-1 text-[0.8125rem]">
                   <span className="mr-1.5 text-xs text-muted-foreground">#{t.index + 1}</span>
-                  {t.text}
+                  {maskClip(t.text, 300, mask)}
                 </span>
-                {reply && <span className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">Claude: {reply}</span>}
+                {typeof reply === "string" && reply && <span className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">Claude: {maskClip(reply, 300, mask)}</span>}
               </button>
             </li>
           );

@@ -8,37 +8,41 @@ import { useFolders } from "@/hooks/use-folders";
 import { createMasker, homeFromCwds, userNamesFrom, type Masker } from "@/lib/redact";
 import { useSettings } from "@/lib/settings";
 
-type Scope = { home?: string; cwds: readonly string[] };
-const MaskScopeContext = createContext<Scope>({ cwds: [] });
+type Scope = { home?: string; key: string; mask: Masker };
+const keyOf = (cwds: readonly string[]) => cwds.join("\n");
+const build = (home: string | undefined, cwds: readonly string[]) =>
+  createMasker({ home: home ?? homeFromCwds(cwds), names: userNamesFrom([home, ...cwds]) });
+
+// Outside a MaskScope (nothing open yet): secrets and home folders by their shape, no user names.
+const MaskScopeContext = createContext<Scope>({ key: "", mask: build(undefined, []) });
 const same: Masker = (text) => text;
 
 /**
- * Says which session is open, so every component below masks with that session's user names. Rendered
- * once around the page: when the session changes, the names change with it.
+ * Says which session is open and builds its masker once, so every component below shares it. Rendered once
+ * around the page: when the session's folders change, the names change with them.
  */
 export function MaskScope({ cwds, children }: { cwds: readonly string[]; children: ReactNode }) {
   const home = useFolders()?.home;
-  const key = cwds.join("\n");
+  const key = keyOf(cwds);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` stands for the folders' contents
-  const value = useMemo<Scope>(() => ({ home, cwds }), [home, key]);
+  const value = useMemo<Scope>(() => ({ home, key, mask: build(home, cwds) }), [home, key]);
   return createElement(MaskScopeContext.Provider, { value }, children);
 }
 
 /**
  * The function every log-derived string goes through before it's shown: masks when "Hide sensitive text"
  * is on, else returns the text unchanged. Pass `model` to mask with a session other than the open one
- * (e.g. the two sides of Compare).
+ * (e.g. the two sides of Compare); the open session's shared masker is reused when it's the same one.
  */
 export function useMask(model?: { meta?: { cwds?: readonly string[] } }): Masker {
   const [settings] = useSettings();
   const scope = useContext(MaskScopeContext);
-  const cwds = model ? (model.meta?.cwds ?? []) : scope.cwds;
-  const home = scope.home;
-  const key = cwds.join("\n");
-  const mask = useMemo(
-    () => createMasker({ home: home ?? homeFromCwds(cwds), names: userNamesFrom([home, ...cwds]) }),
+  const cwds = model?.meta?.cwds;
+  const key = cwds ? keyOf(cwds) : scope.key;
+  const own = useMemo(
+    () => (key === scope.key ? scope.mask : build(scope.home, cwds ?? [])),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` stands for the folders' contents
-    [home, key],
+    [key, scope],
   );
-  return settings.maskSensitive ? mask : same;
+  return settings.maskSensitive ? own : same;
 }
