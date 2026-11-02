@@ -58,6 +58,14 @@ export default function Home() {
     setProjects(list);
   }, []);
 
+  // The server answers within 1.5 s and keeps counting big logs in the background: ask again until it's done.
+  const stillCounting = !!projects?.some((p) => p.sessions.some((s) => s.counting));
+  useEffect(() => {
+    if (!stillCounting) return;
+    const t = setInterval(() => void refresh(), 3000);
+    return () => clearInterval(t);
+  }, [stillCounting, refresh]);
+
   useEffect(() => {
     if (route.page === "session") setLastSession(route);
   }, [route]);
@@ -68,7 +76,8 @@ export default function Home() {
   const view: SessionView = sessionRoute?.view ?? "map";
 
   // No session in the URL yet: open the newest one (of the chosen project, if any), as the first load always did.
-  const fallbackFile = route.page === "session" && !route.file && projects
+  // Not while a dropped file is shown: changing `file` would close it.
+  const fallbackFile = route.page === "session" && !route.file && projects && !dropped
     ? (projects.find((p) => p.dir === route.project) ?? projects[0])?.sessions[0]?.file // an unknown project falls back to the newest
     : undefined;
   useEffect(() => {
@@ -90,6 +99,7 @@ export default function Home() {
   }, [listedAnywhere, file, recheckedFile, refresh]);
   const missing = !listedAnywhere && recheckedFile === file;
 
+  // Opening another session (a new file in the URL) closes a dropped file.
   useEffect(() => setDropped(null), [file]);
   const { logs, connected } = useSessionStream(dropped || missing ? null : file);
   // A dropped file is never live: "now" far in the future marks it finished.

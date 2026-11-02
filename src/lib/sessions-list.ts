@@ -74,13 +74,27 @@ export function worktreeParent(cwd: string, gitFile?: string): string | undefine
   return /^[A-Za-z]:\//.test(g[1]) ? g[1].replace(/\//g, "\\") : g[1];
 }
 
+// Inside Windows double quotes cmd.exe still expands %VAR% and PowerShell expands $(...) and `; a " ends the quote.
+// Inside POSIX single quotes everything is literal (a ' is escaped below), but a line break still ends the command.
+const UNSAFE_WINDOWS = /["`$%\r\n]/;
+const UNSAFE_POSIX = /[\r\n]/;
+const SAFE_ID = /^[\w-]+$/;
+
+/** False when the folder (read from a log, so possibly crafted) can't be quoted safely in a `cd` command. */
+export function cwdIsSafe(cwd: string | undefined): boolean {
+  if (!cwd) return true;
+  return !(isWindowsPath(cwd) ? UNSAFE_WINDOWS : UNSAFE_POSIX).test(cwd);
+}
+
 /**
  * The command that reopens a session in its own folder: `cd '<cwd>' && claude --resume <id>`, with
  * `--fork-session` to continue in a new copy. Windows folders (a drive letter or \\server) get double quotes.
+ * A folder that can't be quoted safely drops the `cd` part; an id that isn't letters, digits, _ and - gives null.
  */
-export function resumeCommand(cwd: string | undefined, id: string, fork = false): string {
+export function resumeCommand(cwd: string | undefined, id: string, fork = false): string | null {
+  if (!SAFE_ID.test(id)) return null;
   const cmd = `claude --resume ${id}${fork ? " --fork-session" : ""}`;
-  if (!cwd) return cmd;
+  if (!cwd || !cwdIsSafe(cwd)) return cmd;
   const quoted = isWindowsPath(cwd) ? `"${cwd}"` : `'${cwd.replace(/'/g, "'\\''")}'`;
   return `cd ${quoted} && ${cmd}`;
 }
@@ -152,4 +166,48 @@ export function modelName(model?: string): string | undefined {
   // Old names put the version first ("claude-3-5-sonnet"); new ones after ("claude-sonnet-4-5").
   const version = m[1] ? `${m[1]}${m[2] !== "0" ? "." + m[2] : ""}` : m[4] && m[4].length < 3 ? `${m[4]}${m[5] ? "." + m[5] : ""}` : "";
   return version ? `${family} ${version}` : family;
+}
+
+// ── Opening a log from disk (drag and drop): read in the browser only ──
+
+// file.text() plus splitting needs several times the file size in memory, and V8 strings top out near 512 MB.
+export const MAX_DROP_BYTES = 150 * 1024 * 1024;
+export const AGENT_LOG = /^agent-(.+)\.jsonl$/;
+export const AGENT_META = /^agent-(.+)\.meta\.json$/;
+
+/** Why a set of dropped files can't be opened, in plain English, or null when they can. */
+export function dropProblem(files: { name: string; size: number }[]): string | null {
+  const logs = files.filter((f) => /\.jsonl$/i.test(f.name));
+  if (!logs.length) return "Pick a Claude Code log: a file ending in .jsonl.";
+  const total = files.reduce((n, f) => n + f.size, 0);
+  if (total > MAX_DROP_BYTES)
+    return `That's too big to open in the browser: ${Math.round(total / 1024 / 1024)} MB, and cc-trace reads up to 150 MB from a dropped file. Sessions on this computer have no limit: pick it from the session list instead.`;
+  if (logs.filter((f) => !AGENT_LOG.test(f.name)).length > 1) return "Drop one session at a time, plus its agent-… helper files if you have them.";
+  return null;
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any -- log records are untyped JSON */
+/** One JSON record per line; blank, broken and non-object lines are skipped. */
+export function parseLogText(text: string): Record<string, any>[] {
+  const out: Record<string, any>[] = [];
+  for (const line of text.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const rec = JSON.parse(line);
+      if (rec && typeof rec === "object" && !Array.isArray(rec)) out.push(rec);
+    } catch {
+      // a corrupt line: skip it
+    }
+  }
+  return out;
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+/** `p`'s value, or `fallback` if it fails or takes longer than `ms` (so a dead network folder can't hang a listing). */
+export function withTimeout<T, F>(p: Promise<T>, ms: number, fallback: F): Promise<T | F> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<F>((resolve) => {
+    timer = setTimeout(() => resolve(fallback), ms);
+  });
+  return Promise.race([p.catch(() => fallback), late]).finally(() => clearTimeout(timer));
 }

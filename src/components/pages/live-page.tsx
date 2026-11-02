@@ -18,20 +18,29 @@ export function LivePage({ navigate }: AppPageProps) {
   const live = useLiveSessions(5_000);
   const [sessions, setSessions] = useState<Map<string, SessionInfo>>(new Map());
   const [now, setNow] = useState(() => Date.now());
+  const [recount, setRecount] = useState(0); // bumped while the server is still counting big logs
 
   // Titles and counts come from the session list, refetched when the set of running sessions changes.
   const ids = live?.map((l) => l.sessionId).join(",") ?? "";
   useEffect(() => {
     let stop = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     fetch("/api/sessions")
       .then((r) => (r.ok ? (r.json() as Promise<ProjectInfo[]>) : []))
-      .then((projects) => !stop && setSessions(new Map(projects.flatMap((p) => p.sessions).map((s) => [s.id, s]))))
+      .then((projects) => {
+        if (stop) return;
+        const list = projects.flatMap((p) => p.sessions);
+        setSessions(new Map(list.map((s) => [s.id, s])));
+        // Counts still being worked out: ask again shortly.
+        if (list.some((s) => s.counting)) timer = setTimeout(() => setRecount((n) => n + 1), 3000);
+      })
       .catch(() => {});
     setNow(Date.now());
     return () => {
       stop = true;
+      clearTimeout(timer);
     };
-  }, [ids]);
+  }, [ids, recount]);
 
   const m = (t: string, home?: string) => (maskSensitive ? maskSecrets(t, home) : t);
 

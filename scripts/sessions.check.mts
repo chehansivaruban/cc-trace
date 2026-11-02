@@ -8,13 +8,18 @@ import os from "node:os";
 import path from "node:path";
 import {
   appName,
+  cwdIsSafe,
+  dropProblem,
   filterSessions,
   formatTokens,
   groupByDate,
+  MAX_DROP_BYTES,
   modelName,
+  parseLogText,
   permissionLabel,
   resumeCommand,
   sortSessions,
+  withTimeout,
   worktreeParent,
 } from "../src/lib/sessions-list.ts";
 
@@ -151,6 +156,13 @@ try {
   assert.equal(worktreeParent("/Users/me/app"), undefined);
   assert.equal(worktreeParent("/Users/me/app", "gitdir: /Users/me/app/.git/modules/sub"), undefined, "a submodule is not a worktree");
   assert.equal(worktreeParent(""), undefined);
+  // A hung check (a dead network folder) gives up after the time limit.
+  const never = new Promise<string>(() => {});
+  const t0 = Date.now();
+  assert.equal(await withTimeout(never, 50, undefined), undefined);
+  assert.ok(Date.now() - t0 < 1000);
+  assert.equal(await withTimeout(Promise.resolve("/Users/me/app"), 50, undefined), "/Users/me/app");
+  assert.equal(await withTimeout(Promise.reject(new Error("x")), 50, "fallback"), "fallback", "a failed check gives the fallback");
   console.log("✓ detects worktrees on POSIX and Windows paths");
 
   // ── Copy commands ──
@@ -159,6 +171,25 @@ try {
   assert.equal(resumeCommand("C:\\Users\\me\\my app", "abc"), 'cd "C:\\Users\\me\\my app" && claude --resume abc');
   assert.equal(resumeCommand("\\\\server\\share\\app", "abc"), 'cd "\\\\server\\share\\app" && claude --resume abc');
   assert.equal(resumeCommand(undefined, "abc"), "claude --resume abc");
+  // A cwd comes from the log, so it may be crafted: anything a shell could expand inside the quotes drops the cd part.
+  for (const bad of ['C:\\x" && calc && echo "', "C:\\a`b", "C:\\$(calc)", "C:\\%PATH%", "C:\\a\nb", "C:\\a\rb"]) {
+    assert.equal(resumeCommand(bad, "abc"), "claude --resume abc", JSON.stringify(bad));
+    assert.equal(cwdIsSafe(bad), false, JSON.stringify(bad));
+  }
+  for (const bad of ["/Users/me/a\nrm -rf ~", "/Users/me/a\rb"]) {
+    assert.equal(resumeCommand(bad, "abc", true), "claude --resume abc --fork-session", JSON.stringify(bad));
+    assert.equal(cwdIsSafe(bad), false);
+  }
+  // Inside POSIX single quotes $, ` and % are literal, so those folders keep their cd.
+  assert.equal(resumeCommand("/Users/me/$HOME `x` 50%", "abc"), "cd '/Users/me/$HOME `x` 50%' && claude --resume abc");
+  assert.equal(cwdIsSafe("/Users/me/$HOME"), true);
+  assert.equal(cwdIsSafe(undefined), true);
+  // The id comes from the log's file name: anything but letters, digits, _ and - gives no command at all.
+  for (const id of ["abc; rm -rf ~", "a b", "", "$(calc)", "../x", "abc\n"]) {
+    assert.equal(resumeCommand("/Users/me/app", id), null, JSON.stringify(id));
+    assert.equal(resumeCommand("/Users/me/app", id, true), null, JSON.stringify(id));
+  }
+  assert.equal(resumeCommand("/Users/me/app", "6f1c-ab_9"), "cd '/Users/me/app' && claude --resume 6f1c-ab_9");
   console.log("✓ builds resume and fork commands");
 
   // ── Labels ──
@@ -177,6 +208,20 @@ try {
   assert.equal(formatTokens(950), "950");
   assert.equal(formatTokens(12_400), "12k");
   assert.equal(formatTokens(3_250_000), "3.3M");
+
+  // ── Dropped files: size cap on the total, one session at a time ──
+  const MB = 1024 * 1024;
+  assert.equal(MAX_DROP_BYTES, 150 * MB);
+  assert.equal(dropProblem([{ name: "s.jsonl", size: 10 * MB }]), null);
+  assert.equal(dropProblem([{ name: "s.jsonl", size: 100 * MB }, { name: "agent-a.jsonl", size: 40 * MB }, { name: "agent-a.meta.json", size: 1 }]), null);
+  assert.match(dropProblem([{ name: "s.jsonl", size: 100 * MB }, { name: "agent-a.jsonl", size: 60 * MB }])!, /150 MB/, "the total counts, not each file");
+  assert.match(dropProblem([{ name: "s.jsonl", size: 151 * MB }])!, /too big/);
+  assert.match(dropProblem([{ name: "notes.txt", size: 1 }])!, /\.jsonl/);
+  assert.match(dropProblem([])!, /\.jsonl/);
+  assert.match(dropProblem([{ name: "a.jsonl", size: 1 }, { name: "b.jsonl", size: 1 }])!, /one session at a time/);
+  assert.equal(dropProblem([{ name: "agent-x.jsonl", size: 1 }]), null, "a helper log on its own opens as the main log");
+  assert.deepEqual(parseLogText('{"type":"user"}\n\nnull\n[1]\ngarbage\n{"type":"assistant"}\n{"cut'), [{ type: "user" }, { type: "assistant" }]);
+  console.log("✓ checks dropped files");
 
   // ── Search and filters ──
   const listed = [

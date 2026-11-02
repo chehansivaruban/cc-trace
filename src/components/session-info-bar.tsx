@@ -6,7 +6,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import type { LiveSession } from "@/lib/claude-logs";
 import { maskSecrets } from "@/lib/redact";
 import type { SessionModel } from "@/lib/session";
-import { appName, encodeProjectDir, homeOf, permissionLabel, projectOfFile, resumeCommand, shortPath } from "@/lib/sessions-list";
+import { appName, cwdIsSafe, encodeProjectDir, homeOf, permissionLabel, projectOfFile, resumeCommand, shortPath } from "@/lib/sessions-list";
 import { useSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
@@ -42,11 +42,15 @@ export function CopyActions({ id, cwd, className, label = true }: { id: string; 
     const t = setTimeout(() => setDone(null), 1500);
     return () => clearTimeout(t);
   }, [done]);
+  // A folder that can't be quoted safely leaves just the claude command: say where to run it.
+  const where = cwdIsSafe(cwd) ? "" : " (open a terminal in the project folder first)";
+  const resume = resumeCommand(cwd, id);
+  const fork = resumeCommand(cwd, id, true);
   const items = [
-    { key: "resume", label: "Copy resume command", hint: "Open this session again in Claude Code", text: resumeCommand(cwd, id) },
-    { key: "fork", label: "Copy fork command", hint: "Start a new session from a copy of this one", text: resumeCommand(cwd, id, true) },
+    resume && { key: "resume", label: "Copy resume command", hint: `Open this session again in Claude Code${where}`, text: resume },
+    fork && { key: "fork", label: "Copy fork command", hint: `Start a new session from a copy of this one${where}`, text: fork },
     { key: "id", label: "Copy session id", hint: id, text: id },
-  ];
+  ].filter((it): it is { key: string; label: string; hint: string; text: string } => !!it);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -71,7 +75,7 @@ export function CopyActions({ id, cwd, className, label = true }: { id: string; 
             className="flex-col items-start gap-0.5 rounded-lg px-2.5 py-2"
           >
             <span className="text-[13px] font-medium">{it.label}</span>
-            <span className="w-full truncate text-[11px] text-muted-foreground">{it.hint}</span>
+            <span className="w-full text-[11px] leading-snug break-words text-muted-foreground">{it.hint}</span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

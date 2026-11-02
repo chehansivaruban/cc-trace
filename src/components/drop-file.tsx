@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { FileText, Upload, X } from "lucide-react";
+import { FileText, Loader2, Upload, X } from "lucide-react";
 import { maskSecrets } from "@/lib/redact";
+import { AGENT_LOG, AGENT_META, dropProblem, parseLogText } from "@/lib/sessions-list";
 import type { AgentLog, AgentMeta, LogRecord } from "@/lib/session";
 import { useSettings } from "@/lib/settings";
 
@@ -11,34 +12,16 @@ import { useSettings } from "@/lib/settings";
 
 export type LoadLog = (records: LogRecord[], name: string, agents: Record<string, AgentLog>) => void;
 
-const MAX_BYTES = 512 * 1024 * 1024;
 const OPEN_EVENT = "cc-trace:open-log";
-const AGENT_LOG = /^agent-(.+)\.jsonl$/;
-const AGENT_META = /^agent-(.+)\.meta\.json$/;
 
-/** One JSON record per line; blank, broken and non-object lines are skipped. */
-export function parseLogText(text: string): LogRecord[] {
-  const out: LogRecord[] = [];
-  for (const line of text.split("\n")) {
-    if (!line.trim()) continue;
-    try {
-      const rec = JSON.parse(line);
-      if (rec && typeof rec === "object" && !Array.isArray(rec)) out.push(rec);
-    } catch {
-      // a corrupt line: skip it
-    }
-  }
-  return out;
-}
+export { parseLogText };
 
 /** Reads a session log, plus any helper logs ("agent-<id>.jsonl" and ".meta.json") dropped with it. */
 async function readLogFiles(files: File[]): Promise<{ records: LogRecord[]; name: string; agents: Record<string, AgentLog> }> {
+  const problem = dropProblem(files);
+  if (problem) throw new Error(problem);
   const logs = files.filter((f) => /\.jsonl$/i.test(f.name));
-  if (!logs.length) throw new Error("Pick a Claude Code log: a file ending in .jsonl.");
-  if (files.some((f) => f.size > MAX_BYTES)) throw new Error("That file is too big to open in the browser (over 512 MB).");
-  const mains = logs.filter((f) => !AGENT_LOG.test(f.name));
-  if (mains.length > 1) throw new Error("Drop one session at a time, plus its agent-… helper files if you have them.");
-  const main = mains[0] ?? logs[0];
+  const main = logs.find((f) => !AGENT_LOG.test(f.name)) ?? logs[0];
   const records = parseLogText(await main.text());
   if (!records.some((r) => r.type === "user" || r.type === "assistant"))
     throw new Error("That file doesn't look like a Claude Code log: it has no messages in it.");
@@ -70,6 +53,7 @@ export function openLogFile() {
 export function DropFile({ onLoad }: { onLoad: LoadLog }) {
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reading, setReading] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const load = useRef(onLoad);
   useEffect(() => {
@@ -77,12 +61,25 @@ export function DropFile({ onLoad }: { onLoad: LoadLog }) {
   }, [onLoad]);
 
   useEffect(() => {
-    const read = (files: File[]) => {
+    const read = async (files: File[]) => {
       setError(null);
-      readLogFiles(files).then(
-        (r) => load.current(r.records, r.name, r.agents),
-        (err: Error) => setError(err.message),
-      );
+      const problem = dropProblem(files);
+      if (problem) return setError(problem);
+      setReading(true);
+      // Let the "Reading the file…" card paint before the parse holds the main thread. A hidden tab never runs
+      // animation frames, so a short timer also ends the wait.
+      await new Promise<void>((r) => {
+        requestAnimationFrame(() => setTimeout(r, 0));
+        setTimeout(r, 50);
+      });
+      try {
+        const r = await readLogFiles(files);
+        load.current(r.records, r.name, r.agents);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "That file couldn't be read.");
+      } finally {
+        setReading(false);
+      }
     };
     let depth = 0;
     const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files");
@@ -107,12 +104,12 @@ export function DropFile({ onLoad }: { onLoad: LoadLog }) {
       e.preventDefault();
       depth = 0;
       setDragging(false);
-      read([...(e.dataTransfer?.files ?? [])]);
+      void read([...(e.dataTransfer?.files ?? [])]);
     };
     const open = () => input.current?.click();
     const el = input.current;
     const picked = () => {
-      if (el?.files?.length) read([...el.files]);
+      if (el?.files?.length) void read([...el.files]);
       if (el) el.value = "";
     };
     window.addEventListener("dragenter", enter);
@@ -156,6 +153,22 @@ export function DropFile({ onLoad }: { onLoad: LoadLog }) {
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                 A .jsonl file, plus its agent-… helper files if you have them. It stays in this browser tab: nothing is uploaded or saved.
               </p>
+            </div>
+          </motion.div>
+        )}
+        {reading && (
+          <motion.div
+            key="reading"
+            role="status"
+            className="pointer-events-none fixed inset-0 z-[60] flex items-center justify-center bg-black/30 p-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+          >
+            <div className="glass-strong flex items-center gap-2.5 rounded-2xl px-5 py-4 text-sm shadow-2xl">
+              <Loader2 className="size-4 animate-spin text-muted-foreground" />
+              Reading the file…
             </div>
           </motion.div>
         )}

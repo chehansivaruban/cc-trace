@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promptText } from "./session.ts";
-import { encodeProjectDir, worktreeParent } from "./sessions-list.ts";
+import { encodeProjectDir, withTimeout, worktreeParent } from "./sessions-list.ts";
 
 // CLAUDE_CONFIG_DIR is Claude Code's own override for ~/.claude (also how the Docker image mounts it).
 export const CLAUDE_ROOT = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
@@ -272,14 +272,17 @@ async function scanLog(abs: string, mtime: number, size: number): Promise<Scanne
 }
 
 const worktrees = new Map<string, Promise<string | undefined>>();
-/** Checks the folder's `.git` (a worktree has a small file there, not a folder). Cached per folder. */
+// A folder on a dead network mount can block a stat for a long time: give up on the worktree check after this.
+const WORKTREE_CHECK_MS = 300;
+
+/** Checks the folder's `.git` (a worktree has a small file there, not a folder). Cached per folder, time-limited. */
 function worktreeOf(cwd: string | undefined): Promise<string | undefined> {
   if (!cwd) return Promise.resolve(undefined);
   const quick = worktreeParent(cwd);
   if (quick) return Promise.resolve(quick);
   let p = worktrees.get(cwd);
   if (!p) {
-    p = (async () => {
+    const check = (async () => {
       try {
         const git = path.join(cwd, ".git");
         const st = await fs.stat(git);
@@ -289,6 +292,8 @@ function worktreeOf(cwd: string | undefined): Promise<string | undefined> {
         return undefined; // folder gone, or not a git checkout
       }
     })();
+    // The timed-out answer is cached too, so a hung folder isn't stat-ed again on every listing.
+    p = withTimeout(check, WORKTREE_CHECK_MS, undefined);
     worktrees.set(cwd, p);
   }
   return p;
