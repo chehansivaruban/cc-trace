@@ -14,7 +14,7 @@ export const GLOSSARY = {
   tokens:
     "Tokens are how Claude measures text, about ¾ of a word each. Usage limits are counted in tokens. cc-trace itself uses none.",
   cached:
-    "Before every reply Claude re-reads the whole conversation so far. Most of that is cached (remembered from last time), which is much cheaper and faster than new text.",
+    "Before every reply Claude re-reads the whole conversation so far. Most of that is cached (remembered from last time), which is much quicker to process than new text and counts for less against usage limits.",
   context:
     "Claude's working memory for this conversation: your requests, its answers and what its tools showed it, all re-read before every reply. It has a size limit; when it fills up Claude summarises older parts. Each helper has its own, separate memory.",
   file: "Your project is made of files, like documents in a folder. Code files hold the instructions that make your app work.",

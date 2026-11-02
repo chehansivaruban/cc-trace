@@ -38,6 +38,6 @@ assert.ok(!fs.existsSync(path.join(src, "lib", "glossary")), "glossary words liv
 for (const [k, v] of Object.entries(GLOSSARY)) {
   assert.ok(/^\w+$/.test(k), `key ${k} can be used in a marker`);
   assert.ok(v.length > 20 && /[.!?)]$/.test(v), `${k} is a full sentence`);
-  assert.ok(!/\$\s?\d|\bdollars?\b|\bprice\b|\bcosts?\b/i.test(v), `${k} says nothing about money`);
+  assert.ok(!/\$|\bdollars?\b|\bcheap(er|est|ly)?\b|\bexpensive\b|\bpric(e|es|ed|ing)\b|\bcost(s|ly)?\b|\bbill(ed|ing)?\b/i.test(v), `${k} says nothing about money: ${v}`);
 }
 console.log(`glossary checks passed (${seen} markers, ${Object.keys(GLOSSARY).length} words)`);
