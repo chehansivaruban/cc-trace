@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { buildSession, type AgentLog, type SessionModel, type Step, type Turn, type Usage } from "../src/lib/session.ts";
 import { burnSeries, cacheHit, contextGauge, localDay, mergeOverview, modelLabel, sessionDigest, sessionStats } from "../src/lib/analytics/stats.ts";
 import { tipsFor } from "../src/lib/analytics/tips.ts";
+import { scopeToTurn } from "../src/lib/analytics/compare.ts";
 import { assignSlots, foldSlices } from "../src/components/charts/slots.ts";
 
 const t0 = Date.parse("2026-01-01T12:00:00.000Z");
@@ -217,14 +218,29 @@ function totalOf(x: Usage) {
   assert.deepEqual(ov1.totals, st.totals);
   assert.equal(ov1.days[0].tokens, 1027);
   assert.deepEqual(ov1.byModel.map((r) => [r.key, totalOf(r.usage)]), [[OPUS, 1027]]);
-  // Several models: the leftover can't be pinned on one, so it's "unknown", in both places.
-  const multi = buildSession([...main, thinkOnly("m9", 12, u(0, 0, 100, 7))] as never, { h1: helper }, t0 + 3_600_000);
+  // Several models: the session remembers which model wrote the thinking-only reply, so it's credited to it
+  // (not "Unknown model"), in both places.
+  const multi = buildSession([...main, thinkOnly("m9", 12, u(0, 0, 100, 7), HAIKU)] as never, { h1: helper }, t0 + 3_600_000);
+  assert.deepEqual(multi.hiddenUsage?.map((h) => [h.model, h.turn, totalOf(h.usage)]), [[HAIKU, 0, 107]]);
   const sm = sessionStats(multi);
   const om = mergeOverview([sessionDigest(multi, { file: "p/m.jsonl", project: "p", title: "x" }, day)], { days: 1, now: t0, projects: {} }, day);
   assert.deepEqual(om.totals, sm.totals);
   assert.equal(totalOf(sm.totals), 6063 + 107);
   assert.deepEqual(sm.byModel.map((r) => [r.key, totalOf(r.usage)]), om.byModel.map((r) => [r.key, totalOf(r.usage)]));
-  assert.equal(totalOf(sm.byModel.find((r) => r.key === "unknown")!.usage), 107);
+  assert.equal(sm.byModel.find((r) => r.key === "unknown"), undefined, "no Unknown model row");
+  const haikuShown = buildSession(main as never, { h1: helper }, t0 + 3_600_000);
+  const before = totalOf(sessionStats(haikuShown).byModel.find((r) => r.key === HAIKU)?.usage ?? { fresh: 0, cached: 0, written: 0, input: 0, cacheWrite5m: 0, cacheWrite1h: 0 });
+  assert.equal(totalOf(sm.byModel.find((r) => r.key === HAIKU)!.usage), before + 107);
+  // A request on its own (Compare, exports) only carries its own hidden replies.
+  assert.deepEqual(scopeToTurn(multi, 1).hiddenUsage, []);
+  assert.equal(scopeToTurn(multi, 0).hiddenUsage?.length, 1);
+  // A reply with no model at all still falls back to "unknown".
+  const noModel = buildSession(
+    [...main, { type: "assistant", timestamp: at(12), message: { id: "m8", usage: u(0, 0, 100, 7), stop_reason: null, content: [{ type: "thinking", thinking: "hmm" }] } }] as never,
+    { h1: helper },
+    t0 + 3_600_000,
+  );
+  assert.equal(totalOf(sessionStats(noModel).byModel.find((r) => r.key === "unknown")!.usage), 107);
 }
 console.log("overview checks passed");
 

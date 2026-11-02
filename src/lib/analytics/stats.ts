@@ -161,7 +161,15 @@ export function sessionStats(m: SessionModel): SessionStats {
   }
   closeSpans();
 
-  // Replies with nothing to show (e.g. only thinking) still used tokens: keep the tables adding up.
+  // Replies with nothing to show (e.g. only thinking) still used tokens: credit the model that wrote them,
+  // and anything left (older models without that record) to the session's only model, else "unknown".
+  for (const h of m.hiddenUsage ?? []) {
+    const key = h.model ?? "unknown";
+    let r = models.get(key);
+    if (!r) models.set(key, (r = row(key, modelLabel(h.model))));
+    addInto(r.usage, h.usage);
+    addInto(attributed, h.usage);
+  }
   const rest = sub(m.usage, attributed);
   if (totalTokens(rest) > 0) {
     const key = leftoverModel(m);
@@ -263,7 +271,14 @@ export function sessionDigest(m: SessionModel, info: { file: string; project: st
       }
     }
   }
-  // Same leftover as in sessionStats, on the session's last day, so the Dashboard and Stats agree.
+  // Same hidden replies and leftover as in sessionStats, so the Dashboard and Stats agree: hidden replies on
+  // their own day and model, anything left on the session's last day.
+  for (const h of m.hiddenUsage ?? []) {
+    if (!h.ts) continue;
+    const d = (days[dayKey(h.ts)] ??= { bucket: bucket(), byModel: {}, tools: {} });
+    addInto(d.bucket.usage, h.usage);
+    addInto((d.byModel[h.model ?? "unknown"] ??= bucket()).usage, h.usage);
+  }
   const attributed = { ...ZERO };
   for (const d of Object.values(days)) addInto(attributed, d.bucket.usage);
   const rest = sub(m.usage, attributed);

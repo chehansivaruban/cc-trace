@@ -77,6 +77,6 @@ export function compareModels(a: SessionModel, b: SessionModel): { a: string[]; 
 /** A model holding only request `i`, to compare single requests with the same functions. */
 export function scopeToTurn(m: SessionModel, i: number): SessionModel {
   const t = m.turns[i];
-  if (!t) return { ...m, turns: [], usage: zero() };
-  return { ...m, turns: [t], usage: t.usage, meta: { ...m.meta, firstTs: t.ts, lastTs: t.end } };
+  if (!t) return { ...m, turns: [], usage: zero(), hiddenUsage: [] };
+  return { ...m, turns: [t], usage: t.usage, meta: { ...m.meta, firstTs: t.ts, lastTs: t.end }, hiddenUsage: (m.hiddenUsage ?? []).filter((h) => h.turn === t.index) };
 }

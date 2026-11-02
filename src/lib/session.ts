@@ -92,6 +92,9 @@ export type SessionMeta = {
 /** A system record or hook run, kept raw for the health and hook views. */
 export type SessionEvent = { ts: number; actor: string; type: "system" | "hook"; subtype: string; data: Record<string, unknown> };
 
+/** Tokens of a reply that shows no step (e.g. only thinking), with the model that wrote it. */
+export type HiddenUsage = { turn: number; ts: number; actor: string; model?: string; usage: Usage };
+
 export type SessionModel = {
   actors: Record<string, Actor>;
   turns: Turn[];
@@ -100,6 +103,8 @@ export type SessionModel = {
   stale: boolean;
   meta: SessionMeta;
   events: SessionEvent[];
+  /** Replies with nothing to show still used tokens: these keep the per-model totals adding up. */
+  hiddenUsage?: HiddenUsage[];
 };
 
 // A session whose last write is older than this was interrupted or finished, not still working.
@@ -233,7 +238,7 @@ export function buildSession(rawMain: LogRecord[], rawAgents: Record<string, Age
 
   const steps: Step[] = [];
   const toolSteps = new Map<string, Step>();
-  const usageByMsg = new Map<string, { actor: string; ts: number; usage: Usage }>();
+  const usageByMsg = new Map<string, { actor: string; ts: number; usage: Usage; model?: string }>();
   // The first step of each reply carries its usage and thinking.
   const firstStep = new Map<string, Step>();
   const thinkingByMsg = new Map<string, string[]>();
@@ -331,7 +336,8 @@ export function buildSession(rawMain: LogRecord[], rawAgents: Record<string, Age
       // assistant: Claude Code writes one record per content block, all sharing the reply's usage.
       const msgId: string = rec.message?.id ?? rec.uuid ?? `${actorId}#${i}`;
       const u = usageByMsg.get(msgId);
-      if (rec.message?.usage) usageByMsg.set(msgId, { actor: actorId, ts: u?.ts ?? ts, usage: usageOf(rec.message.usage) });
+      const replyModel = typeof rec.message?.model === "string" && rec.message.model !== "<synthetic>" ? rec.message.model : undefined;
+      if (rec.message?.usage) usageByMsg.set(msgId, { actor: actorId, ts: u?.ts ?? ts, usage: usageOf(rec.message.usage), model: replyModel ?? u?.model });
       const final = rec.message?.stop_reason === "end_turn" || rec.message?.stop_reason === "stop_sequence";
       const made: Step[] = [];
 
@@ -414,9 +420,8 @@ export function buildSession(rawMain: LogRecord[], rawAgents: Record<string, Age
         toolSteps.set(block.id, step);
         made.push(step);
       }
-      const model = typeof rec.message?.model === "string" && rec.message.model !== "<synthetic>" ? rec.message.model : undefined;
       for (const s of made) {
-        if (model) s.model = model;
+        if (replyModel) s.model = replyModel;
         // Claude Code writes errors (usage limits, failed requests) as fake "<synthetic>" replies.
         if (rec.isApiErrorMessage) {
           s.event = "api_error";
@@ -486,13 +491,15 @@ export function buildSession(rawMain: LogRecord[], rawAgents: Record<string, Age
     t.steps.push(s);
   }
   const firstLeadReply = new Map<Turn, number>();
+  const hiddenUsage: HiddenUsage[] = [];
   let usage = zero();
-  for (const { ts, actor, usage: u } of usageByMsg.values()) {
+  for (const [msgId, { ts, actor, usage: u, model }] of usageByMsg) {
     usage = addUsage(usage, u);
     if (actors[actor]) actors[actor].usage = addUsage(actors[actor].usage, u);
     if (!turns.length) continue;
     const t = turnAt(ts);
     t.usage = addUsage(t.usage, u);
+    if (!firstStep.has(msgId)) hiddenUsage.push({ turn: t.index, ts, actor, model, usage: u });
     // Everything Claude read before its first reply: instructions, the whole conversation so far and your new message.
     if (actor === "lead" && ts < (firstLeadReply.get(t) ?? Infinity)) {
       firstLeadReply.set(t, ts);
@@ -535,7 +542,7 @@ export function buildSession(rawMain: LogRecord[], rawAgents: Record<string, Age
   }
 
   events.sort((a, b) => a.ts - b.ts);
-  return { actors, turns, live: liveState(main, steps, actors, stale), usage, stale, meta: sessionMeta(main, agents), events };
+  return { actors, turns, live: liveState(main, steps, actors, stale), usage, stale, meta: sessionMeta(main, agents), events, hiddenUsage };
 }
 
 /** Titles, mode, branch, folders, versions and models, from the records that carry them. */
