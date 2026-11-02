@@ -114,6 +114,28 @@ try {
   assert.equal(project.sessions[0].title, "hello from smoke test");
   console.log("✓ lists projects and sessions");
 
+  // ── sessions ──
+  {
+    const s = project.sessions[0];
+    assert.equal(s.title, "hello from smoke test");
+    assert.equal(s.firstPrompt, "hello from smoke test");
+    assert.equal(s.cwd, "C:\\Users\\demo\\app");
+    assert.equal(s.requests, 1);
+    assert.equal(s.tokens, 0);
+    assert.equal(s.live, false);
+    assert.equal(typeof s.started, "number");
+    console.log("✓ session list has titles, counts and live state");
+  }
+  // ── live ──
+  {
+    const live = await get("/api/live");
+    assert.equal(live.status, 200);
+    assert.deepEqual(JSON.parse(live.body), [], "no ~/.claude/sessions folder: nothing running");
+    assert.equal((await get("/api/live", { Host: "evil.example" })).status, 403);
+    console.log("✓ live sessions: empty without a registry, localhost only");
+  }
+  // ── end sessions + live ──
+
   assert.equal((await get("/api/sessions", { Host: "evil.example" })).status, 403);
   console.log("✓ refuses non-localhost hosts");
 
