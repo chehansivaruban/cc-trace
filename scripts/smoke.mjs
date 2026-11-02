@@ -201,6 +201,39 @@ try {
     console.log("✓ overview adds up token use across sessions");
   }
   // ── end overview ──
+  // ── debug log ──
+  {
+    const debugDir = path.join(config, "debug");
+    fs.mkdirSync(debugDir, { recursive: true });
+    const id = "0f8fad5b-d9cb-469f-a165-70867728950e";
+    fs.writeFileSync(path.join(debugDir, `${id}.txt`), `${t} [DEBUG] debug-log-ok\n${t} [ERROR] boom\n`);
+    const ok = await get("/api/debug-log?file=" + encodeURIComponent(`C--Users-demo-app/${id}.jsonl`));
+    assert.equal(ok.status, 200);
+    assert.ok(ok.body.includes("debug-log-ok"));
+    console.log("✓ reads a session's debug log");
+
+    // Bigger than 2 MB: only the tail is sent, starting on a whole line.
+    const big = "1e0b8c1f-2c33-4b7e-9d2a-3f4a5b6c7d8e";
+    fs.writeFileSync(path.join(debugDir, `${big}.txt`), `${t} [DEBUG] first-line\n` + `${t} [DEBUG] ${"x".repeat(200)}\n`.repeat(12_000) + `${t} [WARN] last-line\n`);
+    const tail = await get("/api/debug-log?file=" + encodeURIComponent(`C--Users-demo-app/${big}.jsonl`));
+    assert.equal(tail.status, 200);
+    assert.ok(Buffer.byteLength(tail.body) <= 2 * 1024 * 1024 && !tail.body.includes("first-line") && tail.body.endsWith("last-line\n"));
+    assert.ok(tail.body.startsWith(t), "starts on a whole line");
+    console.log("✓ sends only the last 2 MB of a big debug log");
+
+    for (const bad of ["../x.jsonl", "../../debug/" + id + ".jsonl", "C--Users-demo-app/a.txt", ""]) {
+      assert.equal((await get("/api/debug-log?file=" + encodeURIComponent(bad))).status, 400, bad);
+    }
+    assert.equal((await get("/api/debug-log?file=" + encodeURIComponent("C--Users-demo-app/s1.jsonl"))).status, 404, "not a session id");
+    assert.equal((await get("/api/debug-log?file=" + encodeURIComponent("C--Users-demo-app/9b2f6a4e-0000-4000-8000-000000000000.jsonl"))).status, 404, "no log");
+    console.log("✓ refuses bad paths and answers 404 when there is no debug log");
+
+    const folders = JSON.parse((await get("/api/folders")).body);
+    assert.equal(folders.projects, path.join(config, "projects"));
+    assert.equal(folders.debug, debugDir);
+    console.log("✓ reports the folders it reads from");
+  }
+  // ── end debug log ──
 
   console.log(`smoke test passed (${process.platform}, node ${process.version})`);
   finish(0);

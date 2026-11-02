@@ -47,7 +47,8 @@ export function parseSettings(raw: string | null | undefined): Settings {
 let current: Settings | null = null;
 const listeners = new Set<() => void>();
 
-function read(): Settings {
+/** The current settings, outside React. */
+export function readSettings(): Settings {
   if (current) return current;
   let raw: string | null = null;
   try {
@@ -69,19 +70,22 @@ function onStorage(e: StorageEvent) {
   emit();
 }
 
-function subscribe(cb: () => void) {
+/** Calls `cb` whenever the settings change, in this tab or another. Returns the unsubscribe function. */
+export function subscribeSettings(cb: () => void) {
   listeners.add(cb);
   if (listeners.size === 1) window.addEventListener("storage", onStorage);
   return () => {
     listeners.delete(cb);
-    if (listeners.size === 0) window.removeEventListener("storage", onStorage);
+    if (listeners.size > 0) return;
+    window.removeEventListener("storage", onStorage);
+    current = null; // nobody hears other tabs now, so re-read on the next subscribe
   };
 }
 
 const getServerSettings = () => DEFAULT_SETTINGS;
 
 export function updateSettings(patch: Partial<Settings>) {
-  current = parseSettings(JSON.stringify({ ...read(), ...patch }));
+  current = parseSettings(JSON.stringify({ ...readSettings(), ...patch }));
   try {
     window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(current));
   } catch {
@@ -91,7 +95,17 @@ export function updateSettings(patch: Partial<Settings>) {
 }
 
 export function useSettings(): [Settings, (patch: Partial<Settings>) => void] {
-  const settings = useSyncExternalStore(subscribe, read, getServerSettings);
+  const settings = useSyncExternalStore(subscribeSettings, readSettings, getServerSettings);
   const update = useCallback((patch: Partial<Settings>) => updateSettings(patch), []);
   return [settings, update];
+}
+
+/** The 0.1 header toggle saved "light" or "dark" here; it still counts until Settings picks a theme. */
+export const LEGACY_THEME_KEY = "theme";
+
+/** Light or dark: a chosen theme wins, then the 0.1 header toggle, then the system setting. */
+export function resolveTheme(theme: Settings["theme"], legacy: string | null, systemDark: boolean): "light" | "dark" {
+  if (theme !== "system") return theme;
+  if (legacy === "light" || legacy === "dark") return legacy;
+  return systemDark ? "dark" : "light";
 }

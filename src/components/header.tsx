@@ -14,7 +14,8 @@ import type { AppPage } from "@/lib/route";
 import { maskSecrets } from "@/lib/redact";
 import type { Live } from "@/lib/session";
 import { homeOf, shortPath } from "@/lib/sessions-list";
-import { useSettings } from "@/lib/settings";
+import { updateSettings, useSettings } from "@/lib/settings";
+import { useDarkMode } from "./settings-provider";
 import { cn } from "@/lib/utils";
 import { SessionBrowser } from "./session-browser";
 
@@ -215,19 +216,8 @@ function StatusPill({ live, connected, active }: { live: Live; connected: boolea
 }
 
 function ThemeToggle() {
-  const [dark, setDark] = useState(true);
-  useEffect(() => setDark(document.documentElement.classList.contains("dark")), []);
-
-  const toggle = () => {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.classList.toggle("dark", next);
-    try {
-      localStorage.setItem("theme", next ? "dark" : "light");
-    } catch {
-      // storage blocked: theme just won't persist
-    }
-  };
+  const dark = useDarkMode();
+  const toggle = () => updateSettings({ theme: dark ? "light" : "dark" });
 
   return (
     <button
