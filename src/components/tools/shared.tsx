@@ -3,6 +3,7 @@
 // Small building blocks shared by the tool renderers. UI wording (labels, badges, buttons) carries
 // `data-find-skip` so find-in-request only searches what came from the log (see src/lib/find-text.ts).
 import { useState, type ReactNode } from "react";
+import { fmt, plural } from "@/components/view-kit";
 import { CAPS, textBoxText } from "@/lib/conversation";
 import { useMask } from "@/hooks/use-mask";
 import { cn } from "@/lib/utils";
@@ -10,8 +11,7 @@ import { cn } from "@/lib/utils";
 /* eslint-disable @typescript-eslint/no-explicit-any -- tool inputs and results are untyped JSON */
 export type Json = any;
 
-export const fmt = (n: number) => n.toLocaleString();
-export const plural = (n: number, word: string) => `${fmt(n)} ${word}${n === 1 ? "" : "s"}`;
+export { fmt, plural };
 export const asText = (v: unknown) => (typeof v === "string" ? v : "");
 
 export function Label({ children }: { children: ReactNode }) {

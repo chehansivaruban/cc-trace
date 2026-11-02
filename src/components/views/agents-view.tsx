@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo, useRef, useState, type ReactNode } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useMemo, useState, type ReactNode } from "react";
 import { ChevronRight, CircleCheck, CircleDashed, CircleDot } from "lucide-react";
 import { ExportMenu } from "@/components/export-menu";
 import { FilterBar } from "@/components/filter-bar";
 import { StepIcon, hueColor } from "@/components/step-icon";
 import { TermText } from "@/components/term-text";
+import { VirtualList } from "@/components/virtual-list";
 import { useMask } from "@/hooks/use-mask";
 import { agentChat, agentTree, tasksOf, teamsOf, type AgentNode, type AgentTask } from "@/lib/analytics/agents";
 import { emptyFilter, filterSteps, type StepFilter } from "@/lib/analytics/filters";
@@ -239,7 +239,7 @@ function TreeNode({ node, depth, mask, tech, selectedId, onPick }: { node: Agent
               items={kids}
               getKey={(k) => k.actor.id}
               estimate={32}
-              className="max-h-[60vh]"
+              boxClassName="max-h-[60vh]"
               render={(k) => <TreeNode node={k} depth={depth + 1} mask={mask} tech={tech} selectedId={selectedId} onPick={onPick} />}
             />
           ) : (
@@ -284,7 +284,7 @@ function TaskColumn({ label, icon, tasks, mask }: { label: string; icon: ReactNo
         <span className="font-normal text-muted-foreground tabular-nums">{tasks.length}</span>
       </p>
       {shown.length > VIRTUAL_AT ? (
-        <VirtualList items={shown} getKey={(t) => t.id} estimate={64} className="max-h-[60vh]" render={(t) => <div className="pb-1.5"><TaskCard task={t} mask={mask} /></div>} />
+        <VirtualList items={shown} getKey={(t) => t.id} estimate={64} boxClassName="max-h-[60vh]" render={(t) => <div className="pb-1.5"><TaskCard task={t} mask={mask} /></div>} />
       ) : (
         <ul className="space-y-1.5">
           {shown.map((t) => (
@@ -368,7 +368,7 @@ function Chat(props: ChatProps) {
         items={steps}
         getKey={(s) => s.id}
         estimate={120}
-        className="h-[70vh] rounded-xl border border-foreground/10"
+        boxClassName="h-[70vh] rounded-xl border border-foreground/10"
         render={(s) => (
           <div className="px-1">
             <ChatMessage step={s} model={model} mask={mask} selected={s.id === selectedId} onOpen={onOpen} />
@@ -385,19 +385,3 @@ function Chat(props: ChatProps) {
   );
 }
 
-/** Lists over VIRTUAL_AT rows only render what's on screen, in their own scroll box. Rows can change height. */
-function VirtualList<T>({ items, getKey, render, estimate, className }: { items: T[]; getKey: (item: T) => string; render: (item: T) => ReactNode; estimate: number; className?: string }) {
-  const box = useRef<HTMLDivElement>(null);
-  const v = useVirtualizer({ count: items.length, getScrollElement: () => box.current, estimateSize: () => estimate, overscan: 6, getItemKey: (i) => getKey(items[i]) });
-  return (
-    <div ref={box} className={cn("overflow-y-auto", className)}>
-      <div style={{ height: v.getTotalSize(), position: "relative" }}>
-        {v.getVirtualItems().map((row) => (
-          <div key={row.key} data-index={row.index} ref={v.measureElement} className="absolute inset-x-0 top-0" style={{ transform: `translateY(${row.start}px)` }}>
-            {render(items[row.index])}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}

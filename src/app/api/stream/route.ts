@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { watch } from "chokidar";
 import { resolveSessionFile, subagentsDir } from "@/lib/claude-logs";
+import { normalizePath } from "@/lib/paths";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ type Tail = { offset: number; pending: Buffer };
 
 // One spelling per file. chokidar hands its ignore filter forward-slash paths on Windows
 // ("D:/a/b"), while Node uses backslashes ("D:\a\b"), and drive letters can differ in case.
-const pathKey = (p: string) => (process.platform === "win32" ? path.resolve(p).toLowerCase() : path.resolve(p));
+const pathKey = (p: string) => normalizePath(path.resolve(p));
 
 /**
  * Replays a session log and its sub-agent logs, then tails all of them.

@@ -1,7 +1,8 @@
 // Health checks (E1, E2): errors and what Claude did next, plus simple local checks for wasted effort.
 // No AI involved: every finding comes from counting steps.
 import type { Actor, SessionModel, Step, Turn } from "../session.ts";
-import { FILE_CHANGE_TOOLS, fileOf, pathKey } from "./files.ts";
+import { FILE_CHANGE_TOOLS, fileOf } from "./files.ts";
+import { normalizePath } from "../paths.ts";
 import { safeClip } from "../redact.ts";
 
 export type FindingKind = "repeated-tool" | "fix-loop" | "empty-result" | "excessive-reads" | "write-then-edit" | "high-error-rate";
@@ -62,7 +63,7 @@ function stable(v: unknown): string {
 /** What a call works on: its file, its command, or failing those its whole input. */
 function target(s: Step): string {
   const file = fileOf(s);
-  if (file) return `${s.tool}:${pathKey(file)}`;
+  if (file) return `${s.tool}:${normalizePath(file)}`;
   const cmd = commandOf(s);
   if (cmd !== undefined) return `${s.tool}:${cmd}`;
   return `${s.tool}:${stable(s.input)}`;
@@ -193,7 +194,7 @@ function findingsFor(turn: Turn, actors: Record<string, Actor>): Finding[] {
     if (!isTool(s) || s.status === "error") continue;
     const file = fileOf(s);
     if (!file) continue;
-    const fk = pathKey(file);
+    const fk = normalizePath(file);
     if (FILE_CHANGE_TOOLS.has(s.tool!)) {
       for (const r of reads.get(fk)?.values() ?? []) r.ids = [];
       continue;
@@ -220,7 +221,7 @@ function findingsFor(turn: Turn, actors: Record<string, Actor>): Finding[] {
   for (const s of tools) {
     const file = fileOf(s);
     if (!file || s.status === "error" || !FILE_CHANGE_TOOLS.has(s.tool!)) continue;
-    const key = pathKey(file);
+    const key = normalizePath(file);
     const w = written.get(key);
     if (s.tool === "Write") {
       if (!w?.flagged) written.set(key, { file, ids: [s.id], flagged: false });

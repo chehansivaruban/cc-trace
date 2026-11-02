@@ -1,7 +1,8 @@
 // Risky-action alerts (N3): steps worth a second look, each explained in plain words.
 // "caution": normal in many projects, but good to know about. "danger": hard or impossible to undo.
 import type { Step } from "../session.ts";
-import { FILE_CHANGE_TOOLS, fileOf, isAbsolutePath, isInside, pathKey } from "./files.ts";
+import { FILE_CHANGE_TOOLS, fileOf, isAbsolutePath, isInside } from "./files.ts";
+import { normalizePath } from "../paths.ts";
 
 export type Risk = { level: "caution" | "danger"; why: string };
 export type RiskContext = { cwds?: string[] };
@@ -152,7 +153,7 @@ export function riskOf(step: Step, ctx: RiskContext = {}): Risk | undefined {
   }
   if (FILE_CHANGE_TOOLS.has(step.tool) && ctx.cwds?.length) {
     const file = fileOf(step);
-    if (!file || !isAbsolutePath(file) || EXPECTED_OUTSIDE.test(pathKey(file))) return undefined;
+    if (!file || !isAbsolutePath(file) || EXPECTED_OUTSIDE.test(normalizePath(file))) return undefined;
     if (!ctx.cwds.some((dir) => isInside(file, dir))) return { level: "caution", why: WHY.outside };
   }
   return undefined;

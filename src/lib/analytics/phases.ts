@@ -1,7 +1,8 @@
 // Phases (N5): each request split into stretches of looking around, changing files, testing, checking the
 // result, handing work to helpers and answering you.
 import type { Step, Turn } from "../session.ts";
-import { FILE_CHANGE_TOOLS, fileOf, pathKey } from "./files.ts";
+import { FILE_CHANGE_TOOLS, fileOf } from "./files.ts";
+import { normalizePath } from "../paths.ts";
 
 export type PhaseKind = "exploring" | "changing" | "testing" | "reviewing" | "answering" | "delegating";
 export type Phase = { kind: PhaseKind; from: number; to: number };
@@ -33,11 +34,11 @@ function classify(s: Step, changed: Set<string>): PhaseKind | undefined {
   if (s.kind !== "tool" || !s.tool) return undefined;
   const file = fileOf(s);
   if (FILE_CHANGE_TOOLS.has(s.tool)) {
-    if (file && s.status !== "error") changed.add(pathKey(file));
+    if (file && s.status !== "error") changed.add(normalizePath(file));
     return "changing";
   }
   // Re-reading a file it already changed is checking its own work.
-  if (s.tool === "Read") return file && changed.has(pathKey(file)) ? "reviewing" : "exploring";
+  if (s.tool === "Read") return file && changed.has(normalizePath(file)) ? "reviewing" : "exploring";
   if (EXPLORE_TOOLS.has(s.tool)) return "exploring";
   switch (s.icon) {
     case "test":

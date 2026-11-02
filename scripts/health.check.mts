@@ -3,7 +3,8 @@
 import assert from "node:assert/strict";
 import { buildSession, type LogRecord, type SessionModel, type Step } from "../src/lib/session.ts";
 import { FINDING_WEIGHT, healthReport, type Finding } from "../src/lib/analytics/health.ts";
-import { filesTouched, isInside, pathKey } from "../src/lib/analytics/files.ts";
+import { filesTouched, isInside } from "../src/lib/analytics/files.ts";
+import { normalizePath } from "../src/lib/paths.ts";
 import { riskOf } from "../src/lib/analytics/risk.ts";
 import { phasesOf } from "../src/lib/analytics/phases.ts";
 import { hookRuns } from "../src/lib/analytics/hooks.ts";
@@ -239,11 +240,20 @@ for (const bad of [undefined, null, 5, "x", { command: 5 }, { file_path: null }]
   assert.equal(riskOf(step("Write", bad as Record<string, unknown>), posix), undefined);
 }
 
-// ── Paths: pathKey semantics ──
-assert.equal(pathKey("C:\\Users\\Me\\a.ts"), pathKey("c:/users/me/a.ts"));
-assert.equal(pathKey("/c/Users/Me/a.ts"), pathKey("C:\\Users\\Me\\a.ts"), "Git Bash spelling");
-assert.notEqual(pathKey("/Users/Me/a.ts"), pathKey("/users/me/a.ts"), "POSIX paths keep their case");
-assert.equal(pathKey("/srv//b/./c/../d/"), "/srv/b/d");
+// ── Paths: one normalizePath for client and server ──
+assert.equal(normalizePath("C:\\Users\\Me\\a.ts"), normalizePath("c:/users/me/a.ts"));
+assert.equal(normalizePath("/c/Users/Me/a.ts"), normalizePath("C:\\Users\\Me\\a.ts"), "Git Bash spelling");
+assert.equal(normalizePath("/mnt/c/Users/Me/a.ts"), normalizePath("C:\\Users\\Me\\a.ts"), "WSL spelling");
+assert.equal(normalizePath("\\\\?\\C:\\Users\\Me\\a.ts"), normalizePath("C:/Users/Me/a.ts"), "long-path prefix");
+assert.equal(normalizePath("\\\\?\\UNC\\srv\\share\\x"), normalizePath("\\\\srv\\share\\x"), "long UNC prefix");
+assert.equal(normalizePath("C:\\a\\.\\b\\\\c\\..\\d"), "c:/a/b/d");
+assert.equal(normalizePath("C:\\..\\a"), "c:/a", "never above the drive");
+assert.notEqual(normalizePath("/Users/Me/a.ts"), normalizePath("/users/me/a.ts"), "POSIX paths keep their case");
+assert.equal(normalizePath("/srv//b/./c/../d/"), "/srv/b/d");
+assert.equal(normalizePath("/"), "/");
+assert.equal(normalizePath("a/./b//c"), "a/b/c");
+assert.equal(normalizePath("../x"), "../x");
+assert.equal(normalizePath("/mnt/data/x"), "/mnt/data/x", "only /mnt/<one letter> is a drive");
 assert.ok(isInside("C:\\Proj\\src\\x.ts", "c:/proj"));
 assert.ok(!isInside("/proj2/x", "/proj"));
 

@@ -1,40 +1,16 @@
 // "What changed in my project" (N2): every file Claude touched, with each change in order.
+import { normalizePath } from "../paths.ts";
 import type { SessionModel, Step } from "../session.ts";
 
 export const FILE_CHANGE_TOOLS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
-
-/**
- * A comparable key for a path, from any OS: separators become "/", "." and ".." are resolved, a trailing
- * separator is dropped. Windows-style paths (a drive letter or \\server) ignore case, like Windows does;
- * Git Bash's "/c/Users/..." is the same file as "C:\Users\...". POSIX paths keep their case.
- */
-export function pathKey(p: string): string {
-  let s = p.replace(/\\/g, "/");
-  s = s.replace(/^\/(?:cygdrive\/)?([a-zA-Z])(?=\/|$)/, "$1:");
-  const windows = /^[a-zA-Z]:/.test(s) || s.startsWith("//");
-  const lead = s.startsWith("//") ? "//" : s.startsWith("/") ? "/" : "";
-  const out: string[] = [];
-  for (const part of s.slice(lead.length).split("/")) {
-    if (!part || part === ".") continue;
-    // Never climb above a drive ("C:") or the root.
-    if (part === "..") {
-      if (out.length && out.at(-1) !== ".." && !/^[a-zA-Z]:$/.test(out.at(-1)!)) out.pop();
-      else if (!lead && !out.length) out.push("..");
-      continue;
-    }
-    out.push(part);
-  }
-  const key = lead + out.join("/");
-  return windows ? key.toLowerCase() : key || lead;
-}
 
 /** A full path, not one relative to the folder Claude was working in. */
 export const isAbsolutePath = (p: string) => /^([\\/]|[a-zA-Z]:|~)/.test(p);
 
 /** Whether `p` is `dir` or somewhere below it (never a sibling that shares a prefix). */
 export function isInside(p: string, dir: string): boolean {
-  const k = pathKey(p);
-  const d = pathKey(dir);
+  const k = normalizePath(p);
+  const d = normalizePath(dir);
   return k === d || k.startsWith(d.endsWith("/") ? d : d + "/");
 }
 
@@ -62,7 +38,7 @@ export function filesTouched(m: SessionModel): FileTouched[] {
       if (!isRead && !FILE_CHANGE_TOOLS.has(step.tool)) continue;
       const p = fileOf(step);
       if (!p) continue;
-      const key = pathKey(p);
+      const key = normalizePath(p);
       let f = files.get(key);
       if (!f) files.set(key, (f = { path: p, reads: 0, writes: 0, edits: 0, changes: [], first: order, firstChange: Infinity }));
       order++;

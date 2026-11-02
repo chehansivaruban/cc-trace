@@ -125,7 +125,8 @@ function fakeTurn(p: Partial<Turn>): [Turn, SessionModel] {
   return [t, model];
 }
 const ids = (t: Turn, mm: SessionModel) => tipsFor(t, mm).map((x) => x.id);
-const reads = (n: number, file = "/p/big.ts") => Array.from({ length: n }, () => step({ tool: "Read", input: { file_path: file } }));
+// Not "/p/...": the shared path normaliser reads a one-letter top folder as a Git Bash drive (P:).
+const reads = (n: number, file = "/proj/big.ts") => Array.from({ length: n }, () => step({ tool: "Read", input: { file_path: file } }));
 
 // Memory: unknown model -> 200k window; > 70 % fires.
 assert.deepEqual(ids(...fakeTurn({ context: 140_001 })), ["memory-full"]);
@@ -135,15 +136,15 @@ assert.equal(memTip.severity, "warn");
 assert.match(memTip.text, /\/compact/);
 assert.match(memTip.text, /\/clear/);
 // Same file read 3 times fires, twice doesn't; Windows and POSIX spellings of different files don't merge.
-assert.deepEqual(ids(...fakeTurn({ steps: reads(3) })), ["reread:/p/big.ts"]);
+assert.deepEqual(ids(...fakeTurn({ steps: reads(3) })), ["reread:/proj/big.ts"]);
 assert.deepEqual(ids(...fakeTurn({ steps: reads(2) })), []);
 assert.match(tipsFor(...fakeTurn({ steps: reads(4) }))[0].text, /big\.ts.*4 times/);
 // Windows paths: separators and case don't matter, so these are one file read 3 times.
 assert.deepEqual(ids(...fakeTurn({ steps: [...reads(1, "C:\\Proj\\Big.ts"), ...reads(1, "c:/proj/big.ts"), ...reads(1, "C:/Proj/BIG.ts")] })), ["reread:c:/proj/big.ts"]);
 // POSIX paths are case-sensitive: three different files.
-assert.deepEqual(ids(...fakeTurn({ steps: [...reads(1, "/p/Big.ts"), ...reads(1, "/p/big.ts"), ...reads(1, "/p/BIG.ts")] })), []);
-// "/p//big.ts" and "/p/./big.ts" are the same file.
-assert.deepEqual(ids(...fakeTurn({ steps: [...reads(1, "/p//big.ts"), ...reads(1, "/p/./big.ts"), ...reads(1)] })), ["reread:/p/big.ts"]);
+assert.deepEqual(ids(...fakeTurn({ steps: [...reads(1, "/proj/Big.ts"), ...reads(1, "/proj/big.ts"), ...reads(1, "/proj/BIG.ts")] })), []);
+// "/proj//big.ts" and "/proj/./big.ts" are the same file.
+assert.deepEqual(ids(...fakeTurn({ steps: [...reads(1, "/proj//big.ts"), ...reads(1, "/proj/./big.ts"), ...reads(1)] })), ["reread:/proj/big.ts"]);
 // Reading a big file in chunks (offset/limit) isn't re-reading it.
 const chunk = (offset: number) => step({ tool: "Read", input: { file_path: "/p/big.ts", offset, limit: 200 } });
 assert.deepEqual(ids(...fakeTurn({ steps: [chunk(1), chunk(201), chunk(401)] })), []);

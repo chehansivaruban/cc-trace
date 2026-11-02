@@ -1,6 +1,7 @@
 // N8: plain advice for saving tokens, worked out from one request's numbers. No AI involved.
 import type { SessionModel, Turn } from "../session.ts";
 import { cacheHit, contextGauge } from "./stats.ts";
+import { normalizePath } from "../paths.ts";
 
 export type Tip = { id: string; text: string; severity: "info" | "warn" };
 
@@ -17,22 +18,6 @@ export const LOW_CACHE_PCT = 50;
 
 const fmt = (n: number) => n.toLocaleString("en-US");
 const base = (p: string) => p.split(/[\\/]/).filter(Boolean).pop() ?? p;
-
-/**
- * One spelling per file, like the server's pathKey: "." and repeated separators are dropped; Windows paths
- * (a drive letter or backslashes) use "/" and ignore case, POSIX paths stay case-sensitive.
- */
-export function fileKey(p: string): string {
-  const windows = /^[A-Za-z]:[\\/]/.test(p) || p.includes("\\");
-  const parts: string[] = [];
-  for (const part of p.split(windows ? /[\\/]+/ : /\/+/)) {
-    if (part === ".") continue;
-    if (part === ".." && parts.length > 1) parts.pop();
-    else parts.push(part);
-  }
-  const out = parts.join("/");
-  return windows ? out.toLowerCase() : out;
-}
 
 export function tipsFor(turn: Turn, m: SessionModel): Tip[] {
   const tips: Tip[] = [];
@@ -55,7 +40,7 @@ export function tipsFor(turn: Turn, m: SessionModel): Tip[] {
     // Reading a big file part by part isn't reading it again.
     if (input?.offset !== undefined || input?.limit !== undefined) continue;
     if (typeof input?.file_path === "string" && input.file_path) {
-      const key = fileKey(input.file_path);
+      const key = normalizePath(input.file_path);
       const r = reads.get(key) ?? { n: 0, name: input.file_path };
       r.n++;
       reads.set(key, r);

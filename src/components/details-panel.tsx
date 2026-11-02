@@ -13,8 +13,8 @@ import { StepIcon, hueColor } from "./step-icon";
 import type { Selection } from "./story-map";
 import { Term, TermText } from "./term-text";
 import { ToolRenderer } from "./tools";
+import { fmt } from "@/components/view-kit";
 
-const fmt = (n: number) => n.toLocaleString();
 const EDITS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
 
 function duration(ms: number) {

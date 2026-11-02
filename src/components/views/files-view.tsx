@@ -8,7 +8,8 @@ import { ToolRenderer } from "@/components/tools";
 import { TermText } from "@/components/term-text";
 import { MapButton, plural, useJump, useTechnical } from "@/components/view-kit";
 import { useMask } from "@/hooks/use-mask";
-import { filesTouched, isInside, pathKey, type FileTouched } from "@/lib/analytics/files";
+import { filesTouched, isInside, type FileTouched } from "@/lib/analytics/files";
+import { normalizePath } from "@/lib/paths";
 import { cn } from "@/lib/utils";
 import type { SessionViewProps } from "./registry";
 
@@ -19,7 +20,7 @@ const base = (p: string) => p.split(/[\\/]/).filter(Boolean).pop() ?? p;
 function shownPath(p: string, cwds: string[]) {
   const dir = cwds.filter((c) => isInside(p, c)).sort((a, b) => b.length - a.length)[0];
   if (!dir) return p;
-  const depth = pathKey(dir).split("/").filter(Boolean).length;
+  const depth = normalizePath(dir).split("/").filter(Boolean).length;
   return p.split(/[\\/]/).filter(Boolean).slice(depth).join("/") || base(p);
 }
 
@@ -36,7 +37,7 @@ export function FilesView(props: SessionViewProps) {
   const [picked, setPicked] = useState<string | null>(() => {
     const step = selected?.type === "step" ? selected.id : undefined;
     const hit = step && files.find((f) => f.changes.some((c) => c.step.id === step));
-    return hit ? pathKey(hit.path) : changed[0] ? pathKey(changed[0].path) : null;
+    return hit ? normalizePath(hit.path) : changed[0] ? normalizePath(changed[0].path) : null;
   });
   const [detailOpen, setDetailOpen] = useState(false); // small screens: the list or one file
 
@@ -45,7 +46,7 @@ export function FilesView(props: SessionViewProps) {
     const all = tab === "changed" ? changed : readOnly;
     return q ? all.filter((f) => f.path.toLowerCase().includes(q)) : all;
   }, [tab, changed, readOnly, query]);
-  const current = files.find((f) => pathKey(f.path) === picked);
+  const current = files.find((f) => normalizePath(f.path) === picked);
 
   if (!files.length) {
     return (
@@ -103,7 +104,7 @@ export function FilesView(props: SessionViewProps) {
             cwds={model.meta.cwds}
             mask={mask}
             onPick={(f) => {
-              setPicked(pathKey(f.path));
+              setPicked(normalizePath(f.path));
               setDetailOpen(true);
             }}
             empty={query ? "No file matches that name." : tab === "changed" ? "Claude hasn't changed any files yet." : "No files that were only read."}
@@ -132,7 +133,7 @@ function FileList({ files, picked, cwds, mask, onPick, empty }: { files: FileTou
           const f = files[row.index];
           const rel = shownPath(f.path, cwds);
           const dir = rel.split(/[\\/]/).slice(0, -1).join("/");
-          const active = pathKey(f.path) === picked;
+          const active = normalizePath(f.path) === picked;
           const n = f.changes.length;
           return (
             <li key={row.key} className="absolute inset-x-0" style={{ top: row.start, height: row.size }}>
