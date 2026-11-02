@@ -24,6 +24,9 @@ const fileOf = (s: Step) => {
   return f.trim();
 };
 
+type Mask = (s: string) => string;
+const keep: Mask = (s) => s;
+
 type Facts = {
   reads: Set<string>;
   changed: Set<string>;
@@ -40,14 +43,14 @@ type Facts = {
   replied: boolean;
 };
 
-function factsOf(steps: Step[], m: SessionModel): Facts {
+function factsOf(steps: Step[], m: SessionModel, mask: Mask): Facts {
   const f: Facts = { reads: new Set(), changed: new Set(), direct: [], nested: [], tests: 0, lastTestFailed: false, commands: 0, web: 0, errors: 0, failedHelpers: [], messages: 0, interrupted: false, replied: false };
   const briefed = new Set<string>();
   for (const s of steps) {
     if (s.kind === "brief") {
       if (briefed.has(s.actor)) continue;
       briefed.add(s.actor);
-      const name = m.actors[s.actor]?.name ?? "a helper";
+      const name = mask(m.actors[s.actor]?.name ?? "a helper");
       (s.from === "lead" || !s.from ? f.direct : f.nested).push(name);
       continue;
     }
@@ -55,7 +58,7 @@ function factsOf(steps: Step[], m: SessionModel): Facts {
     if (s.kind === "reply") f.replied = true;
     if (s.event === "interrupted") f.interrupted = true;
     if (s.status === "error" && s.kind !== "report") f.errors++;
-    if (s.kind === "report" && s.status === "error" && s.from) f.failedHelpers.push(m.actors[s.from]?.name ?? "A helper");
+    if (s.kind === "report" && s.status === "error" && s.from) f.failedHelpers.push(mask(m.actors[s.from]?.name ?? "A helper"));
     if (s.kind !== "tool") continue;
     if (s.tool === "Read" && fileOf(s)) f.reads.add(fileOf(s));
     else if (EDIT_TOOLS.has(s.tool ?? "") && fileOf(s)) f.changed.add(fileOf(s));
@@ -96,11 +99,14 @@ function outcome(f: Facts, live: boolean): string {
   return out.join(" ");
 }
 
-/** A paragraph about one request: what you asked, what Claude did, who helped, what changed, how it ended. */
-export function storyOf(turn: Turn, m: SessionModel): string {
-  const f = factsOf(turn.steps, m);
+/**
+ * A paragraph about one request: what you asked, what Claude did, who helped, what changed, how it ended.
+ * `mask` (e.g. maskSecrets) is applied to log text before it is shortened, so a cut can't split a secret.
+ */
+export function storyOf(turn: Turn, m: SessionModel, mask: Mask = keep): string {
+  const f = factsOf(turn.steps, m, mask);
   const before = turn.text === SESSION_START;
-  const first = before ? "" : `You asked Claude: “${clip(turn.text, 140)}”. `;
+  const first = before ? "" : `You asked Claude: “${clip(mask(turn.text), 140)}”. `;
   const subject = before ? "Before your first message here, Claude" : "Claude";
   const parts = doings(f);
   const did = parts.length ? `${subject} ${listNames(parts, parts.length)}.` : before ? `${subject} was already working.` : "Claude answered without using any tools.";
@@ -110,11 +116,11 @@ export function storyOf(turn: Turn, m: SessionModel): string {
 }
 
 /** A paragraph about the whole session. */
-export function sessionStory(m: SessionModel): string {
+export function sessionStory(m: SessionModel, mask: Mask = keep): string {
   const steps = m.turns.flatMap((t) => t.steps);
   if (!steps.length) return "Nothing has happened in this session yet.";
   const requests = m.turns.filter((t) => t.text !== SESSION_START).length;
-  const f = factsOf(steps, m);
+  const f = factsOf(steps, m, mask);
   const parts = doings(f);
   const opening = requests ? `Over ${plural(requests, "request")}, Claude` : "Claude";
   const did = parts.length ? `${opening} ${listNames(parts, parts.length)}.` : `${opening} answered without using any tools.`;

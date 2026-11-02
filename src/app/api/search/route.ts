@@ -3,7 +3,9 @@ import os from "node:os";
 import path from "node:path";
 import readline from "node:readline";
 import { PROJECTS_ROOT, listProjects, resolveSessionFile, subagentsDir } from "@/lib/claude-logs";
+import { maskShortened } from "@/lib/export/common";
 import { maskSecrets } from "@/lib/redact";
+import { snippetOf } from "@/lib/search";
 import { promptText } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -63,12 +65,6 @@ function isPrompt(rec: Rec) {
   return !!t && !t.startsWith("[Request interrupted");
 }
 
-function snippetAt(text: string, at: number, len: number) {
-  const from = Math.max(0, at - AROUND);
-  const to = Math.min(text.length, at + len + AROUND);
-  return `${from > 0 ? "…" : ""}${text.slice(from, to).replace(/\s+/g, " ").trim()}${to < text.length ? "…" : ""}`;
-}
-
 /**
  * Streams matches across every session log (newest first) as NDJSON: one SearchHit per line, then one
  * SearchDone line. Case-insensitive plain substring; nothing is stored. ?q= (2–200 chars), ?limit= (1–1000,
@@ -82,7 +78,8 @@ export async function GET(req: Request) {
   const limitRaw = Number(params.get("limit") ?? 200);
   const limit = Number.isFinite(limitRaw) ? Math.min(1000, Math.max(1, Math.floor(limitRaw))) : 200;
   const home = os.homedir();
-  const mask = params.get("mask") === "1" ? (s: string) => maskSecrets(s, home) : (s: string) => s;
+  const masking = params.get("mask") === "1";
+  const mask = masking ? (s: string) => maskSecrets(s, home) : (s: string) => s;
   const needle = q.toLowerCase();
   // JSON keeps these characters as they are, so a raw line without the text can't contain it either.
   const prefilter = !/["\\\u0000-\u001f]/.test(q);
@@ -136,16 +133,19 @@ export async function GET(req: Request) {
           const abs = resolveSessionFile(s.file);
           if (!abs) continue;
           scanned++;
-          const title = mask(s.title);
+          // The listing cuts titles at 120 characters, before any masking.
+          const title = masking ? maskShortened(s.title, home, s.title.length >= 120) : s.title;
           let inFile = 0;
           // Requests: count your messages the way buildSession does, so jump links open the right one.
           const prompts: number[] = [];
           let before = false; // work logged before your first message makes an extra first request
           const hit = (rec: Rec, turn: number, helper: boolean) => {
             for (const part of partsOf(rec, helper)) {
-              const at = part.text.toLowerCase().indexOf(needle);
-              if (at < 0) continue;
-              send({ file: s.file, title, turn, step: part.step, snippet: mask(snippetAt(part.text, at, q.length)), ts: Date.parse(rec.timestamp) || 0 } satisfies SearchHit);
+              if (!part.text.toLowerCase().includes(needle)) continue;
+              // Masks the whole text, then cuts the window, so a cut can't split a secret.
+              const snippet = snippetOf(part.text, q, mask, AROUND);
+              if (snippet === null) continue; // the only match was inside hidden text
+              send({ file: s.file, title, turn, step: part.step, snippet, ts: Date.parse(rec.timestamp) || 0 } satisfies SearchHit);
               matches++;
               inFile++;
               return;

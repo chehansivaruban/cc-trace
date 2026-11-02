@@ -8,7 +8,9 @@ import { compare, compareModels, compareTools, scopeToTurn } from "../src/lib/an
 import { commandOf, emptyFilter, filterOptions, filterSteps, type StepFilter } from "../src/lib/analytics/filters.ts";
 import { exportHtml } from "../src/lib/export/html.ts";
 import { exportMarkdown } from "../src/lib/export/markdown.ts";
-import { exportJson, homeOf } from "../src/lib/export/common.ts";
+import { exportJson, homeOf, makeMasker, maskShortened } from "../src/lib/export/common.ts";
+import { maskSecrets } from "../src/lib/redact.ts";
+import { snippetOf } from "../src/lib/search.ts";
 
 const t0 = Date.parse("2026-01-01T00:00:00.000Z");
 const at = (s: number) => new Date(t0 + s * 1000).toISOString();
@@ -296,6 +298,53 @@ assert.ok(outputs.htmlTurn.includes("Request 1"));
 assert.ok(outputs.md.startsWith("# "));
 assert.ok(!outputs.md.includes("<script>"), "markdown escapes HTML");
 console.log("✓ exports mask secrets and work offline");
+// Mask the whole text first, then cut: a secret cut by a clip edge must not leak its prefix or tail.
+const at90 = "x".repeat(81) + " sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWX then more words";
+const at140 = "y".repeat(131) + " ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 then more words";
+const at48 = "z".repeat(40) + " sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWX then more words"; // the step subtitle's cut
+for (const text of [at48, at90, at140]) {
+  const edge = buildSession([{ type: "user", timestamp: at(0), cwd: "/Users/chehan/app", message: { content: text } }, asst(1, [{ type: "text", text: "ok" }], "end_turn")], {}, now);
+  const mask = makeMasker(true, "/Users/chehan");
+  for (const out of [exportHtml(edge, { mask: true }), exportHtml(edge, { mask: true, turn: 0 }), exportMarkdown(edge, { mask: true }), exportJson(edge, { mask: true }), storyOf(edge.turns[0], edge, mask), sessionStory(edge, mask)]) {
+    assert.ok(!/sk-ant|ghp_|ABCDEFGH/.test(out), `secret cut at a clip edge leaks: ${out.slice(0, 400)}`);
+  }
+}
+// Text shortened elsewhere (helper names, titles cut at 120) drops its possibly half-cut last word.
+assert.ok(!maskShortened("Rotate sk-ant-api0…").includes("sk-ant"));
+assert.ok(!maskShortened("“key ghp_ABCDEF…”").includes("ghp_"));
+assert.ok(!maskShortened("Rotate sk-ant-api0… is reporting back").includes("sk-ant"));
+assert.equal(maskShortened("Fix login…"), "Fix …");
+assert.equal(maskShortened("Fix login"), "Fix login");
+assert.ok(!maskShortened("title ending in sk-ant-api", undefined, true).includes("sk-ant"));
+// Search snippets: a long secret straddling the left and the right edge of the ±60 window.
+const masker = (s: string) => maskSecrets(s, "/Users/chehan");
+const left = "a ".repeat(50) + "sk-ant-api03-" + "Z".repeat(80) + " needle here";
+const leftSnip = snippetOf(left, "NEEDLE", masker)!;
+assert.ok(leftSnip.includes("needle") && !/ZZZZ|sk-ant/.test(leftSnip), leftSnip);
+const right = "needle " + "b ".repeat(28) + "ghp_" + "Q".repeat(40) + " and /Users/chehan/x";
+const rightSnip = snippetOf(right, "needle", masker)!;
+assert.ok(!/QQQQ|ghp_/.test(rightSnip), rightSnip);
+assert.equal(snippetOf("nothing here", "needle"), null);
+// A query that only matches inside a secret finds nothing when masking.
+assert.equal(snippetOf("key sk-ant-api03-abcdefghijkl", "abcdefgh", masker), null);
+assert.match(snippetOf("x".repeat(100) + "Needle" + "y".repeat(100), "needle")!, /^….{60}Needle.{60}…$/);
+console.log("✓ masking happens before clipping");
+
+// Markdown: log text can't become a live link or heading.
+const mdLog = buildSession([{ type: "user", timestamp: at(0), message: { content: "see [click me](http://evil.example) now\n# Not a heading" } }, asst(1, [{ type: "text", text: "ok" }], "end_turn")], {}, now);
+const mdOut = exportMarkdown(mdLog, { mask: false });
+assert.ok(!mdOut.includes("](http"), "no live markdown links from the log");
+assert.ok(!/^\s*(>\s*)*#[^#\s]?\s*Not a heading/m.test(mdOut), "no headings from the log");
+assert.ok(mdOut.includes("\\# Not a heading"), mdOut);
+
+// JSON export: an unprintable value gives a plain-English error.
+const loop: Record<string, unknown> = {};
+loop.self = loop;
+const cyc = buildSession([{ type: "user", timestamp: at(0), message: { content: "go" } }, asst(1, [toolUse("cy", "Bash", { command: "ls" })])], {}, now);
+cyc.turns[0].steps.find((s) => s.id === "cy")!.input = loop;
+assert.throws(() => exportJson(cyc, { mask: false }), /couldn't be saved as raw data/);
+assert.doesNotThrow(() => exportJson(cyc, { mask: true }));
+
 
 // ── malformed records never crash anything ──
 const junk = buildSession([{}, { type: "weird" }, { type: "assistant" }, { type: "user", message: null },

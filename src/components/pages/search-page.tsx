@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { ArrowLeft, Loader2, Search } from "lucide-react";
 import type { SearchDone, SearchHit } from "@/app/api/search/route";
 import type { ProjectInfo } from "@/lib/claude-logs";
@@ -25,11 +25,16 @@ function Highlight({ text, q }: { text: string; q: string }) {
 }
 
 const projectOf = (file: string) => file.split(/[\\/]/)[0];
+const noSubscribe = () => () => {};
+/** False while the page is still being hydrated (settings may still be the defaults), true afterwards. */
+const useHydrated = () => useSyncExternalStore(noSubscribe, () => true, () => false);
+
 const shortPath = (p: string) => p.split(/[\\/]/).filter(Boolean).slice(-2).join("/") || p;
 
 /** Search across every session (C1), streamed from the logs; nothing is stored. */
 export function SearchPage({ route, navigate }: AppPageProps) {
   const [settings] = useSettings();
+  const hydrated = useHydrated();
   const q = route.q ?? "";
   const [draft, setDraft] = useState(q);
   const mask = (text: string) => (settings.maskSensitive ? maskSecrets(text) : text);
@@ -51,6 +56,8 @@ export function SearchPage({ route, navigate }: AppPageProps) {
   }, [draft, q, navigate]);
 
   useEffect(() => {
+    // Wait until the saved settings are read, so a "Hide sensitive text" user never sends an unmasked search.
+    if (!hydrated) return;
     const text = q.trim();
     if (text.length < 2) {
       setState({ hits: [], busy: false });
@@ -82,7 +89,7 @@ export function SearchPage({ route, navigate }: AppPageProps) {
       }
     })();
     return () => ctl.abort();
-  }, [q, settings.maskSensitive]);
+  }, [q, settings.maskSensitive, hydrated]);
 
   const groups = useMemo(() => {
     const by = new Map<string, SearchHit[]>();

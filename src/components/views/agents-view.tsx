@@ -60,7 +60,8 @@ export function AgentsView({ model, turn, selected, onSelect, onPickTurn }: Sess
   const teams = useMemo(() => teamsOf(model), [model]);
   const chat = useMemo(() => agentChat(model, scope === "request" ? turn : undefined), [model, turn, scope]);
   const shownChat = useMemo(() => filterSteps(chat, filter), [chat, filter]);
-  const story = useMemo(() => (scope === "request" ? storyOf(turn, model) : sessionStory(model)), [scope, turn, model]);
+  // The story masks log text before shortening it, so a cut can't split a secret.
+  const story = useMemo(() => (scope === "request" ? storyOf(turn, model, mask) : sessionStory(model, mask)), [scope, turn, model, mask]);
   const turnOf = useMemo(() => {
     const m = new Map<string, number>();
     for (const t of model.turns) for (const s of t.steps) m.set(s.id, t.index);
@@ -116,7 +117,7 @@ export function AgentsView({ model, turn, selected, onSelect, onPickTurn }: Sess
         <div className="mt-4 rounded-xl bg-foreground/[0.05] px-4 py-3.5">
           <div className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">In short</div>
           <p className="mt-1.5 text-[13px] leading-relaxed">
-            <TermText text={mask(story)} />
+            <TermText text={story} />
           </p>
         </div>
 
@@ -233,9 +234,17 @@ function TreeNode({ node, depth, mask, tech, selectedId, onPick }: { node: Agent
       </div>
       {open && node.children.length > 0 && (
         <div className="ml-3 border-l border-foreground/10 pl-2">
-          {kids.map((k) => (
-            <TreeNode key={k.actor.id} node={k} depth={depth + 1} mask={mask} tech={tech} selectedId={selectedId} onPick={onPick} />
-          ))}
+          {kids.length > VIRTUAL_AT ? (
+            <VirtualList
+              items={kids}
+              getKey={(k) => k.actor.id}
+              estimate={32}
+              className="max-h-[60vh]"
+              render={(k) => <TreeNode node={k} depth={depth + 1} mask={mask} tech={tech} selectedId={selectedId} onPick={onPick} />}
+            />
+          ) : (
+            kids.map((k) => <TreeNode key={k.actor.id} node={k} depth={depth + 1} mask={mask} tech={tech} selectedId={selectedId} onPick={onPick} />)
+          )}
           {node.children.length > kids.length && (
             <button type="button" onClick={() => setAll(true)} className="ml-7 py-1 text-xs font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground">
               Show all {node.children.length} helpers
@@ -274,22 +283,34 @@ function TaskColumn({ label, icon, tasks, mask }: { label: string; icon: ReactNo
         {label}
         <span className="font-normal text-muted-foreground tabular-nums">{tasks.length}</span>
       </p>
-      <ul className="space-y-1.5">
-        {shown.map((t) => (
-          <li key={t.id} className="rounded-lg border border-foreground/10 bg-background/60 px-2.5 py-2">
-            <p className={cn("text-[13px] leading-snug break-words", t.status === "completed" && "text-muted-foreground")}>{mask(t.title)}</p>
-            <p className="mt-1 truncate text-[11px] text-muted-foreground">
-              {mask(t.owner)} · {new Date(t.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-            </p>
-          </li>
-        ))}
-        {!tasks.length && <li className="px-1.5 pb-1 text-xs text-muted-foreground">Nothing here.</li>}
-      </ul>
+      {shown.length > VIRTUAL_AT ? (
+        <VirtualList items={shown} getKey={(t) => t.id} estimate={64} className="max-h-[60vh]" render={(t) => <div className="pb-1.5"><TaskCard task={t} mask={mask} /></div>} />
+      ) : (
+        <ul className="space-y-1.5">
+          {shown.map((t) => (
+            <li key={t.id}>
+              <TaskCard task={t} mask={mask} />
+            </li>
+          ))}
+          {!tasks.length && <li className="px-1.5 pb-1 text-xs text-muted-foreground">Nothing here.</li>}
+        </ul>
+      )}
       {tasks.length > shown.length && (
         <button type="button" onClick={() => setAll(true)} className="mt-2 px-1.5 text-xs font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground">
           Show all {tasks.length}
         </button>
       )}
+    </div>
+  );
+}
+
+function TaskCard({ task: t, mask }: { task: AgentTask; mask: Mask }) {
+  return (
+    <div className="rounded-lg border border-foreground/10 bg-background/60 px-2.5 py-2">
+      <p className={cn("text-[13px] leading-snug break-words", t.status === "completed" && "text-muted-foreground")}>{mask(t.title)}</p>
+      <p className="mt-1 truncate text-[11px] text-muted-foreground">
+        {mask(t.owner)} · {new Date(t.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+      </p>
     </div>
   );
 }
@@ -341,7 +362,20 @@ type ChatProps = { steps: Step[]; model: SessionModel; mask: Mask; selectedId?: 
 function Chat(props: ChatProps) {
   const { steps, model, mask, selectedId, onOpen } = props;
   if (!steps.length) return <p className="text-[13px] text-muted-foreground">No messages match these filters.</p>;
-  if (steps.length > VIRTUAL_AT) return <VirtualChat {...props} />;
+  if (steps.length > VIRTUAL_AT)
+    return (
+      <VirtualList
+        items={steps}
+        getKey={(s) => s.id}
+        estimate={120}
+        className="h-[70vh] rounded-xl border border-foreground/10"
+        render={(s) => (
+          <div className="px-1">
+            <ChatMessage step={s} model={model} mask={mask} selected={s.id === selectedId} onOpen={onOpen} />
+          </div>
+        )}
+      />
+    );
   return (
     <div className="space-y-1">
       {steps.map((s) => (
@@ -351,16 +385,16 @@ function Chat(props: ChatProps) {
   );
 }
 
-/** Long chats only render the messages on screen. */
-function VirtualChat({ steps, model, mask, selectedId, onOpen }: ChatProps) {
+/** Lists over VIRTUAL_AT rows only render what's on screen, in their own scroll box. Rows can change height. */
+function VirtualList<T>({ items, getKey, render, estimate, className }: { items: T[]; getKey: (item: T) => string; render: (item: T) => ReactNode; estimate: number; className?: string }) {
   const box = useRef<HTMLDivElement>(null);
-  const v = useVirtualizer({ count: steps.length, getScrollElement: () => box.current, estimateSize: () => 120, overscan: 6, getItemKey: (i) => steps[i].id });
+  const v = useVirtualizer({ count: items.length, getScrollElement: () => box.current, estimateSize: () => estimate, overscan: 6, getItemKey: (i) => getKey(items[i]) });
   return (
-    <div ref={box} className="h-[70vh] overflow-y-auto rounded-xl border border-foreground/10">
+    <div ref={box} className={cn("overflow-y-auto", className)}>
       <div style={{ height: v.getTotalSize(), position: "relative" }}>
         {v.getVirtualItems().map((row) => (
-          <div key={row.key} data-index={row.index} ref={v.measureElement} className="absolute inset-x-0 top-0 px-1" style={{ transform: `translateY(${row.start}px)` }}>
-            <ChatMessage step={steps[row.index]} model={model} mask={mask} selected={steps[row.index].id === selectedId} onOpen={onOpen} />
+          <div key={row.key} data-index={row.index} ref={v.measureElement} className="absolute inset-x-0 top-0" style={{ transform: `translateY(${row.start}px)` }}>
+            {render(items[row.index])}
           </div>
         ))}
       </div>

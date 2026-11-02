@@ -153,6 +153,8 @@ try {
   };
   const prompt = await search("HELLO from smoke");
   assert.ok(prompt.some((h) => h.file === project.sessions[0].file && h.turn === 0 && h.snippet.includes("hello from smoke test") && !h.step), JSON.stringify(prompt));
+  const masked = await search("hello from smoke", "&mask=1");
+  assert.ok(masked.some((h) => h.snippet.includes("hello from smoke test")), "masked search still finds plain text");
   const toolHit = await search("live-line-ok");
   assert.equal(toolHit[0]?.step, "t1", "a match in a tool result points at its step");
   assert.ok((await search("helper-line-ok")).length === 1, "helper logs are searched");

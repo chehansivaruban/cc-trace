@@ -3,9 +3,18 @@
 import type { SessionModel } from "../session.ts";
 import { outline, type ExportOptions } from "./common.ts";
 
-/** Text outside code: no raw HTML, and no accidental headings or lists from the log. */
-const md = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-const oneLine = (s: string) => md(s.replace(/\s+/g, " ").trim()).replace(/([*_`[\]])/g, "\\$1");
+/**
+ * Text outside code: no raw HTML, no links or images ([…](…)), and no headings from the log. Brackets,
+ * parentheses and a "#" that starts a line are backslash-escaped.
+ */
+const md = (s: string) =>
+  s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/([[\]()\\])/g, "\\$1")
+    .replace(/^(\s*)#/gm, "$1\\#");
+const oneLine = (s: string) => md(s.replace(/\s+/g, " ").trim()).replace(/([*_`])/g, "\\$1");
 const quote = (s: string, indent = "") => md(s).split("\n").map((l) => `${indent}> ${l}`).join("\n");
 function fence(s: string, indent = "") {
   const longest = Math.max(2, ...[...s.matchAll(/`+/g)].map((x) => x[0].length));

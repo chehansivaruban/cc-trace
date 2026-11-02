@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { TermText } from "@/components/term-text";
 import { useMask } from "@/hooks/use-mask";
@@ -23,12 +23,14 @@ function duration(ms: number) {
 const show = (metric: string, n: number) => (metric === "durationMs" ? duration(n) : formatCount(n));
 
 /** One side of the comparison: a session from the logs, optionally narrowed to one request. */
-function useSide(file: string | undefined, turn: number | "all") {
+function useSide(file: string | undefined, turn: number | "all", size: number | undefined) {
   const { logs, connected } = useSessionStream(file ?? null);
   // The stream keeps updating; "now" only matters for live state, which comparing doesn't show.
   const model = useMemo(() => buildSession(logs.main, logs.agents), [logs]);
   const scoped = useMemo(() => (turn === "all" ? model : scopeToTurn(model, turn)), [model, turn]);
-  return { model, scoped, loading: !!file && (!connected || !logs.main.length) };
+  // An empty log (size 0) or one that isn't listed (size 0 too) never sends records: don't wait for them.
+  const loading = !!file && size !== 0 && (!connected || !logs.main.length);
+  return { model, scoped, loading, empty: !!file && !loading && !model.turns.length };
 }
 
 function Picker(props: {
@@ -48,11 +50,13 @@ function Picker(props: {
       <p className="mb-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{props.label}</p>
       <select className={select} value={file ?? ""} onChange={(e) => props.onFile(e.target.value)} aria-label={`${props.label}: session`}>
         {!file && <option value="">Pick a session…</option>}
+        {file && projects.length > 0 && !projects.some((p) => p.sessions.some((s) => s.file === file)) && <option value={file}>A session that wasn&apos;t found</option>}
         {projects.map((p) => (
           <optgroup key={p.dir} label={shortPath(p.path)}>
             {p.sessions.map((s) => (
               <option key={s.file} value={s.file}>
-                {mask(s.title).slice(0, 80)}
+                {/* The listing cuts titles at 120 characters before any masking. */}
+                {mask(s.title.length >= 120 ? `${s.title}…` : s.title).slice(0, 80)}
               </option>
             ))}
           </optgroup>
@@ -76,9 +80,18 @@ function Picker(props: {
   );
 }
 
+function Note({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="min-w-0 rounded-xl border border-dashed border-foreground/15 p-3">
+      <p className="mb-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{label}</p>
+      <p className="text-[13px] leading-relaxed text-muted-foreground">{children}</p>
+    </div>
+  );
+}
+
 /** Compare two sessions or requests (H2): effort side by side, top tools and models. Tokens only, no money. */
 export function ComparePage({ route, navigate }: AppPageProps) {
-  const [projects, setProjects] = useState<ProjectInfo[]>([]);
+  const [projects, setProjects] = useState<ProjectInfo[] | null>(null);
   const [turnA, setTurnA] = useState<number | "all">("all");
   const [turnB, setTurnB] = useState<number | "all">("all");
   useEffect(() => {
@@ -87,11 +100,14 @@ export function ComparePage({ route, navigate }: AppPageProps) {
       .then((list: ProjectInfo[]) => setProjects(Array.isArray(list) ? list : []))
       .catch(() => setProjects([]));
   }, []);
-  const newest = useMemo(() => projects.flatMap((p) => p.sessions).sort((a, b) => b.mtime - a.mtime), [projects]);
+  const newest = useMemo(() => (projects ?? []).flatMap((p) => p.sessions).sort((a, b) => b.mtime - a.mtime), [projects]);
   const fileA = route.file ?? newest[0]?.file;
   const fileB = route.other ?? newest.find((s) => s.file !== fileA)?.file;
-  const a = useSide(fileA, turnA);
-  const b = useSide(fileB, turnB);
+  // Before the listing arrives the size is unknown (keep waiting); afterwards a missing file counts as empty.
+  const sizeOf = (f?: string) => (projects === null ? undefined : (newest.find((s) => s.file === f)?.size ?? 0));
+  const a = useSide(fileA, turnA, sizeOf(fileA));
+  const b = useSide(fileB, turnB, sizeOf(fileB));
+  const listed = projects !== null;
   const maskA = useMask(a.model);
   const maskB = useMask(b.model);
 
@@ -99,8 +115,8 @@ export function ComparePage({ route, navigate }: AppPageProps) {
   const tools = useMemo(() => compareTools(a.scoped, b.scoped, 8), [a.scoped, b.scoped]);
   const models = useMemo(() => compareModels(a.scoped, b.scoped), [a.scoped, b.scoped]);
   const maxTool = Math.max(1, ...tools.flatMap((t) => [t.a, t.b]));
-  const storyA = turnA === "all" ? sessionStory(a.model) : a.model.turns[turnA] ? storyOf(a.model.turns[turnA], a.model) : "";
-  const storyB = turnB === "all" ? sessionStory(b.model) : b.model.turns[turnB] ? storyOf(b.model.turns[turnB], b.model) : "";
+  const storyA = turnA === "all" ? sessionStory(a.model, maskA) : a.model.turns[turnA] ? storyOf(a.model.turns[turnA], a.model, maskA) : "";
+  const storyB = turnB === "all" ? sessionStory(b.model, maskB) : b.model.turns[turnB] ? storyOf(b.model.turns[turnB], b.model, maskB) : "";
   const loading = a.loading || b.loading;
 
   return (
@@ -114,9 +130,22 @@ export function ComparePage({ route, navigate }: AppPageProps) {
       </p>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <Picker label="A" projects={projects} file={fileA} onFile={(f) => { setTurnA("all"); navigate({ file: f }, true); }} model={a.model} turn={turnA} onTurn={setTurnA} mask={maskA} />
-        <Picker label="B" projects={projects} file={fileB} onFile={(f) => { setTurnB("all"); navigate({ other: f }, true); }} model={b.model} turn={turnB} onTurn={setTurnB} mask={maskB} />
+        {fileA || !listed ? (
+          <Picker label="A" projects={projects ?? []} file={fileA} onFile={(f) => { setTurnA("all"); navigate({ file: f }, true); }} model={a.model} turn={turnA} onTurn={setTurnA} mask={maskA} />
+        ) : (
+          <Note label="A">No Claude Code sessions were found yet. Use Claude Code once, then come back.</Note>
+        )}
+        {fileB || !listed ? (
+          <Picker label="B" projects={projects ?? []} file={fileB} onFile={(f) => { setTurnB("all"); navigate({ other: f }, true); }} model={b.model} turn={turnB} onTurn={setTurnB} mask={maskB} />
+        ) : (
+          <Note label="B">{fileA ? "There's only one session so far. Once you have another, you can compare the two here." : "Nothing to compare yet."}</Note>
+        )}
       </div>
+      {(a.empty || b.empty) && (
+        <p className="mt-4 rounded-xl bg-foreground/[0.05] px-4 py-3 text-[13px] text-muted-foreground" role="status">
+          {a.empty && b.empty ? "Neither session has any messages yet." : `Session ${a.empty ? "A" : "B"} has no messages yet. Pick another one to compare.`}
+        </p>
+      )}
 
       {loading && (
         <p className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
@@ -124,7 +153,7 @@ export function ComparePage({ route, navigate }: AppPageProps) {
         </p>
       )}
 
-      {fileA && fileB && (
+      {fileA && fileB && !a.empty && !b.empty && (
         <>
           <div className="mt-6 overflow-x-auto rounded-xl border border-foreground/10">
             <table className="w-full text-[13px]">
@@ -162,8 +191,8 @@ export function ComparePage({ route, navigate }: AppPageProps) {
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             {[
-              { label: "A", text: maskA(storyA) },
-              { label: "B", text: maskB(storyB) },
+              { label: "A", text: storyA },
+              { label: "B", text: storyB },
             ].map((s) => (
               <div key={s.label} className="min-w-0 rounded-xl bg-foreground/[0.05] px-4 py-3">
                 <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{s.label} in short</p>
