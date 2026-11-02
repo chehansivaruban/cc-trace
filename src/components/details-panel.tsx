@@ -16,6 +16,8 @@ import { ToolRenderer } from "./tools";
 import { BookmarkButton } from "./bookmark-button";
 import { fmt } from "@/components/view-kit";
 import { maskClip } from "@/lib/redact";
+import { appear } from "@/lib/motion";
+import { useReducedMotion } from "./settings-provider";
 
 const EDITS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
 
@@ -44,6 +46,7 @@ export function DetailsPanel(props: {
   const step = selected?.type === "step" ? turn?.steps.find((s) => s.id === selected.id) : undefined;
   const actor = selected?.type === "actor" ? actors[selected.id] : undefined;
   const key = step ? step.id : actor ? actor.id : `turn-${turn?.index}`;
+  const reduce = useReducedMotion();
 
   return (
     <aside className="relative flex h-full min-h-0 flex-col" aria-label="Explanation">
@@ -60,10 +63,7 @@ export function DetailsPanel(props: {
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={key}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.18 }}
+          {...appear(reduce, { y: 6 }, { duration: 0.18 })}
           className="min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-8"
         >
           {step && turn ? (

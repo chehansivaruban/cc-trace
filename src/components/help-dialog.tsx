@@ -2,7 +2,8 @@
 
 import { useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { POP } from "@/lib/motion";
+import { appear } from "@/lib/motion";
+import { useReducedMotion } from "@/components/settings-provider";
 import { Brain, Inbox, Keyboard, LayoutGrid, MessagesSquare, Send, ShieldCheck, Users, Wrench, X } from "lucide-react";
 import { useEscape } from "@/hooks/use-escape";
 import { useFocusTrap } from "@/hooks/use-focus-trap";
@@ -60,6 +61,7 @@ const SECTIONS: { icon: typeof Users; title: string; text: string; shortcuts?: b
 ];
 
 export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const reduce = useReducedMotion();
   const panel = useRef<HTMLDivElement>(null);
   useFocusTrap(open, panel);
   useEscape(open, onClose);
@@ -81,10 +83,7 @@ export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => vo
             role="dialog"
             aria-modal
             aria-labelledby="help-title"
-            initial={{ opacity: 0, transform: "scale(0.98)" }}
-            animate={{ opacity: 1, transform: "scale(1)" }}
-            exit={{ opacity: 0, transform: "scale(0.98)", transition: { duration: 0.12 } }}
-            transition={POP}
+            {...appear(reduce, { scale: 0.98 })}
             onClick={(e) => e.stopPropagation()}
             className="glass-strong max-h-[85vh] w-full max-w-[40rem] overflow-y-auto rounded-2xl p-6 shadow-2xl outline-none"
           >

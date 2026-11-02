@@ -42,6 +42,15 @@ export const encodeProjectDir = (cwd: string) => cwd.replace(/[^A-Za-z0-9]/g, "-
 /** The project folder name of a listed session file ("<projectDir>/<id>.jsonl"). */
 export const projectOfFile = (file: string) => file.split(/[\\/]/)[0];
 
+/** Whether two session files ("<dir>/<id>.jsonl", with either slash) are the same one. */
+export const sameSessionFile = (a?: string | null, b?: string | null) => !!a && !!b && a.replace(/\\/g, "/") === b.replace(/\\/g, "/");
+
+/** The session `d` places from `file` in a list (newest first: -1 is newer, +1 older), if there is one. */
+export function siblingSession<S extends { file: string }>(list: S[], file: string | null | undefined, d: 1 | -1): S | undefined {
+  const i = list.findIndex((s) => sameSessionFile(s.file, file));
+  return i < 0 ? undefined : list[i + d];
+}
+
 type Searchable = { id: string; file: string; title: string; firstPrompt?: string; model?: string; live?: boolean };
 
 /** Search (every word must appear in the title, first prompt, id or model), project and "running now" filters. */

@@ -7,6 +7,8 @@ import { CAPS } from "@/lib/conversation";
 import { useMask } from "@/hooks/use-mask";
 import { maskThenClip } from "@/lib/redact";
 import { cn } from "@/lib/utils";
+import { appear } from "@/lib/motion";
+import { useReducedMotion } from "./settings-provider";
 
 // shortcut: render cap keeps huge tool outputs from freezing the drawer; copy still gets everything.
 const MAX_RENDER = CAPS.code;
@@ -69,6 +71,7 @@ const PLAIN = new Set(["text", "txt", "plaintext", "markdown", "md", "output", "
 
 /** Dark code panel with a copy button. Strings show as written (highlighted when `lang` is given), anything else as JSON. */
 export function CodeBlock({ label, value, lang, className }: { label: string; value: unknown; lang?: string; className?: string }) {
+  const reduce = useReducedMotion();
   const [copied, setCopied] = useState(false);
   const mask = useMask();
   const isText = typeof value === "string";
@@ -107,10 +110,7 @@ export function CodeBlock({ label, value, lang, className }: { label: string; va
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.span
               key={copied ? "y" : "n"}
-              initial={{ opacity: 0, scale: 0.6 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.6 }}
-              transition={{ type: "spring", bounce: 0, duration: 0.25 }}
+              {...appear(reduce, { scale: 0.6 }, { type: "spring", bounce: 0, duration: 0.25 })}
             >
               {copied ? <Check className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
             </motion.span>

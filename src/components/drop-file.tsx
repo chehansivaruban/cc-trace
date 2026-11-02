@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { FileText, Loader2, Upload, X } from "lucide-react";
 import { useMask } from "@/hooks/use-mask";
 import { AGENT_LOG, AGENT_META, dropProblem, parseLogText } from "@/lib/sessions-list";
 import type { AgentLog, AgentMeta, LogRecord } from "@/lib/session";
+import { appear } from "@/lib/motion";
+import { useReducedMotion } from "./settings-provider";
 
 // Viewing a log someone sent you: the file is read in this browser tab only. Nothing is uploaded or saved.
 
@@ -50,6 +52,7 @@ export function openLogFile() {
 
 /** Lets you drop a .jsonl log anywhere on the page (or pick one with openLogFile()) and hands its records to onLoad. */
 export function DropFile({ onLoad }: { onLoad: LoadLog }) {
+  const reduce = useReducedMotion();
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reading, setReading] = useState(false);
@@ -176,9 +179,7 @@ export function DropFile({ onLoad }: { onLoad: LoadLog }) {
             key="error"
             role="alert"
             className="glass-strong fixed bottom-4 left-1/2 z-[60] flex w-[min(26.25rem,calc(100vw-2rem))] -translate-x-1/2 items-start gap-2 rounded-xl px-4 py-3 text-[0.8125rem] shadow-2xl"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 12 }}
+            {...appear(reduce, { y: 12 })}
           >
             <span className="min-w-0 flex-1">{error}</span>
             <button onClick={() => setError(null)} className="rounded p-0.5 text-muted-foreground hover:text-foreground" aria-label="Dismiss">
@@ -192,7 +193,8 @@ export function DropFile({ onLoad }: { onLoad: LoadLog }) {
 }
 
 /** Shown above a dropped file instead of the session info bar. */
-export function DroppedBanner({ name, onClose }: { name: string; onClose: () => void }) {
+/** Shown above a dropped file. `actions` (Export) work on it too: exports are made in the browser. */
+export function DroppedBanner({ name, onClose, actions }: { name: string; onClose: () => void; actions?: ReactNode }) {
   const mask = useMask();
   return (
     <div className="flex shrink-0 items-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-[0.75rem]" role="status">
@@ -201,6 +203,7 @@ export function DroppedBanner({ name, onClose }: { name: string; onClose: () => 
         <span className="font-medium">Viewing a file, not live:</span> {mask(name)}
         <span className="hidden text-muted-foreground sm:inline"> · read in this browser only, nothing saved</span>
       </span>
+      {actions}
       <button onClick={onClose} className="shrink-0 rounded-lg px-2 py-1 text-muted-foreground transition-colors hover:bg-foreground/[0.07] hover:text-foreground">
         Close file
       </button>

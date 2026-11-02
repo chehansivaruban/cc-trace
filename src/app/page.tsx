@@ -1,15 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import { useCallback, useEffect, useMemo, useState, type ComponentType } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ListFilter, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { AttentionBadge, AttentionWatcher } from "@/components/attention";
 import { DetailsPanel } from "@/components/details-panel";
 import { DropFile, DroppedBanner } from "@/components/drop-file";
+import { ExportMenu } from "@/components/export-menu";
 import { FilterBar } from "@/components/filter-bar";
 import { Header } from "@/components/header";
 import { HelpDialog } from "@/components/help-dialog";
 import { SessionInfoBar } from "@/components/session-info-bar";
+import { SessionTabs } from "@/components/session-tabs";
 import { Welcome } from "@/components/welcome";
 import type { Selection } from "@/components/story-map";
 import { TurnList } from "@/components/turn-list";
@@ -22,17 +24,18 @@ import { SettingsDialog } from "@/components/pages/settings-dialog";
 import { SESSION_VIEWS, type SessionViewProps } from "@/components/views/registry";
 import { useEscape } from "@/hooks/use-escape";
 import { MaskScope } from "@/hooks/use-mask";
-import { useShortcuts } from "@/hooks/use-shortcuts";
+import { useSessionShortcuts } from "@/hooks/use-session-shortcuts";
 import { useSessionStream } from "@/hooks/use-session-stream";
 import type { ProjectInfo, SessionInfo } from "@/lib/claude-logs";
 import { emptyFilter, isFilterEmpty, type StepFilter } from "@/lib/analytics/filters";
 import { useBookmarks } from "@/lib/bookmarks";
-import { SHEET } from "@/lib/motion";
-import { SESSION_VIEW_IDS, parseRoute, useRoute, type AppPage, type AppPageProps, type Navigate, type Route, type SessionView } from "@/lib/route";
+import { slide } from "@/lib/motion";
+import { useReducedMotion } from "@/components/settings-provider";
+import { parseRoute, useRoute, type AppPage, type AppPageProps, type Navigate, type Route, type SessionView } from "@/lib/route";
 import { SESSION_START, buildSession, type AgentLog, type LogRecord } from "@/lib/session";
 import { DROPPED_PREFIX } from "@/lib/paths";
 import { safeClip } from "@/lib/redact";
-import { cn } from "@/lib/utils";
+import { sameSessionFile, siblingSession } from "@/lib/sessions-list";
 
 // Views that read one request step by step, and so share the step filter.
 const FILTERED_VIEWS: SessionView[] = ["map", "conversation"];
@@ -66,6 +69,7 @@ export default function Home() {
   const [filter, setFilter] = useState<StepFilter>(emptyFilter);
   const [filterOpen, setFilterOpen] = useState(false);
   const marks = useBookmarks();
+  const reduce = useReducedMotion();
 
   const refresh = useCallback(async () => {
     const res = await fetch("/api/sessions");
@@ -108,7 +112,7 @@ export default function Home() {
 
   // A file in the URL that isn't listed (deleted, or a link from another computer). Refresh once before saying so,
   // in case it's a session that started after the list was loaded.
-  const listedAnywhere = !file || !projects || projects.some((p) => p.sessions.some((s) => s.file === file.replace(/\\/g, "/")));
+  const listedAnywhere = !file || !projects || projects.some((p) => p.sessions.some((s) => sameSessionFile(s.file, file)));
   useEffect(() => {
     if (!listedAnywhere && file && recheckedFile !== file) void refresh().then(() => setRecheckedFile(file));
   }, [listedAnywhere, file, recheckedFile, refresh]);
@@ -127,7 +131,7 @@ export default function Home() {
   );
 
   const project = projects?.find((p) => p.dir === projectDir);
-  const listed = project?.sessions.find((s) => s.file === file);
+  const listed = project?.sessions.find((s) => sameSessionFile(s.file, file));
   // The picker only scans the start of each log; a huge first message leaves it untitled.
   const firstAsk = model.turns.find((t) => t.text !== SESSION_START)?.text;
   const session: SessionInfo | undefined =
@@ -170,47 +174,26 @@ export default function Home() {
   useEscape(requestsOpen && route.page === "session", () => setRequestsOpen(false));
   useEscape(!!selected && route.page === "session", () => setSelected(null));
 
-  const onSession = route.page === "session" && !!turn;
-  const siblings = project?.sessions ?? [];
-  const sibling = (d: 1 | -1) => {
-    const i = siblings.findIndex((s) => s.file === file);
-    const next = i < 0 ? undefined : siblings[i + d];
-    if (next) pickSession(next);
-  };
-  const shortcuts: Record<string, () => void> = {
-    "/": () => navigate({ page: "search" }),
-    "g d": () => navigate({ page: "dashboard" }),
-    "g l": () => navigate({ page: "live" }),
-  };
-  if (onSession) {
-    SESSION_VIEW_IDS.forEach((v, i) => (shortcuts[String(i + 1)] = () => go({ view: v })));
-    const next = () => pickTurn(Math.min(lastTurn, turnIndex + 1));
-    const prev = () => pickTurn(Math.max(0, turnIndex - 1));
-    Object.assign(shortcuts, {
-      j: next,
-      k: prev,
-      "g g": () => pickTurn(0),
-      G: () => pickTurn(lastTurn),
-      "[": () => sibling(-1),
-      "]": () => sibling(1),
-      b: () => viewFile && marks.toggle({ file: viewFile, step: selectedStep?.id, turn: selectedStep ? turnIndex : undefined, label: selectedStep?.title ?? title ?? "Session" }),
-    });
-    // The arrows move between requests only where they don't scroll a list (the Map and the whole-session view).
-    if (view === "map" || view === "flow") Object.assign(shortcuts, { ArrowDown: next, ArrowUp: prev });
-  }
-  useShortcuts(shortcuts);
-
-  // On narrow screens the tab bar scrolls: keep the open view's tab in sight (1–7 can open any of them).
-  const tabsRef = useRef<HTMLDivElement>(null);
-  const hasTurn = !!turn;
-  useEffect(() => {
-    const bar = tabsRef.current;
-    const tab = bar?.querySelector<HTMLElement>('[aria-selected="true"]');
-    if (!bar || !tab) return;
-    const t = tab.getBoundingClientRect();
-    const b = bar.getBoundingClientRect();
-    if (t.left < b.left || t.right > b.right) bar.scrollLeft += t.left - b.left - 12;
-  }, [view, hasTurn]);
+  // Keyboard: j/k and friends show another request in the same view (the Whole session view just moves its
+  // highlight); pickTurn, for clicks, opens a request's map from the Whole session view.
+  useSessionShortcuts({
+    openPage: (page) => navigate({ page }),
+    onSession: route.page === "session" && !!turn,
+    view,
+    turnIndex,
+    lastTurn,
+    showTurn: (i) => {
+      setActorPick(null);
+      go({ turn: i === lastTurn ? undefined : i, step: undefined });
+    },
+    setView: (v) => go({ view: v }),
+    stepSession: (d) => {
+      const next = siblingSession(project?.sessions ?? [], file, d);
+      if (next) pickSession(next);
+    },
+    bookmark: () =>
+      viewFile && marks.toggle({ file: viewFile, step: selectedStep?.id, turn: selectedStep ? turnIndex : undefined, label: selectedStep?.title ?? title ?? "Session" }),
+  });
 
   const turnList = (
     <TurnList turns={model.turns} actors={model.actors} selectedIndex={turnIndex} liveIndex={model.live.active ? lastTurn : undefined} onPick={pickTurn} />
@@ -222,7 +205,9 @@ export default function Home() {
   return (
     // Masking learns the user's name from this session's folders (and the home folder), never from log text.
     <MaskScope cwds={model.meta.cwds}>
-      {/* A size container: the header and the space under it adapt to the room left at the chosen text size. */}
+      {/* A size container: the header and the space under it adapt, in rem, to the room left at the chosen text
+          size (the @min-[44rem] variants). It must stay exactly viewport-sized (h-dvh w-screen): its width is what
+          those queries measure, and the fixed header, drawers and popups inside it are laid out against it. */}
       <main className="@container relative flex h-dvh w-screen flex-col overflow-hidden bg-background">
         {!dropped && <AttentionWatcher model={model} />}
         <Header
@@ -243,53 +228,24 @@ export default function Home() {
         />
 
         {route.page !== "session" ? (
-          <div className="min-h-0 flex-1 overflow-auto pt-[7.75rem] @min-[44rem]:pt-[5.25rem]">
+          <div className="min-h-0 flex-1 overflow-auto pt-[8rem] @min-[44rem]:pt-[5.25rem]">
             <AppPageView page={route.page} route={route} navigate={pageNavigate} />
           </div>
         ) : (
-          <div className="flex min-h-0 flex-1 pt-[7.75rem] @min-[44rem]:pt-[5.25rem]">
+          <div className="flex min-h-0 flex-1 pt-[8rem] @min-[44rem]:pt-[5.25rem]">
             <div data-tour="requests" className="hidden w-[17rem] shrink-0 border-r border-foreground/10 xl:block">{turnList}</div>
 
             <div className="flex min-w-0 flex-1 flex-col">
-              {turn && dropped && <DroppedBanner name={dropped.name} onClose={() => setDropped(null)} />}
+              {turn && dropped && <DroppedBanner name={dropped.name} onClose={() => setDropped(null)} actions={<ExportMenu model={model} turn={turn} compact />} />}
               {turn && !dropped && file && <SessionInfoBar model={model} file={file} title={title ?? "Session"} turn={turn} />}
               {turn && (
-                <div className="flex shrink-0 items-end border-b border-foreground/10">
-                  <div ref={tabsRef} data-tour="tabs" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-3 pt-2 [scrollbar-width:none]" role="tablist">
-                    {SESSION_VIEWS.map((v) => (
-                      <button
-                        key={v.id}
-                        role="tab"
-                        aria-selected={view === v.id}
-                        onClick={() => go({ view: v.id })}
-                        className={cn(
-                          "-mb-px shrink-0 border-b-2 px-3 pb-2 text-[0.8125rem] whitespace-nowrap transition-colors",
-                          view === v.id ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        {v.id === "map"
-                          ? `Request ${turnIndex + 1}, step by step`
-                          : v.id === "flow"
-                            ? `Whole session · ${model.turns.length} request${model.turns.length === 1 ? "" : "s"}`
-                            : v.label}
-                      </button>
-                    ))}
-                  </div>
-                  {FILTERED_VIEWS.includes(view) && (
-                    <button
-                      onClick={() => setFilterOpen(!filterOpen)}
-                      aria-expanded={filterOpen}
-                      className={cn(
-                        "mr-2 mb-1 flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs transition-[background-color,color,transform] duration-150 ease-out hover:bg-foreground/[0.07] active:scale-[0.97]",
-                        isFilterEmpty(filter) ? "text-muted-foreground hover:text-foreground" : "bg-foreground/[0.07] font-medium text-foreground",
-                      )}
-                    >
-                      <ListFilter className="size-3.5" />
-                      <span className="hidden @min-[36rem]:inline">{isFilterEmpty(filter) ? "Filter steps" : "Filtered"}</span>
-                      {!isFilterEmpty(filter) && <span className="size-1.5 rounded-full bg-sky-500 @min-[36rem]:hidden" />}
-                    </button>
-                  )}
-                </div>
+                <SessionTabs
+                  view={view}
+                  turnIndex={turnIndex}
+                  turnCount={model.turns.length}
+                  onView={(v) => go({ view: v })}
+                  filter={FILTERED_VIEWS.includes(view) ? { active: !isFilterEmpty(filter), open: filterOpen, onToggle: () => setFilterOpen(!filterOpen) } : undefined}
+                />
               )}
               {turn && FILTERED_VIEWS.includes(view) && (filterOpen || !isFilterEmpty(filter)) && (
                 <div className="shrink-0 border-b border-foreground/10 px-4 py-2.5">
@@ -333,10 +289,7 @@ export default function Home() {
             <motion.div key="requests" className="fixed inset-0 z-40 bg-black/30 xl:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setRequestsOpen(false)}>
               <motion.div
                 className="glass-strong h-full w-[18.75rem] max-w-[85vw]"
-                initial={{ x: "-100%" }}
-                animate={{ x: 0 }}
-                exit={{ x: "-100%" }}
-                transition={SHEET}
+                {...slide(reduce, { x: "-100%" })}
                 onClick={(e) => e.stopPropagation()}
               >
                 {turnList}
@@ -347,10 +300,7 @@ export default function Home() {
             <motion.div
               key="details"
               className="glass-strong fixed inset-x-0 bottom-0 z-40 h-[62dvh] rounded-t-2xl shadow-2xl lg:hidden"
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={SHEET}
+              {...slide(reduce, { y: "100%" })}
             >
               {details(() => setSelected(null))}
             </motion.div>

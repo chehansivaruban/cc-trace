@@ -3,12 +3,15 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
+import { EASE_OUT, appear } from "@/lib/motion";
+import { useReducedMotion } from "./settings-provider";
 import { startTour } from "./tour";
 
 const KEY = "cc-trace:welcomed";
 
 /** A one-time card for first visits: the three things to know, then out of the way. */
 export function Welcome({ onHelp }: { onHelp: () => void }) {
+  const reduce = useReducedMotion();
   const [open, setOpen] = useState(false);
   useEffect(() => {
     try {
@@ -30,10 +33,7 @@ export function Welcome({ onHelp }: { onHelp: () => void }) {
     <AnimatePresence>
       {open && (
         <motion.div
-          initial={{ opacity: 0, transform: "translateY(8px)" }}
-          animate={{ opacity: 1, transform: "translateY(0px)" }}
-          exit={{ opacity: 0, transform: "translateY(4px)", transition: { duration: 0.15 } }}
-          transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
+          {...appear(reduce, { y: 8 }, { duration: 0.25, ease: EASE_OUT }, 0.15)}
           className="glass-strong absolute top-3 right-3 left-3 z-40 mx-auto max-w-[32.5rem] rounded-2xl p-5 shadow-2xl"
           role="dialog"
           aria-label="Welcome to cc-trace"

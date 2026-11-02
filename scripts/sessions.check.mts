@@ -19,10 +19,26 @@ import {
   parseLogText,
   permissionLabel,
   resumeCommand,
+  sameSessionFile,
+  siblingSession,
   sortSessions,
   withTimeout,
   worktreeParent,
 } from "../src/lib/sessions-list.ts";
+
+// ── [ and ]: the session next to this one, whichever slash the file was written with ──
+{
+  const list = [{ file: "C--proj/a.jsonl" }, { file: "C--proj/b.jsonl" }, { file: "C--proj/c.jsonl" }];
+  assert.ok(sameSessionFile("C--proj\\b.jsonl", "C--proj/b.jsonl"));
+  assert.ok(!sameSessionFile("C--proj/b.jsonl", "C--proj/c.jsonl"));
+  assert.ok(!sameSessionFile(undefined, "C--proj/b.jsonl"));
+  assert.equal(siblingSession(list, "C--proj\\b.jsonl", 1)?.file, "C--proj/c.jsonl", "a Windows spelling still finds its place");
+  assert.equal(siblingSession(list, "C--proj/b.jsonl", -1)?.file, "C--proj/a.jsonl");
+  assert.equal(siblingSession(list, "C--proj/c.jsonl", 1), undefined, "no wrap-around");
+  assert.equal(siblingSession(list, "C--other/x.jsonl", 1), undefined);
+  assert.equal(siblingSession(list, null, 1), undefined);
+  console.log("✓ previous and next session");
+}
 
 // A fake ~/.claude, set before claude-logs.ts reads CLAUDE_CONFIG_DIR.
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "cc-trace-sessions-"));

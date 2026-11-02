@@ -7,6 +7,10 @@ import { DEBUG_LOG_MAX_BYTES, debugLogName, parseDebugLog, tailText } from "../s
 import { buildSession } from "../src/lib/session.ts";
 import { DEFAULT_SETTINGS, SETTINGS_KEY, readSettings, resolveTheme, subscribeSettings } from "../src/lib/settings.ts";
 import { SHORTCUTS, isTypingTarget, matchShortcut } from "../src/hooks/use-shortcuts.ts";
+import { createLayerStack } from "../src/hooks/use-escape.ts";
+import { appear, slide } from "../src/lib/motion.ts";
+import fs from "node:fs";
+import path from "node:path";
 
 // ── settings: no stale cache after the last subscriber leaves ──
 {
@@ -224,6 +228,69 @@ import { SHORTCUTS, isTypingTarget, matchShortcut } from "../src/hooks/use-short
   assert.equal(tailText(Buffer.from("a\nb\n"), 0), "a\nb\n", "read from the start: nothing dropped");
   assert.equal(DEBUG_LOG_MAX_BYTES, 2 * 1024 * 1024);
   console.log("debug log checks passed");
+}
+
+// ── Escape: one layer at a time ──
+{
+  const closed: string[] = [];
+  const layers = createLayerStack();
+  const esc = (target: unknown = { closest: () => null }, extra: Record<string, unknown> = {}) => layers.handle({ key: "Escape", target, ...extra });
+  const offDrawer = layers.push(() => closed.push("drawer"));
+  const offDialog = layers.push(() => closed.push("dialog"));
+  const offOverlay = layers.push(() => closed.push("overlay"));
+  assert.ok(esc());
+  assert.deepEqual(closed, ["overlay"], "the newest layer closes first, and only it");
+  offOverlay();
+  assert.ok(esc());
+  offDialog();
+  assert.ok(esc());
+  assert.deepEqual(closed, ["overlay", "dialog", "drawer"]);
+  offDrawer();
+  assert.equal(esc(), false, "nothing open: Escape is left alone");
+  assert.equal(layers.size, 0);
+
+  layers.push(() => closed.push("dialog2"));
+  const field = (value: string) => ({ value, closest: (sel: string) => (/input/.test(sel) ? { value } : null) });
+  assert.equal(esc(field("half a search")), false, "a box with text keeps its Escape");
+  assert.equal(esc({ isContentEditable: true, closest: () => null }), false, "editable text keeps its Escape");
+  assert.equal(esc({ closest: (sel: string) => (/menu/.test(sel) ? {} : null) }), false, "a menu closes itself");
+  assert.equal(esc(undefined, { isComposing: true }), false, "input method typing");
+  assert.equal(esc(undefined, { defaultPrevented: true }), false, "already handled (find bar)");
+  assert.equal(esc(undefined, { key: "Enter" }), false);
+  assert.deepEqual(closed.slice(3), [], "none of those closed anything");
+  assert.ok(esc(field("")), "an empty box lets Escape close its layer");
+  assert.deepEqual(closed.slice(3), ["dialog2"]);
+  console.log("escape checks passed");
+}
+
+// ── reduce motion: every animation goes through framer's positional keys or the app's own setting ──
+{
+  // MotionConfig reducedMotion stops x/y/scale but not a raw `transform` string, and framer's own
+  // useReducedMotion only reads the system, not Settings → Reduce motion.
+  const root = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "src");
+  const bad: string[] = [];
+  const walk = (dir: string) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (/\.tsx?$/.test(e.name)) {
+        const text = fs.readFileSync(p, "utf8");
+        if (/(initial|animate|exit)=\{\{[^}]*\btransform:/.test(text)) bad.push(`${e.name}: raw transform in a motion prop`);
+        // Moves go through appear()/slide() in lib/motion.ts, which fade only when motion is reduced. The story
+        // map's envelope is the one exception: it isn't drawn at all then.
+        if (e.name !== "story-map.tsx" && /(initial|animate|exit)=\{\{[^}]*\b(x|y|scale|rotate):/.test(text)) bad.push(`${e.name}: a move that ignores reduce motion`);
+        if (/import \{[^}]*\buseReducedMotion\b[^}]*\} from "framer-motion"/.test(text)) bad.push(`${e.name}: framer's useReducedMotion ignores the setting`);
+      }
+    }
+  };
+  walk(root);
+  assert.deepEqual(bad, []);
+  const moves = (o: object) => JSON.stringify(o).match(/"(x|y|scale)"/g) ?? [];
+  assert.deepEqual(moves(appear(true, { y: 8, scale: 0.98 })), [], "reduced: a fade, no move");
+  assert.deepEqual(moves(slide(true, { x: "-100%" })), []);
+  assert.deepEqual(appear(false, { scale: 0.98 }).animate, { opacity: 1, scale: 1 });
+  assert.deepEqual(slide(false, { y: "100%" }).animate, { y: 0 });
+  console.log("reduce motion checks passed");
 }
 
 console.log("ux checks passed");

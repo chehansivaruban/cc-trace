@@ -55,10 +55,13 @@ export function SessionFlow(props: {
   });
   const width = (n: number) => (n ? 6 + (n / max) * (BAND_W - 18) : 3);
 
+  // Centre the open request at first; later (j/k) keep its card in view without jumping around.
   const active = useRef<HTMLDivElement>(null);
+  const placed = useRef(false);
   useEffect(() => {
-    active.current?.scrollIntoView({ block: "center" });
-  }, []);
+    active.current?.scrollIntoView({ block: placed.current ? "nearest" : "center" });
+    placed.current = true;
+  }, [current]);
 
   const scroller = useRef<HTMLDivElement>(null);
   const { zoom, zoomRef, setZoom } = useZoom(scroller);

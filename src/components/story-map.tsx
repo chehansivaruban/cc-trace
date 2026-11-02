@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
 import { Check, ListOrdered, Loader2, Mail, Pause, Play, Radio, SkipBack, SkipForward, X } from "lucide-react";
 import { useMask } from "@/hooks/use-mask";
 import { useZoom } from "@/hooks/use-zoom";
@@ -11,6 +11,7 @@ import { MESSAGE_KINDS, type Actor, type Live, type Step, type Turn } from "@/li
 import { cn } from "@/lib/utils";
 import { PhaseBand } from "./phase-band";
 import { StepIcon, hueColor } from "./step-icon";
+import { useReducedMotion } from "./settings-provider";
 import { ZoomControls } from "./zoom-controls";
 
 export type Selection = { type: "step" | "actor"; id: string } | null;

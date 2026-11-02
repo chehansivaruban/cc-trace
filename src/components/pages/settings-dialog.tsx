@@ -2,7 +2,8 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { POP } from "@/lib/motion";
+import { appear } from "@/lib/motion";
+import { useReducedMotion } from "@/components/settings-provider";
 import { FolderOpen, Keyboard, Map as MapIcon, X } from "lucide-react";
 import { toggleShortcuts } from "@/hooks/use-shortcuts";
 import { useEscape } from "@/hooks/use-escape";
@@ -28,6 +29,7 @@ const button =
   "flex h-8 items-center gap-1.5 rounded-lg border border-foreground/15 px-3 text-xs font-medium transition-[background-color,transform] duration-150 hover:bg-foreground/[0.06] active:scale-[0.97]";
 
 export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const reduce = useReducedMotion();
   const [settings, update] = useSettings();
   const folders = useFolders();
   const [notice, setNotice] = useState<string | null>(null);
@@ -86,10 +88,7 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
             role="dialog"
             aria-modal
             aria-labelledby="settings-title"
-            initial={{ opacity: 0, transform: "scale(0.98)" }}
-            animate={{ opacity: 1, transform: "scale(1)" }}
-            exit={{ opacity: 0, transform: "scale(0.98)", transition: { duration: 0.12 } }}
-            transition={POP}
+            {...appear(reduce, { scale: 0.98 })}
             onClick={(e) => e.stopPropagation()}
             className="glass-strong max-h-[88dvh] w-full outline-none max-w-[35rem] overflow-y-auto rounded-2xl p-5 shadow-2xl sm:p-6"
           >

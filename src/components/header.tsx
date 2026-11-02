@@ -2,7 +2,8 @@
 
 import { useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bookmark, ChevronDown, CircleHelp, FileText, GitCompare, History, LayoutDashboard, Moon, Radio, Search, Settings, Sun, Waypoints, Workflow } from "lucide-react";
+import { Bookmark, ChevronDown, CircleHelp, Ellipsis, FileText, GitCompare, History, LayoutDashboard, Moon, Radio, Search, Settings, Sun, Waypoints, Workflow } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { ProjectInfo, SessionInfo } from "@/lib/claude-logs";
 import type { AppPage } from "@/lib/route";
 import { useEscape } from "@/hooks/use-escape";
@@ -10,8 +11,8 @@ import { useMask } from "@/hooks/use-mask";
 import type { Live } from "@/lib/session";
 import { shortPath } from "@/lib/sessions-list";
 import { updateSettings } from "@/lib/settings";
-import { EASE_OUT } from "@/lib/motion";
-import { useDarkMode } from "./settings-provider";
+import { EASE_OUT, appear } from "@/lib/motion";
+import { useDarkMode, useReducedMotion } from "./settings-provider";
 import { cn } from "@/lib/utils";
 import { SessionBrowser } from "./session-browser";
 
@@ -41,6 +42,7 @@ export function Header(props: {
   const { projects, project, session, live, connected } = props;
   const [open, setOpen] = useState(false);
   const m = useMask();
+  const reduce = useReducedMotion();
 
   useEscape(open, () => setOpen(false));
 
@@ -48,20 +50,12 @@ export function Header(props: {
     if (!open) props.onRefresh();
     setOpen(!open);
   };
-  const nav = <PageNav page={props.page} onOpenPage={props.onOpenPage} onSettings={props.onSettings} />;
-  const help = (
-    <IconButton onClick={props.onHelp} label="How Claude Code works" className="flex-1 @min-[44rem]:flex-none @min-[110rem]:w-auto @min-[110rem]:px-2.5">
-      <CircleHelp className="size-4 shrink-0" />
-      <span className="hidden text-sm @min-[110rem]:inline">How it works</span>
-    </IconButton>
-  );
+  const nav = <PageNav page={props.page} onOpenPage={props.onOpenPage} />;
 
   return (
     <>
       <motion.header
-        initial={{ opacity: 0, transform: "translateY(-8px)" }}
-        animate={{ opacity: 1, transform: "translateY(0px)" }}
-        transition={{ duration: 0.25, ease: EASE_OUT }}
+        {...appear(reduce, { y: -8 }, { duration: 0.25, ease: EASE_OUT })}
         className="glass fixed inset-x-3 top-3 z-30 rounded-2xl shadow-xl shadow-black/20"
       >
         <div className="flex h-[3.75rem] items-center gap-1 px-2 @min-[30rem]:px-3">
@@ -110,16 +104,22 @@ export function Header(props: {
             {!props.fileName && <StatusPill live={live} connected={connected} active={!!session} />}
             <div className="hidden items-center gap-0.5 @min-[44rem]:flex">
               {nav}
-              {help}
+              <IconButton onClick={props.onSettings} label="Settings">
+                <Settings className="size-4 shrink-0" />
+              </IconButton>
+              <IconButton onClick={props.onHelp} label="How Claude Code works" className="@min-[110rem]:w-auto @min-[110rem]:px-2.5">
+                <CircleHelp className="size-4 shrink-0" />
+                <span className="hidden text-sm @min-[110rem]:inline">How it works</span>
+              </IconButton>
               <ThemeToggle />
             </div>
           </div>
         </div>
-        {/* Narrow: the pages, help and theme get their own row of icons, so the picker keeps its room. */}
-        <div className="flex h-10 items-center justify-between gap-0.5 border-t border-foreground/10 px-1.5 @min-[44rem]:hidden">
+        {/* Narrow: the pages get their own row of icons, so the picker keeps its room, and Settings, help and
+            the theme go in "More". Seven 44 px touch targets fit a 320 px phone at any text size. */}
+        <div className="flex h-11 items-center gap-0.5 border-t border-foreground/10 px-1.5 @min-[44rem]:hidden">
           {nav}
-          {help}
-          <ThemeToggle />
+          <MoreMenu onSettings={props.onSettings} onHelp={props.onHelp} />
         </div>
       </motion.header>
 
@@ -131,11 +131,10 @@ export function Header(props: {
               key="browser"
               role="dialog"
               aria-label="Sessions"
-              initial={{ opacity: 0, transform: "translateY(-4px) scale(0.98)" }}
-              animate={{ opacity: 1, transform: "translateY(0px) scale(1)" }}
-              exit={{ opacity: 0, transform: "translateY(-4px) scale(0.98)", transition: { duration: 0.12 } }}
-              transition={{ duration: 0.2, ease: EASE_OUT }}
-              className="glass-strong fixed inset-x-3 top-[7.5rem] bottom-3 z-[45] origin-top-left overflow-hidden rounded-2xl shadow-2xl shadow-black/40 @min-[44rem]:top-[5rem] sm:right-auto sm:bottom-auto sm:h-[min(40rem,calc(100dvh-6.25rem))] sm:w-[min(37.5rem,calc(100vw-1.5rem))]"
+              {...appear(reduce, { y: -4, scale: 0.98 })}
+              // Pinned under the header (one row or two) and to the bottom edge, so it never runs off screen;
+              // on wider screens it is a 37.5rem-wide popup at most 40rem tall.
+              className="glass-strong fixed inset-x-3 top-[7.75rem] bottom-3 z-[45] origin-top-left overflow-hidden rounded-2xl shadow-2xl shadow-black/40 @min-[44rem]:top-[5rem] sm:right-auto sm:max-h-[40rem] sm:w-[min(37.5rem,calc(100vw-1.5rem))]"
             >
               <SessionBrowser
                 projects={projects}
@@ -186,18 +185,15 @@ function IconButton(props: { onClick: () => void; label: string; current?: boole
 }
 
 /** The app's pages as icon buttons; with room to spare (wide screen, smaller text) each gets its label. */
-function PageNav({ page, onOpenPage, onSettings }: { page: AppPage; onOpenPage: (page: AppPage) => void; onSettings: () => void }) {
+function PageNav({ page, onOpenPage }: { page: AppPage; onOpenPage: (page: AppPage) => void }) {
   return (
     <nav aria-label="Pages" className="contents">
       {PAGE_LINKS.map(({ page: p, label, icon: Icon }) => (
-        <IconButton key={p} onClick={() => onOpenPage(p)} label={label} current={page === p} className="flex-1 @min-[44rem]:flex-none @min-[86rem]:w-auto @min-[86rem]:px-2.5">
+        <IconButton key={p} onClick={() => onOpenPage(p)} label={label} current={page === p} className="flex-1 min-w-[44px] @min-[44rem]:min-w-0 @min-[44rem]:flex-none @min-[86rem]:w-auto @min-[86rem]:px-2.5">
           <Icon className="size-4 shrink-0" />
           <span className="hidden text-[0.8125rem] whitespace-nowrap @min-[86rem]:inline">{label}</span>
         </IconButton>
       ))}
-      <IconButton onClick={onSettings} label="Settings" className="flex-1 @min-[44rem]:flex-none">
-        <Settings className="size-4 shrink-0" />
-      </IconButton>
     </nav>
   );
 }
@@ -242,12 +238,40 @@ function StatusPill({ live, connected, active }: { live: Live; connected: boolea
   );
 }
 
+/** Narrow header only: Settings, the guide and the theme, behind one 44 px button. */
+function MoreMenu({ onSettings, onHelp }: { onSettings: () => void; onHelp: () => void }) {
+  const dark = useDarkMode();
+  const item = "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[0.8125rem]";
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label="More: settings, help and theme"
+        className="flex h-9 min-w-[44px] flex-1 items-center justify-center rounded-xl text-muted-foreground transition-[background-color,color,transform] duration-150 ease-out hover:bg-foreground/[0.07] hover:text-foreground active:scale-[0.97] data-popup-open:bg-foreground/[0.07]"
+      >
+        <Ellipsis className="size-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="glass-strong w-[13.75rem] rounded-xl p-1.5 shadow-2xl shadow-black/40 ring-0" align="end" sideOffset={8}>
+        <DropdownMenuItem onClick={onSettings} className={item}>
+          <Settings className="size-4 text-muted-foreground" /> Settings
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onHelp} className={item}>
+          <CircleHelp className="size-4 text-muted-foreground" /> How Claude Code works
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => updateSettings({ theme: dark ? "light" : "dark" })} className={item}>
+          {dark ? <Sun className="size-4 text-muted-foreground" /> : <Moon className="size-4 text-muted-foreground" />}
+          {dark ? "Light mode" : "Dark mode"}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function ThemeToggle() {
   const dark = useDarkMode();
   const toggle = () => updateSettings({ theme: dark ? "light" : "dark" });
 
   return (
-    <IconButton onClick={toggle} label={dark ? "Switch to light mode" : "Switch to dark mode"} className="flex-1 @min-[44rem]:flex-none">
+    <IconButton onClick={toggle} label={dark ? "Switch to light mode" : "Switch to dark mode"}>
       {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
     </IconButton>
   );
