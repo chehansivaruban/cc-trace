@@ -173,6 +173,9 @@ try {
     assert.equal(JSON.parse((await get("/api/overview")).body).days.length, 30, "30 days by default");
     for (const bad of ["0", "366", "abc", "1.5", "-3", ""]) assert.equal((await get(`/api/overview?days=${encodeURIComponent(bad)}`)).status, 400, `days=${bad}`);
     assert.equal((await get("/api/overview", { Host: "evil.example" })).status, 403);
+    // Overlapping requests for one period share a single scan (same generatedAt).
+    const [a, b] = await Promise.all([get("/api/overview?days=5"), get("/api/overview?days=5")]);
+    assert.equal(JSON.parse(a.body).generatedAt, JSON.parse(b.body).generatedAt, "overlapping requests share one scan");
     console.log("✓ overview adds up token use across sessions");
   }
   // ── end overview ──

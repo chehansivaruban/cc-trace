@@ -1,23 +1,30 @@
 "use client";
 // Part-to-whole at a glance: at most six slices (the rest fold into "Other"), 2px surface gaps,
 // a legend with every value written out, and a tooltip per slice.
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { OTHER, SERIES, compact, fmt } from "./kit";
+import { assignSlots, foldSlices } from "./slots";
 
 export type Slice = { key: string; label: string; value: number };
 
-const MAX_SLICES = 6;
 
-/** Colour follows the entity: a key keeps its slot for the life of the page, whatever the filter shows. */
-export function useStableColors() {
-  const slots = useRef(new Map<string, number>());
-  return (key: string) => {
-    const map = slots.current;
-    if (!map.has(key) && map.size < SERIES.length) map.set(key, map.size);
-    const slot = map.get(key);
-    return slot === undefined ? OTHER : SERIES[slot];
-  };
+/**
+ * Colour follows the entity: a key keeps its slot for the life of the page, whatever the period shows.
+ * Pass the keys that get their own colour (the donut's shown slices); anything else is drawn as "Other".
+ */
+export function useStableColors(keys: string[]) {
+  const [known, setKnown] = useState<string[]>([]);
+  const id = keys.join("\u0000");
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `id` stands for `keys`
+  const order = useMemo(() => assignSlots(known, keys, SERIES.length), [known, id]);
+  useEffect(() => {
+    if (order !== known) setKnown(order);
+  }, [order, known]);
+  return useCallback((key: string) => {
+    const i = order.indexOf(key);
+    return i < 0 ? OTHER : SERIES[i];
+  }, [order]);
 }
 
 function arc(cx: number, cy: number, r0: number, r1: number, a0: number, a1: number) {
@@ -29,11 +36,10 @@ function arc(cx: number, cy: number, r0: number, r1: number, a0: number, a1: num
 export function Donut(props: { slices: Slice[]; colorOf: (key: string) => string; centerLabel: string; ariaLabel: string; size?: number; unit?: string }) {
   const { size = 148, unit = "tokens" } = props;
   const [hover, setHover] = useState<string | null>(null);
-  const sorted = props.slices.filter((s) => s.value > 0).sort((a, b) => b.value - a.value);
-  const slices: Slice[] =
-    sorted.length > MAX_SLICES
-      ? [...sorted.slice(0, MAX_SLICES - 1), { key: "__other", label: `Other (${sorted.length - MAX_SLICES + 1})`, value: sorted.slice(MAX_SLICES - 1).reduce((a, s) => a + s.value, 0) }]
-      : sorted;
+  const { shown, folded } = foldSlices(props.slices);
+  const slices: Slice[] = folded.length
+    ? [...shown, { key: "__other", label: `Other (${folded.length})`, value: folded.reduce((a, s) => a + s.value, 0) }]
+    : shown;
   const total = slices.reduce((a, s) => a + s.value, 0);
   const color = (k: string) => (k === "__other" ? OTHER : props.colorOf(k));
   if (!total) return <p className="py-6 text-center text-xs text-muted-foreground">No tokens in this period.</p>;

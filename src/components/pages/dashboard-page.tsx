@@ -1,11 +1,12 @@
 "use client";
 // Dashboard: token use across every session on this computer, read from the logs on demand.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { BarChart } from "@/components/charts/bars";
-import { CHART_VARS, fmt } from "@/components/charts/kit";
+import { CHART_VARS, OTHER, fmt } from "@/components/charts/kit";
+import { foldSlices } from "@/components/charts/slots";
 import { Donut, useStableColors } from "@/components/charts/donut";
-import { Section, Segmented, SortTable, StatTile, TechToggle, guessHome, pct, sameLabel, tokenColumns, toolLabel, type Column } from "@/components/stats-parts";
+import { AsTable, Section, Segmented, SortTable, StatTile, TechToggle, guessHome, pct, sameLabel, tokenColumns, toolLabel, type Column } from "@/components/stats-parts";
 import { Term, TermText } from "@/components/term-text";
 import { cacheHit, type Overview, type Row } from "@/lib/analytics/stats";
 import { maskSecrets } from "@/lib/redact";
@@ -38,24 +39,35 @@ export function DashboardPage({ navigate }: AppPageProps) {
   const [data, setData] = useState<OverviewResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const colorOf = useStableColors();
+  // The newest request wins: switching period aborts the one still loading, and a late answer is ignored.
+  const inflight = useRef<AbortController | null>(null);
 
   const load = useCallback(async (d: Range) => {
+    inflight.current?.abort();
+    const ctl = new AbortController();
+    inflight.current = ctl;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/overview?days=${d}`);
+      const res = await fetch(`/api/overview?days=${d}`, { signal: ctl.signal });
       if (!res.ok) throw new Error(await res.text());
-      setData(await res.json());
+      const json: OverviewResponse = await res.json();
+      if (!ctl.signal.aborted) setData(json);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (!ctl.signal.aborted) setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setLoading(false);
+      if (inflight.current === ctl) setLoading(false);
     }
   }, []);
   useEffect(() => {
     void load(days);
+    return () => inflight.current?.abort();
   }, [days, load]);
+
+  // Models with their own colour: the donut's shown slices. Folded ones are "Other" (grey) in the table too.
+  const slices = useMemo(() => foldSlices((data?.byModel ?? []).map((r) => ({ key: r.key, label: r.label, value: totalTokens(r.usage) }))), [data]);
+  const stableColor = useStableColors(slices.shown.map((s) => s.key));
+  const colorOf = (key: string) => (slices.folded.some((s) => s.key === key) ? OTHER : stableColor(key));
 
   const home = guessHome(data?.byProject.map((p) => p.label) ?? []);
   const mask = (s: string) => (settings.maskSensitive ? maskSecrets(s, home) : s);
@@ -66,6 +78,11 @@ export function DashboardPage({ navigate }: AppPageProps) {
   const busiest = active.reduce<{ date: string; tokens: number } | null>((a, d) => (!a || d.tokens > a.tokens ? d : a), null);
   const projectName = (dir: string) => data?.byProject.find((p) => p.key === dir)?.label.split(/[\\/]/).filter(Boolean).pop() ?? dir;
 
+  const dayCols: Column<Overview["days"][number]>[] = [
+    { id: "date", label: "Day", width: "minmax(0,1fr)", sort: (d) => d.date, cell: (d) => dayLabel(d.date, { weekday: "short", month: "short", day: "numeric" }) },
+    { id: "sessions", label: "Sessions", width: "72px", align: "right", sort: (d) => d.sessions, cell: (d) => d.sessions },
+    { id: "tokens", label: "Tokens", width: "108px", align: "right", sort: (d) => d.tokens, cell: (d) => fmt(d.tokens) },
+  ];
   const projectCols: Column<Row>[] = [
     {
       id: "label",
@@ -208,6 +225,16 @@ export function DashboardPage({ navigate }: AppPageProps) {
               ends={[dayLabel(data.days[0].date), "today"]}
               height={180}
             />
+            <AsTable>
+              {() => (
+                <SortTable
+                  rows={data.days}
+                  columns={dayCols}
+                  rowKey={(d) => d.date}
+                  initialSort={{ id: "date", desc: true }}
+                />
+              )}
+            </AsTable>
           </Section>
 
           <Section title={<TermText text="By [[model:model]]" />} intro="Which versions of Claude did the work.">

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { buildSession, type AgentLog, type SessionModel, type Step, type Turn, type Usage } from "../src/lib/session.ts";
 import { burnSeries, cacheHit, contextGauge, localDay, mergeOverview, modelLabel, sessionDigest, sessionStats } from "../src/lib/analytics/stats.ts";
 import { tipsFor } from "../src/lib/analytics/tips.ts";
+import { assignSlots, foldSlices } from "../src/components/charts/slots.ts";
 
 const t0 = Date.parse("2026-01-01T12:00:00.000Z");
 const at = (s: number) => new Date(t0 + s * 1000).toISOString();
@@ -137,6 +138,16 @@ assert.match(memTip.text, /\/clear/);
 assert.deepEqual(ids(...fakeTurn({ steps: reads(3) })), ["reread:/p/big.ts"]);
 assert.deepEqual(ids(...fakeTurn({ steps: reads(2) })), []);
 assert.match(tipsFor(...fakeTurn({ steps: reads(4) }))[0].text, /big\.ts.*4 times/);
+// Windows paths: separators and case don't matter, so these are one file read 3 times.
+assert.deepEqual(ids(...fakeTurn({ steps: [...reads(1, "C:\\Proj\\Big.ts"), ...reads(1, "c:/proj/big.ts"), ...reads(1, "C:/Proj/BIG.ts")] })), ["reread:c:/proj/big.ts"]);
+// POSIX paths are case-sensitive: three different files.
+assert.deepEqual(ids(...fakeTurn({ steps: [...reads(1, "/p/Big.ts"), ...reads(1, "/p/big.ts"), ...reads(1, "/p/BIG.ts")] })), []);
+// "/p//big.ts" and "/p/./big.ts" are the same file.
+assert.deepEqual(ids(...fakeTurn({ steps: [...reads(1, "/p//big.ts"), ...reads(1, "/p/./big.ts"), ...reads(1)] })), ["reread:/p/big.ts"]);
+// Reading a big file in chunks (offset/limit) isn't re-reading it.
+const chunk = (offset: number) => step({ tool: "Read", input: { file_path: "/p/big.ts", offset, limit: 200 } });
+assert.deepEqual(ids(...fakeTurn({ steps: [chunk(1), chunk(201), chunk(401)] })), []);
+assert.deepEqual(ids(...fakeTurn({ steps: [...reads(2), chunk(1), chunk(201)] })), []);
 // Helper briefs over 20k characters.
 const brief = (n: number) => step({ id: "bf", kind: "brief", actor: "h1", from: "lead", tool: "Agent", quote: "a".repeat(n) });
 assert.deepEqual(ids(...fakeTurn({ steps: [brief(20_001)] })), ["brief:bf"]);
@@ -183,7 +194,50 @@ assert.equal(localDay(Date.parse("2026-03-04T12:00:00")), "2026-03-04");
 function totalOf(x: Usage) {
   return x.fresh + x.cached + x.written;
 }
+// Replies with only thinking (no step) still count, in Stats and on the Dashboard alike.
+{
+  const thinkOnly = (id: string, sec: number, usage: object, model = OPUS) => ({
+    type: "assistant", timestamp: at(sec), message: { id, model, usage, stop_reason: null, content: [{ type: "thinking", thinking: "hmm" }] },
+  });
+  // One model: the leftover belongs to it.
+  const single = buildSession(
+    [
+      { type: "user", timestamp: at(0), message: { content: "think" } },
+      thinkOnly("k1", 1, u(3, 0, 500, 9)),
+      { type: "assistant", timestamp: at(2), message: { id: "k2", model: OPUS, usage: u(1, 0, 510, 4), stop_reason: "end_turn", content: [{ type: "text", text: "ok" }] } },
+    ] as never,
+    {},
+    t0,
+  );
+  const st = sessionStats(single);
+  assert.equal(totalOf(st.totals), 512 + 515);
+  assert.deepEqual(st.byModel.map((r) => [r.key, totalOf(r.usage)]), [[OPUS, 1027]]);
+  const ov1 = mergeOverview([sessionDigest(single, { file: "p/s.jsonl", project: "p", title: "think" }, day)], { days: 1, now: t0, projects: {} }, day);
+  assert.deepEqual(ov1.totals, st.totals);
+  assert.equal(ov1.days[0].tokens, 1027);
+  assert.deepEqual(ov1.byModel.map((r) => [r.key, totalOf(r.usage)]), [[OPUS, 1027]]);
+  // Several models: the leftover can't be pinned on one, so it's "unknown", in both places.
+  const multi = buildSession([...main, thinkOnly("m9", 12, u(0, 0, 100, 7))] as never, { h1: helper }, t0 + 3_600_000);
+  const sm = sessionStats(multi);
+  const om = mergeOverview([sessionDigest(multi, { file: "p/m.jsonl", project: "p", title: "x" }, day)], { days: 1, now: t0, projects: {} }, day);
+  assert.deepEqual(om.totals, sm.totals);
+  assert.equal(totalOf(sm.totals), 6063 + 107);
+  assert.deepEqual(sm.byModel.map((r) => [r.key, totalOf(r.usage)]), om.byModel.map((r) => [r.key, totalOf(r.usage)]));
+  assert.equal(totalOf(sm.byModel.find((r) => r.key === "unknown")!.usage), 107);
+}
 console.log("overview checks passed");
+
+// ── Chart colour slots: colour follows the entity ──
+assert.deepEqual(assignSlots([], ["b", "a"], 6), ["b", "a"]);
+assert.deepEqual(assignSlots(["b", "a"], ["a", "c"], 6), ["b", "a", "c"]); // a keeps slot 2, c takes the next one
+assert.deepEqual(assignSlots(["a", "b"], ["c", "d"], 3), ["a", "b", "c"]); // out of slots: d gets none
+const known = ["a"];
+assert.equal(assignSlots(known, ["a"], 6), known, "unchanged list is returned as is (no re-render loop)");
+const folded = foldSlices([1, 2, 3, 4, 5, 6, 7].map((v) => ({ key: `k${v}`, label: `k${v}`, value: v })));
+assert.deepEqual(folded.shown.map((x) => x.key), ["k7", "k6", "k5", "k4", "k3"]);
+assert.deepEqual(folded.folded.map((x) => x.key), ["k2", "k1"]);
+assert.equal(foldSlices([{ key: "a", label: "a", value: 0 }, { key: "b", label: "b", value: 2 }]).shown.length, 1);
+console.log("colour slot checks passed");
 
 // ── Performance: a 50k-step session ──
 {

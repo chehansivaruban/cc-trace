@@ -68,6 +68,8 @@ function addInto(a: Usage, b: Usage) {
   a.cacheWrite5m += b.cacheWrite5m;
   a.cacheWrite1h += b.cacheWrite1h;
 }
+/** Who to credit for tokens no step carries: the session's only model, else "unknown". */
+const leftoverModel = (m: SessionModel) => (m.meta.models.length === 1 ? m.meta.models[0] : "unknown");
 const row = (key: string, label: string): Row => ({ key, label, usage: { ...ZERO }, steps: 0, durationMs: 0, replies: 0, toolCalls: 0 });
 const clip = (s: string, n = 90) => {
   const t = s.replace(/\s+/g, " ").trim();
@@ -160,12 +162,13 @@ export function sessionStats(m: SessionModel): SessionStats {
   }
   closeSpans();
 
-  // Replies with nothing to show (e.g. only hidden thinking) still used tokens: keep the tables adding up.
+  // Replies with nothing to show (e.g. only thinking) still used tokens: keep the tables adding up.
   const rest = sub(m.usage, attributed);
   if (totalTokens(rest) > 0) {
-    const r = row("other", "Replies with no visible steps");
-    r.usage = rest;
-    models.set(r.key, r);
+    const key = leftoverModel(m);
+    let r = models.get(key);
+    if (!r) models.set(key, (r = row(key, modelLabel(key === "unknown" ? undefined : key))));
+    addInto(r.usage, rest);
   }
 
   const byAgent = [...agents.values()].filter((a) => a.steps || totalTokens(a.usage));
@@ -260,6 +263,15 @@ export function sessionDigest(m: SessionModel, info: { file: string; project: st
         addInto(d.bucket.usage, s.usage);
       }
     }
+  }
+  // Same leftover as in sessionStats, on the session's last day, so the Dashboard and Stats agree.
+  const attributed = { ...ZERO };
+  for (const d of Object.values(days)) addInto(attributed, d.bucket.usage);
+  const rest = sub(m.usage, attributed);
+  if (totalTokens(rest) > 0 && lastTs) {
+    const d = (days[dayKey(lastTs)] ??= { bucket: bucket(), byModel: {}, tools: {} });
+    addInto(d.bucket.usage, rest);
+    addInto((d.byModel[leftoverModel(m)] ??= bucket()).usage, rest);
   }
   return { ...info, lastTs, days };
 }

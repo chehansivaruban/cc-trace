@@ -255,3 +255,14 @@ export function sameLabel(tools: string[]): Set<string> {
   }
   return twice;
 }
+
+/** A chart's data as a table, one click away (rendered only when opened: some series are long). */
+export function AsTable({ children, label = "Show as a table" }: { children: () => ReactNode; label?: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <details className="mt-2" onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary className="w-max cursor-pointer text-xs text-muted-foreground select-none hover:text-foreground">{label}</summary>
+      {open && <div className="mt-2">{children()}</div>}
+    </details>
+  );
+}

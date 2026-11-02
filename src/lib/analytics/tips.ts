@@ -18,6 +18,22 @@ export const LOW_CACHE_PCT = 50;
 const fmt = (n: number) => n.toLocaleString("en-US");
 const base = (p: string) => p.split(/[\\/]/).filter(Boolean).pop() ?? p;
 
+/**
+ * One spelling per file, like the server's pathKey: "." and repeated separators are dropped; Windows paths
+ * (a drive letter or backslashes) use "/" and ignore case, POSIX paths stay case-sensitive.
+ */
+export function fileKey(p: string): string {
+  const windows = /^[A-Za-z]:[\\/]/.test(p) || p.includes("\\");
+  const parts: string[] = [];
+  for (const part of p.split(windows ? /[\\/]+/ : /\/+/)) {
+    if (part === ".") continue;
+    if (part === ".." && parts.length > 1) parts.pop();
+    else parts.push(part);
+  }
+  const out = parts.join("/");
+  return windows ? out.toLowerCase() : out;
+}
+
 export function tipsFor(turn: Turn, m: SessionModel): Tip[] {
   const tips: Tip[] = [];
 
@@ -32,18 +48,25 @@ export function tipsFor(turn: Turn, m: SessionModel): Tip[] {
   }
 
   // Same file read again and again (by Claude or its helpers).
-  const reads = new Map<string, number>();
+  const reads = new Map<string, { n: number; name: string }>();
   for (const s of turn.steps) {
     if (s.tool !== "Read") continue;
-    const file = (s.input as { file_path?: unknown } | undefined)?.file_path;
-    if (typeof file === "string" && file) reads.set(file, (reads.get(file) ?? 0) + 1);
+    const input = s.input as { file_path?: unknown; offset?: unknown; limit?: unknown } | undefined;
+    // Reading a big file part by part isn't reading it again.
+    if (input?.offset !== undefined || input?.limit !== undefined) continue;
+    if (typeof input?.file_path === "string" && input.file_path) {
+      const key = fileKey(input.file_path);
+      const r = reads.get(key) ?? { n: 0, name: input.file_path };
+      r.n++;
+      reads.set(key, r);
+    }
   }
-  for (const [file, n] of reads) {
+  for (const [file, { n, name }] of reads) {
     if (n < REREAD_COUNT) continue;
     tips.push({
       id: `reread:${file}`,
       severity: "info",
-      text: `${base(file)} was read ${n} times in this request. Each read adds the whole file to [[context:memory]] again. If it's big, pointing Claude at the part you mean (a function or a line number) saves [[tokens:tokens]].`,
+      text: `${base(name)} was read ${n} times in this request. Each read adds the whole file to [[context:memory]] again. If it's big, pointing Claude at the part you mean (a function or a line number) saves [[tokens:tokens]].`,
     });
   }
 

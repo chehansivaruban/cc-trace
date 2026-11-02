@@ -6,9 +6,9 @@ import { BarChart, type Bar } from "@/components/charts/bars";
 import { CHART_VARS, fmt } from "@/components/charts/kit";
 import { LineChart } from "@/components/charts/line";
 import { hueColor } from "@/components/step-icon";
-import { Meter, Section, Segmented, SortTable, StatTile, TechToggle, guessHome, pct, shortDuration, sameLabel, tokenColumns, toolLabel, type Column } from "@/components/stats-parts";
+import { AsTable, Meter, Section, Segmented, SortTable, StatTile, TechToggle, guessHome, pct, shortDuration, sameLabel, tokenColumns, toolLabel, type Column } from "@/components/stats-parts";
 import { Term, TermText } from "@/components/term-text";
-import { burnSeries, cacheHit, contextGauge, sessionStats, type Row, type ToolRow } from "@/lib/analytics/stats";
+import { burnSeries, cacheHit, contextGauge, sessionStats, type BurnPoint, type Row, type ToolRow } from "@/lib/analytics/stats";
 import { tipsFor } from "@/lib/analytics/tips";
 import { maskSecrets } from "@/lib/redact";
 import { useRoute } from "@/lib/route";
@@ -44,14 +44,26 @@ export function StatsView({ model, turn, file }: SessionViewProps) {
   const gauge = gauges.get(turn.index) ?? contextGauge(turn, model);
   const share = (u: Usage) => pct((totalTokens(u) / Math.max(1, total)) * 100);
 
-  const replyBars: Bar[] = turn.steps
+  const replyBars: (Bar & { n: number })[] = turn.steps
     .filter((s) => s.usage)
     .map((s, i) => ({
       key: s.id,
+      n: i + 1,
       value: s.usage!.written,
       label: `Reply ${i + 1} · ${mask(model.actors[s.from ?? s.actor]?.name ?? "Claude")}`,
       detail: `${mask(s.title)} · ${time(s.ts)}`,
     }));
+
+  const burnCols: Column<BurnPoint>[] = [
+    { id: "when", label: "When", width: "minmax(0,1fr)", sort: (p) => p.ts, cell: (p) => dateTime(p.ts) },
+    { id: "request", label: "Request", width: "64px", align: "right", sort: (p) => p.turn ?? 0, cell: (p) => (p.turn ?? 0) + 1 },
+    { id: "tokens", label: "Tokens so far", width: "108px", align: "right", sort: (p) => p.tokens, cell: (p) => fmt(p.tokens) },
+  ];
+  const replyCols: Column<Bar & { n: number }>[] = [
+    { id: "n", label: "#", width: "34px", sort: (b) => b.n, cell: (b) => <span className="text-muted-foreground tabular-nums">{b.n}</span> },
+    { id: "what", label: "Reply", width: "minmax(0,1fr)", sort: (b) => b.detail ?? "", cell: (b) => `${b.label.replace(/^Reply \d+ · /, "")} · ${b.detail ?? ""}` },
+    { id: "written", label: "Tokens written", width: "108px", align: "right", sort: (b) => b.value, cell: (b) => fmt(b.value) },
+  ];
 
   const requestCols: Column<Row>[] = [
     { id: "n", label: "#", width: "34px", sort: (r) => r.jumpTo!.turn, cell: (r) => <span className="text-muted-foreground tabular-nums">{r.jumpTo!.turn + 1}</span> },
@@ -73,7 +85,7 @@ export function StatsView({ model, turn, file }: SessionViewProps) {
   ];
 
   const modelCols: Column<Row>[] = [
-    { id: "label", label: "Model", width: "minmax(0,1fr)", sort: (r) => r.label, cell: (r) => (tech && r.key !== "other" && r.key !== "unknown" ? <code className="text-xs">{r.key}</code> : r.label) },
+    { id: "label", label: "Model", width: "minmax(0,1fr)", sort: (r) => r.label, cell: (r) => (tech && r.key !== "unknown" ? <code className="text-xs">{r.key}</code> : r.label) },
     ...tokenColumns<Row>((r) => r.usage, tech, total),
     { id: "replies", label: "Replies", width: "60px", align: "right", sort: (r) => r.replies ?? 0, cell: (r) => fmt(r.replies ?? 0) },
     { id: "steps", label: "Steps", width: "52px", align: "right", minor: true, sort: (r) => r.steps, cell: (r) => fmt(r.steps) },
@@ -251,6 +263,17 @@ export function StatsView({ model, turn, file }: SessionViewProps) {
             }}
             pickHint="Click to open on the map"
           />
+          <AsTable>
+            {() => (
+              <SortTable
+                rows={burn.slice(1)}
+                columns={burnCols}
+                rowKey={(p) => `${p.step}-${p.ts}`}
+                onRow={(p) => p.turn !== undefined && jump({ turn: p.turn, step: p.step })}
+                initialSort={{ id: "when", desc: false }}
+              />
+            )}
+          </AsTable>
         </Section>
 
         <Section
@@ -265,6 +288,13 @@ export function StatsView({ model, turn, file }: SessionViewProps) {
             onPick={(key) => jump({ turn: turn.index, step: key })}
             pickHint="Click to open on the map"
           />
+          {replyBars.length > 0 && (
+            <AsTable>
+              {() => (
+                <SortTable rows={replyBars} columns={replyCols} rowKey={(b) => b.key} onRow={(b) => jump({ turn: turn.index, step: b.key })} initialSort={{ id: "n", desc: false }} />
+              )}
+            </AsTable>
+          )}
         </Section>
 
         <Section title="Every request" intro="Click a request to open it. Click a column name to sort.">
