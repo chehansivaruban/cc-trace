@@ -104,7 +104,7 @@ export function SessionBrowser(props: {
     } else if (e.key === "Enter") {
       const r = rows[active] ?? rows.find((r) => r.kind === "session");
       if (r?.kind === "session") props.onPick(r.s);
-    } else if (e.key === "Escape") props.onClose?.();
+    }
   };
 
   const select = "h-8 min-w-0 rounded-lg border border-foreground/10 bg-transparent px-2 text-[12px] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-foreground/20";

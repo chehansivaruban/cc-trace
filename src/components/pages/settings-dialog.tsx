@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { FolderOpen, Keyboard, Map as MapIcon, X } from "lucide-react";
 import { toggleShortcuts } from "@/hooks/use-shortcuts";
+import { useEscape } from "@/hooks/use-escape";
 import { useFocusTrap } from "@/hooks/use-focus-trap";
 import { useFolders } from "@/hooks/use-folders";
 import { useMask } from "@/hooks/use-mask";
@@ -32,12 +33,7 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
   const panel = useRef<HTMLDivElement>(null);
   useFocusTrap(open, panel);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  useEscape(open, onClose);
 
   const setTheme = (theme: Settings["theme"]) => {
     try {

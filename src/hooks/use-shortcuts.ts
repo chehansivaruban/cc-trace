@@ -23,7 +23,7 @@ export const SHORTCUTS: { keys: string; label: string }[] = [
   { keys: "0", label: "Fit the map to the screen" },
 ];
 
-type KeyLike = { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; shiftKey?: boolean; repeat?: boolean; target?: unknown };
+type KeyLike = { key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; shiftKey?: boolean; repeat?: boolean; isComposing?: boolean; target?: unknown };
 type Closest = { closest?: (sel: string) => unknown; isContentEditable?: boolean };
 
 /** True when the key press is someone typing: a text field, a select, or editable text. */
@@ -40,7 +40,8 @@ const inOverlay = (t: unknown) => !!(t && typeof t === "object" && (t as Closest
  * sequence like "g d"); `pending` is the first key of a sequence pressed just before.
  */
 export function matchShortcut(e: KeyLike, pending: string | null, keys: string[]): { action?: string; pending: string | null } {
-  if (e.ctrlKey || e.metaKey || e.altKey || isTypingTarget(e.target)) return { pending: null };
+  // isComposing: a key that is part of typing with an input method (Japanese, Chinese…), never a shortcut.
+  if (e.isComposing || e.ctrlKey || e.metaKey || e.altKey || isTypingTarget(e.target)) return { pending: null };
   if (inOverlay(e.target)) return { action: e.key === "Escape" && keys.includes("Escape") ? "Escape" : undefined, pending: null };
   if (pending && keys.includes(`${pending} ${e.key}`)) return { action: `${pending} ${e.key}`, pending: null };
   if (keys.some((k) => k.startsWith(e.key + " "))) return { pending: e.key };

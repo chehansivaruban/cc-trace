@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Bookmark, ChevronDown, CircleHelp, FileText, GitCompare, History, LayoutDashboard, Menu, Moon, Radio, Search, Settings, Sun, Workflow } from "lucide-react";
 import {
@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { ProjectInfo, SessionInfo } from "@/lib/claude-logs";
 import type { AppPage } from "@/lib/route";
+import { useEscape } from "@/hooks/use-escape";
 import { useMask } from "@/hooks/use-mask";
 import type { Live } from "@/lib/session";
 import { shortPath } from "@/lib/sessions-list";
@@ -36,12 +37,7 @@ export function Header(props: {
   const [open, setOpen] = useState(false);
   const m = useMask();
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  useEscape(open, () => setOpen(false));
 
   const toggle = () => {
     if (!open) props.onRefresh();

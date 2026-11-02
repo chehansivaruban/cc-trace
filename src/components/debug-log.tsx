@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AnimatePresence, motion } from "framer-motion";
 import { FileText, Loader2, Search, X } from "lucide-react";
+import { useEscape } from "@/hooks/use-escape";
 import { useFocusTrap } from "@/hooks/use-focus-trap";
 import { parseDebugLog, type DebugEntry, type DebugLevel } from "@/lib/debug-log";
 import { useMask } from "@/hooks/use-mask";
@@ -158,12 +159,7 @@ export function DebugLog({ file, className }: { file: string; className?: string
 export function DebugLogDialog({ file, open, onClose }: { file: string; open: boolean; onClose: () => void }) {
   const panel = useRef<HTMLDivElement>(null);
   useFocusTrap(open, panel);
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  useEscape(open, onClose);
 
   return (
     <AnimatePresence>

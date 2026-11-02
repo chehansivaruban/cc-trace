@@ -172,6 +172,8 @@ import { SHORTCUTS, isTypingTarget, matchShortcut } from "../src/hooks/use-short
   assert.ok(!isTypingTarget(el(false)));
   for (const m of ["ctrlKey", "metaKey", "altKey"]) assert.equal(press("j", { [m]: true }).action, undefined, m);
   assert.equal(press("j", { repeat: true }).action, "j", "holding j keeps moving");
+  assert.equal(press("j", { isComposing: true }).action, undefined, "typing with an input method is never a shortcut");
+  assert.equal(press("g", { isComposing: true }).pending, null);
 
   // Two-key sequences.
   const g = press("g");

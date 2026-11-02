@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Keyboard, X } from "lucide-react";
+import { useEscape } from "@/hooks/use-escape";
 import { useFocusTrap } from "@/hooks/use-focus-trap";
 import { SHORTCUTS, SHORTCUTS_EVENT } from "@/hooks/use-shortcuts";
 
@@ -59,10 +60,11 @@ export function ShortcutsOverlay() {
     window.addEventListener(SHORTCUTS_EVENT, toggle);
     return () => window.removeEventListener(SHORTCUTS_EVENT, toggle);
   }, []);
+  useEscape(open, () => setOpen(false));
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" || e.key === "?") {
+      if (e.key === "?" && !e.isComposing) {
         e.preventDefault();
         setOpen(false);
       }

@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
+import { useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Brain, Inbox, Keyboard, MessagesSquare, Send, ShieldCheck, Users, Wrench, X } from "lucide-react";
+import { useEscape } from "@/hooks/use-escape";
+import { useFocusTrap } from "@/hooks/use-focus-trap";
 import { hueColor } from "./step-icon";
 import { TermText } from "./term-text";
 
@@ -50,12 +52,9 @@ const SECTIONS = [
 ];
 
 export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  const panel = useRef<HTMLDivElement>(null);
+  useFocusTrap(open, panel);
+  useEscape(open, onClose);
 
   return (
     <AnimatePresence>
@@ -68,6 +67,8 @@ export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => vo
           onClick={onClose}
         >
           <motion.div
+            ref={panel}
+            tabIndex={-1}
             role="dialog"
             aria-modal
             aria-labelledby="help-title"
@@ -76,7 +77,7 @@ export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => vo
             exit={{ y: 8, opacity: 0 }}
             transition={{ type: "spring", bounce: 0, duration: 0.35 }}
             onClick={(e) => e.stopPropagation()}
-            className="glass-strong max-h-[85vh] w-full max-w-[640px] overflow-y-auto rounded-2xl p-6 shadow-2xl"
+            className="glass-strong max-h-[85vh] w-full max-w-[640px] overflow-y-auto rounded-2xl p-6 shadow-2xl outline-none"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
