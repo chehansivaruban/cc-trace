@@ -25,7 +25,7 @@ export function TurnList(props: { turns: Turn[]; actors: Record<string, Actor>; 
   return (
     <nav className="flex h-full min-h-0 flex-col" aria-label="Your requests">
       <div className="px-4 pt-4 pb-2">
-        <h2 className="text-[13px] font-semibold">Your requests</h2>
+        <h2 className="text-[0.8125rem] font-semibold">Your requests</h2>
         <p className="text-xs text-muted-foreground">Each message you sent, and what it set off.</p>
       </div>
       <div className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2 pb-4">
@@ -39,7 +39,7 @@ export function TurnList(props: { turns: Turn[]; actors: Record<string, Actor>; 
               onClick={() => props.onPick(t.index)}
               className={cn("w-full rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-foreground/[0.06]", selected && "bg-foreground/[0.08]")}
             >
-              <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+              <div className="flex items-center gap-2 text-[0.6875rem] font-medium text-muted-foreground">
                 <span>#{t.index + 1}</span>
                 {t.index === props.liveIndex && (
                   <span className="flex items-center gap-1 text-sky-500 dark:text-sky-300">
@@ -48,8 +48,8 @@ export function TurnList(props: { turns: Turn[]; actors: Record<string, Actor>; 
                 )}
                 <span className="ml-auto">{ago(t.ts)}</span>
               </div>
-              <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug">{mask(safeClip(t.text, 400))}</p>
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-0.5 line-clamp-2 text-[0.8125rem] leading-snug">{mask(safeClip(t.text, 400))}</p>
+              <p className="mt-1 text-[0.6875rem] text-muted-foreground">
                 {t.steps.length} steps{helpers ? ` · ${helpers} helper${helpers === 1 ? "" : "s"}` : ""}
               </p>
             </button>

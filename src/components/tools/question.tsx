@@ -18,16 +18,16 @@ export function QuestionView({ step }: { step: Step }) {
           <div className="flex flex-wrap items-center gap-1.5">
             {q.header && <Pill>{mask(q.header)}</Pill>}
             {q.multi && (
-              <span data-find-skip className="text-[11px] text-muted-foreground">
+              <span data-find-skip className="text-[0.6875rem] text-muted-foreground">
                 more than one answer allowed
               </span>
             )}
           </div>
-          <p className="mt-1.5 text-[13px] font-medium break-words">{mask(q.question)}</p>
+          <p className="mt-1.5 text-[0.8125rem] font-medium break-words">{mask(q.question)}</p>
           {q.options.length > 0 && (
             <ul className="mt-2 space-y-1">
               {q.options.map((o, j) => (
-                <li key={j} className={cn("flex gap-2 rounded-lg px-2 py-1.5 text-[13px]", o.chosen ? "bg-emerald-500/10" : "bg-foreground/[0.03]")}>
+                <li key={j} className={cn("flex gap-2 rounded-lg px-2 py-1.5 text-[0.8125rem]", o.chosen ? "bg-emerald-500/10" : "bg-foreground/[0.03]")}>
                   <span className={cn("mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border", o.chosen ? "border-emerald-500 bg-emerald-500 text-white" : "border-foreground/20")}>
                     {o.chosen && <Check className="size-3" />}
                   </span>
@@ -44,7 +44,7 @@ export function QuestionView({ step }: { step: Step }) {
             </ul>
           )}
           {q.other.length > 0 && (
-            <p className="mt-2 text-[13px] break-words">
+            <p className="mt-2 text-[0.8125rem] break-words">
               <span data-find-skip className="text-muted-foreground">
                 Your own answer:{" "}
               </span>
@@ -58,7 +58,7 @@ export function QuestionView({ step }: { step: Step }) {
       ) : step.status === "error" ? (
         <Pill tone="bad">{/declin|reject|doesn't want/i.test(out) ? "You didn't answer" : "No answer came back"}</Pill>
       ) : !answered && out ? (
-        <p className="text-[13px] break-words text-muted-foreground">{mask(out)}</p>
+        <p className="text-[0.8125rem] break-words text-muted-foreground">{mask(out)}</p>
       ) : null}
     </div>
   );

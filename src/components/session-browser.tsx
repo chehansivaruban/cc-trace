@@ -107,12 +107,12 @@ export function SessionBrowser(props: {
     }
   };
 
-  const select = "h-8 min-w-0 rounded-lg border border-foreground/10 bg-transparent px-2 text-[12px] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-foreground/20";
+  const select = "h-8 min-w-0 rounded-lg border border-foreground/10 bg-transparent px-2 text-[0.75rem] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-foreground/20";
 
   return (
     <div className="flex h-full min-h-0 flex-col" onKeyDown={onKey}>
       <div className="shrink-0 space-y-2.5 border-b border-foreground/10 p-3">
-        <p className="px-1 text-[12px] leading-snug text-muted-foreground">
+        <p className="px-1 text-[0.75rem] leading-snug text-muted-foreground">
           <TermText text="Every [[session:session]] Claude Code saved on this computer. Pick one to see what happened in it." />
         </p>
         <div className="flex h-9 items-center gap-2 rounded-xl bg-foreground/[0.05] px-3 focus-within:ring-2 focus-within:ring-foreground/15">
@@ -126,7 +126,7 @@ export function SessionBrowser(props: {
             }}
             placeholder="Search titles, first messages, ids, models…"
             aria-label="Search sessions"
-            className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/70"
+            className="min-w-0 flex-1 bg-transparent text-[0.8125rem] outline-none placeholder:text-muted-foreground/70"
           />
           {q && (
             <button onClick={() => setQ("")} className="rounded p-0.5 text-muted-foreground hover:text-foreground" aria-label="Clear search">
@@ -135,7 +135,7 @@ export function SessionBrowser(props: {
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select value={project} onChange={(e) => setProject(e.target.value)} className={cn(select, "w-full sm:w-auto sm:max-w-[240px] sm:flex-1")} aria-label="Project">
+          <select value={project} onChange={(e) => setProject(e.target.value)} className={cn(select, "w-full sm:w-auto sm:max-w-[15rem] sm:flex-1")} aria-label="Project">
             <option value="">All projects ({projects.length})</option>
             {tree.map(({ project: p, worktrees }) => [
               <option key={p.dir} value={p.dir}>
@@ -157,7 +157,7 @@ export function SessionBrowser(props: {
             onClick={() => setLiveOnly((v) => !v)}
             aria-pressed={liveOnly}
             className={cn(
-              "flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[12px] transition-colors",
+              "flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[0.75rem] transition-colors",
               liveOnly ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "border-foreground/10 text-muted-foreground hover:text-foreground",
             )}
           >
@@ -165,7 +165,7 @@ export function SessionBrowser(props: {
             Running now
           </button>
         </div>
-        <p className="px-1 text-[11px] text-muted-foreground" aria-live="polite">
+        <p className="px-1 text-[0.6875rem] text-muted-foreground" aria-live="polite">
           {totals.sessions} session{totals.sessions === 1 ? "" : "s"} · {formatTokens(totals.tokens)} tokens{totals.counting ? " so far" : ""}
           {totals.live > 0 && ` · ${totals.live} running now`}
         </p>
@@ -173,7 +173,7 @@ export function SessionBrowser(props: {
 
       <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1.5 py-1" role="listbox" aria-label="Sessions">
         {!rows.length ? (
-          <p className="px-4 py-10 text-center text-[13px] text-muted-foreground">
+          <p className="px-4 py-10 text-center text-[0.8125rem] text-muted-foreground">
             {projects.length ? "No sessions match. Try fewer words or another project." : "No Claude Code sessions found on this computer yet."}
           </p>
         ) : (
@@ -183,7 +183,7 @@ export function SessionBrowser(props: {
               return (
                 <div key={v.key} data-index={v.index} ref={virtual.measureElement} className="absolute inset-x-0" style={{ transform: `translateY(${v.start}px)` }}>
                   {r.kind === "group" ? (
-                    <div className="px-2.5 pt-3 pb-1.5 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+                    <div className="px-2.5 pt-3 pb-1.5 text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">
                       {r.label} <span className="font-normal normal-case opacity-70">· {r.count}</span>
                     </div>
                   ) : (
@@ -205,7 +205,7 @@ export function SessionBrowser(props: {
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-1 border-t border-foreground/10 p-1.5 text-[12px]">
+      <div className="flex shrink-0 items-center gap-1 border-t border-foreground/10 p-1.5 text-[0.75rem]">
         <button
           onClick={openLogFile}
           className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-muted-foreground transition-colors hover:bg-foreground/[0.07] hover:text-foreground"
@@ -262,14 +262,14 @@ function SessionRow(props: {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           {s.live && (
-            <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-px text-[10px] font-semibold text-emerald-700 uppercase dark:text-emerald-300">
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-px text-[0.625rem] font-semibold text-emerald-700 uppercase dark:text-emerald-300">
               <span className="size-1.5 rounded-full bg-emerald-500" />
               Live
             </span>
           )}
-          <span className="line-clamp-1 text-[13px] font-medium">{m(s.title)}</span>
+          <span className="line-clamp-1 text-[0.8125rem] font-medium">{m(s.title)}</span>
         </div>
-        <div className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+        <div className="mt-0.5 line-clamp-2 text-[0.6875rem] leading-snug text-muted-foreground">
           {facts.join(" · ")}
           {s.gitBranch && s.gitBranch !== "HEAD" && (
             <span className="whitespace-nowrap">
@@ -279,7 +279,7 @@ function SessionRow(props: {
           )}
           {s.worktreeOf && <span className="whitespace-nowrap"> · worktree</span>}
         </div>
-        <div className="mt-0.5 text-[11px] text-muted-foreground/70">
+        <div className="mt-0.5 text-[0.6875rem] text-muted-foreground/70">
           {props.sort === "started" ? `started ${ago(s.started, props.now)}` : `active ${ago(s.mtime, props.now)}`}
         </div>
       </div>

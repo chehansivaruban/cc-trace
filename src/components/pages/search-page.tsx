@@ -99,12 +99,12 @@ export function SearchPage({ route, navigate }: AppPageProps) {
 
   const tooShort = draft.trim().length > 0 && draft.trim().length < 2;
   return (
-    <div className="mx-auto max-w-[860px] px-4 pt-4 pb-16 sm:px-6">
+    <div className="mx-auto max-w-[53.75rem] px-4 pt-4 pb-16 sm:px-6">
       <button onClick={() => navigate({ page: "session" })} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-3.5" /> Back to the session
       </button>
       <h2 className="mt-3 text-lg font-semibold tracking-tight">Search all sessions</h2>
-      <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+      <p className="mt-1 text-[0.8125rem] leading-relaxed text-muted-foreground">
         Find a word or phrase anywhere in your Claude Code history: your messages, Claude&apos;s replies, and what its tools read and wrote. cc-trace reads the logs each time and keeps no copy.
       </p>
       <form
@@ -149,7 +149,7 @@ export function SearchPage({ route, navigate }: AppPageProps) {
                 onClick={() => navigate({ page: "session", file: first.file, turn: undefined, view: "map", step: undefined, q: undefined })}
                 className="block w-full rounded-t-xl px-4 pt-3 pb-2 text-left hover:bg-foreground/[0.04]"
               >
-                <span className="line-clamp-1 text-[13px] font-semibold">{mask(first.title)}</span>
+                <span className="line-clamp-1 text-[0.8125rem] font-semibold">{mask(first.title)}</span>
                 <span className="block truncate text-xs text-muted-foreground">
                   {mask(shortPath(paths[projectOf(first.file)] ?? projectOf(first.file)))} · {hits.length} match{hits.length === 1 ? "" : "es"}
                 </span>
@@ -161,12 +161,12 @@ export function SearchPage({ route, navigate }: AppPageProps) {
                       onClick={() => navigate({ page: "session", file: h.file, turn: h.turn, view: "map", step: h.step, q: undefined })}
                       className="block w-full px-4 py-2 text-left hover:bg-foreground/[0.04]"
                     >
-                      <span className="text-[11px] text-muted-foreground">
+                      <span className="text-[0.6875rem] text-muted-foreground">
                         Request {h.turn + 1}
                         {h.ts ? ` · ${new Date(h.ts).toLocaleString()}` : ""}
                         {h.step ? " · a tool step" : ""}
                       </span>
-                      <span className="mt-0.5 block text-[13px] leading-relaxed break-words">
+                      <span className="mt-0.5 block text-[0.8125rem] leading-relaxed break-words">
                         <Highlight text={h.snippet} q={q.trim()} />
                       </span>
                     </button>

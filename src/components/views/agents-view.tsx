@@ -33,8 +33,8 @@ const short = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ?
 function Section({ title, intro, children }: { title: string; intro?: ReactNode; children?: ReactNode }) {
   return (
     <section className="mt-8">
-      <h3 className="text-[15px] font-semibold tracking-tight">{title}</h3>
-      {intro && <p className="mt-1 mb-3 text-[13px] leading-relaxed text-muted-foreground">{intro}</p>}
+      <h3 className="text-[0.9375rem] font-semibold tracking-tight">{title}</h3>
+      {intro && <p className="mt-1 mb-3 text-[0.8125rem] leading-relaxed text-muted-foreground">{intro}</p>}
       {children}
     </section>
   );
@@ -78,12 +78,12 @@ export function AgentsView({ model, turn, selected, onSelect, onPickTurn }: Sess
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-[920px] px-4 pt-5 pb-16 sm:px-6">
+      <div className="mx-auto max-w-[57.5rem] px-4 pt-5 pb-16 sm:px-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 flex-1 basis-[260px]">
-            <div className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Agents</div>
+          <div className="min-w-0 flex-1 basis-[16.25rem]">
+            <div className="text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">Agents</div>
             <h2 className="mt-1 text-lg font-semibold tracking-tight">Who did the work</h2>
-            <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+            <p className="mt-1 text-[0.8125rem] leading-relaxed text-muted-foreground">
               <TermText text="Claude can hand parts of a job to [[helper:helpers]]. Here you can see who created whom, the to-do lists they kept and the messages they sent each other." />
             </p>
           </div>
@@ -115,8 +115,8 @@ export function AgentsView({ model, turn, selected, onSelect, onPickTurn }: Sess
         </div>
 
         <div className="mt-4 rounded-xl bg-foreground/[0.05] px-4 py-3.5">
-          <div className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">In short</div>
-          <p className="mt-1.5 text-[13px] leading-relaxed">
+          <div className="text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">In short</div>
+          <p className="mt-1.5 text-[0.8125rem] leading-relaxed">
             <TermText text={story} />
           </p>
         </div>
@@ -150,7 +150,7 @@ export function AgentsView({ model, turn, selected, onSelect, onPickTurn }: Sess
             <div className="grid gap-3 sm:grid-cols-2">
               {teams.map((t) => (
                 <div key={t.name} className="min-w-0 rounded-xl border border-foreground/10 px-4 py-3">
-                  <p className="text-[13px] font-semibold break-words">{mask(t.name)}</p>
+                  <p className="text-[0.8125rem] font-semibold break-words">{mask(t.name)}</p>
                   <p className="text-xs text-muted-foreground">
                     {t.members.length} member{t.members.length === 1 ? "" : "s"}
                   </p>
@@ -216,9 +216,9 @@ function TreeNode({ node, depth, mask, tech, selectedId, onPick }: { node: Agent
         <button type="button" onClick={() => onPick(a.id)} className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 pt-0.5 text-left">
           <span className="flex min-w-0 items-center gap-2">
             <span className="size-2.5 shrink-0 rounded-[3px]" style={{ background: hueColor(a.hue) }} />
-            <span className="truncate text-[13px] font-medium group-hover:underline">{mask(a.name)}</span>
+            <span className="truncate text-[0.8125rem] font-medium group-hover:underline">{mask(a.name)}</span>
           </span>
-          {state && <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", state.cls)}>{state.label}</span>}
+          {state && <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[0.6875rem] font-medium", state.cls)}>{state.label}</span>}
           <span className="text-xs text-muted-foreground tabular-nums">
             {formatCount(node.stats.steps)} step{node.stats.steps === 1 ? "" : "s"}
             {tokens ? ` · ${short(tokens)} tokens` : ""}
@@ -226,7 +226,7 @@ function TreeNode({ node, depth, mask, tech, selectedId, onPick }: { node: Agent
             {node.children.length ? ` · ${node.children.length} helper${node.children.length === 1 ? "" : "s"}` : ""}
           </span>
           {tech && (
-            <span className="w-full truncate pl-[18px] font-mono text-[11px] text-muted-foreground">
+            <span className="w-full truncate pl-[1.125rem] font-mono text-[0.6875rem] text-muted-foreground">
               {[a.role, a.model, a.kind === "helper" ? a.id : null].filter(Boolean).join(" · ")}
             </span>
           )}
@@ -307,8 +307,8 @@ function TaskColumn({ label, icon, tasks, mask }: { label: string; icon: ReactNo
 function TaskCard({ task: t, mask }: { task: AgentTask; mask: Mask }) {
   return (
     <div className="rounded-lg border border-foreground/10 bg-background/60 px-2.5 py-2">
-      <p className={cn("text-[13px] leading-snug break-words", t.status === "completed" && "text-muted-foreground")}>{mask(t.title)}</p>
-      <p className="mt-1 truncate text-[11px] text-muted-foreground">
+      <p className={cn("text-[0.8125rem] leading-snug break-words", t.status === "completed" && "text-muted-foreground")}>{mask(t.title)}</p>
+      <p className="mt-1 truncate text-[0.6875rem] text-muted-foreground">
         {mask(t.owner)} · {new Date(t.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
       </p>
     </div>
@@ -329,7 +329,7 @@ function ChatMessage({ step: s, model, mask, selected, onOpen }: { step: Step; m
         <StepIcon icon={s.icon} className="size-3.5" />
       </span>
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-baseline gap-x-1.5 text-[13px]">
+        <div className="flex flex-wrap items-baseline gap-x-1.5 text-[0.8125rem]">
           <span className="max-w-[16rem] truncate font-semibold" style={{ color: hueColor(from?.hue ?? 0) }}>
             {mask(from?.name ?? "Someone")}
           </span>
@@ -340,7 +340,7 @@ function ChatMessage({ step: s, model, mask, selected, onOpen }: { step: Step; m
           </span>
         </div>
         {text && (
-          <div className="mt-1 rounded-xl bg-foreground/[0.05] px-3 py-2 text-[13px] leading-relaxed">
+          <div className="mt-1 rounded-xl bg-foreground/[0.05] px-3 py-2 text-[0.8125rem] leading-relaxed">
             <div className={cn("break-words whitespace-pre-wrap", long && !open && "line-clamp-6")}>{text}</div>
             {long && (
               <button type="button" onClick={() => setOpen(!open)} className="mt-1 text-xs font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground">
@@ -361,7 +361,7 @@ type ChatProps = { steps: Step[]; model: SessionModel; mask: Mask; selectedId?: 
 
 function Chat(props: ChatProps) {
   const { steps, model, mask, selectedId, onOpen } = props;
-  if (!steps.length) return <p className="text-[13px] text-muted-foreground">No messages match these filters.</p>;
+  if (!steps.length) return <p className="text-[0.8125rem] text-muted-foreground">No messages match these filters.</p>;
   if (steps.length > VIRTUAL_AT)
     return (
       <VirtualList

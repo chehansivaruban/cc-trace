@@ -45,7 +45,7 @@ export function GenericView({ step }: { step: Step }) {
   return (
     <div className="space-y-3">
       {mcp && (
-        <p data-find-skip className="text-[13px]">
+        <p data-find-skip className="text-[0.8125rem]">
           Used the <b>{mcp.server || "unnamed"}</b> connector to <b>{mcp.tool}</b>.
         </p>
       )}

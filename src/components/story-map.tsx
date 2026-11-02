@@ -190,7 +190,7 @@ export function StoryMap(props: {
             {now.pulse && <span className="absolute inset-0 animate-ping rounded-full bg-sky-400 opacity-60" />}
             <span className={cn("relative size-2.5 rounded-full", now.pulse ? "bg-sky-400" : current ? "bg-amber-400" : "bg-emerald-400/80")} />
           </span>
-          <p className="min-w-0 truncate text-[15px] font-medium tracking-tight">
+          <p className="min-w-0 truncate text-[0.9375rem] font-medium tracking-tight">
             {current && <span className="mr-2 text-muted-foreground tabular-nums">Step {shown + 1}/{steps.length}</span>}
             {now.text}
           </p>
@@ -204,7 +204,7 @@ export function StoryMap(props: {
           <button
             onClick={togglePlay}
             disabled={!steps.length}
-            className="flex h-8 min-w-[92px] items-center justify-center gap-1.5 rounded-lg bg-foreground px-3 text-xs font-medium text-background transition-transform duration-150 active:scale-[0.97] disabled:opacity-40"
+            className="flex h-8 min-w-[5.75rem] items-center justify-center gap-1.5 rounded-lg bg-foreground px-3 text-xs font-medium text-background transition-transform duration-150 active:scale-[0.97] disabled:opacity-40"
             aria-label={playing ? "Pause replay (space)" : "Replay this request step by step (space)"}
           >
             {playing ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
@@ -371,7 +371,7 @@ function Lane(props: { actor?: Actor; parent?: Actor; top: number; height: numbe
 /** What the symbols on the map mean, for first-time readers. */
 function Legend() {
   return (
-    <div className="glass hidden max-w-[300px] flex-wrap items-center justify-end gap-x-3.5 gap-y-1 rounded-xl px-3 py-2 text-[11px] text-muted-foreground shadow-lg md:flex">
+    <div className="glass hidden max-w-[18.75rem] flex-wrap items-center justify-end gap-x-3.5 gap-y-1 rounded-xl px-3 py-2 text-[0.6875rem] text-muted-foreground shadow-lg md:flex">
       <span className="flex items-center gap-1.5">
         <Check className="size-3 text-emerald-500" strokeWidth={3} /> worked
       </span>

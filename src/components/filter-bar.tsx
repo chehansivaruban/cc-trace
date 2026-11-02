@@ -23,7 +23,7 @@ function Pill({ on, onClick, children, count, dot }: { on: boolean; onClick: () 
       onClick={onClick}
       aria-pressed={on}
       className={cn(
-        "inline-flex max-w-[220px] shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
+        "inline-flex max-w-[13.75rem] shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
         on ? "border-foreground bg-foreground text-background" : "border-foreground/15 text-muted-foreground hover:border-foreground/30 hover:text-foreground",
       )}
     >
@@ -37,7 +37,7 @@ function Pill({ on, onClick, children, count, dot }: { on: boolean; onClick: () 
 function Group({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <span className="mr-1 w-[68px] shrink-0 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{label}</span>
+      <span className="mr-1 w-[4.25rem] shrink-0 text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">{label}</span>
       {children}
     </div>
   );
@@ -73,7 +73,7 @@ export function FilterBar({
   return (
     <div className={cn("space-y-2", className)}>
       <div className="flex flex-wrap items-center gap-2">
-        <label className="flex h-8 min-w-0 flex-1 basis-[180px] items-center gap-2 rounded-lg border border-foreground/15 px-2.5 text-[13px] focus-within:border-foreground/40">
+        <label className="flex h-8 min-w-0 flex-1 basis-[11.25rem] items-center gap-2 rounded-lg border border-foreground/15 px-2.5 text-[0.8125rem] focus-within:border-foreground/40">
           <Search className="size-3.5 shrink-0 text-muted-foreground" />
           <input
             value={value.text}

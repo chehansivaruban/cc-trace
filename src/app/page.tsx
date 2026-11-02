@@ -172,12 +172,12 @@ export default function Home() {
         />
 
         {route.page !== "session" ? (
-          <div className="min-h-0 flex-1 overflow-auto pt-[84px]">
+          <div className="min-h-0 flex-1 overflow-auto pt-[5.25rem]">
             <AppPageView page={route.page} route={route} navigate={pageNavigate} />
           </div>
         ) : (
-          <div className="flex min-h-0 flex-1 pt-[84px]">
-            <div className="hidden w-[272px] shrink-0 border-r border-foreground/10 xl:block">{turnList}</div>
+          <div className="flex min-h-0 flex-1 pt-[5.25rem]">
+            <div className="hidden w-[17rem] shrink-0 border-r border-foreground/10 xl:block">{turnList}</div>
 
             <div className="flex min-w-0 flex-1 flex-col">
               {turn && dropped && <DroppedBanner name={dropped.name} onClose={() => setDropped(null)} />}
@@ -191,7 +191,7 @@ export default function Home() {
                       aria-selected={view === v.id}
                       onClick={() => go({ view: v.id })}
                       className={cn(
-                        "-mb-px shrink-0 border-b-2 px-3 pb-2 text-[13px] whitespace-nowrap transition-colors",
+                        "-mb-px shrink-0 border-b-2 px-3 pb-2 text-[0.8125rem] whitespace-nowrap transition-colors",
                         view === v.id ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
                       )}
                     >
@@ -230,7 +230,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="hidden w-[380px] shrink-0 border-l border-foreground/10 lg:block">{details()}</div>
+            <div className="hidden w-[23.75rem] shrink-0 border-l border-foreground/10 lg:block">{details()}</div>
           </div>
         )}
 
@@ -239,7 +239,7 @@ export default function Home() {
           {requestsOpen && route.page === "session" && (
             <motion.div key="requests" className="fixed inset-0 z-40 bg-black/30 xl:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setRequestsOpen(false)}>
               <motion.div
-                className="glass-strong h-full w-[300px] max-w-[85vw]"
+                className="glass-strong h-full w-[18.75rem] max-w-[85vw]"
                 initial={{ x: "-100%" }}
                 animate={{ x: 0 }}
                 exit={{ x: "-100%" }}

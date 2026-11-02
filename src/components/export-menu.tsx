@@ -35,7 +35,7 @@ function download(name: string, text: string, type: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-const item = "gap-2 rounded-lg px-2.5 py-2 text-[13px]";
+const item = "gap-2 rounded-lg px-2.5 py-2 text-[0.8125rem]";
 
 /** "Export" menu (H1): this request or the whole session as an offline web page, Markdown or raw JSON. */
 export function ExportMenu({ model, turn, className }: { model: SessionModel; turn?: Turn; className?: string }) {
@@ -63,7 +63,7 @@ export function ExportMenu({ model, turn, className }: { model: SessionModel; tu
   return (
     <span className="relative inline-flex">
       {error && (
-        <span role="alert" className="absolute top-full right-0 z-10 mt-1.5 w-[260px] rounded-lg border border-red-500/30 bg-background px-2.5 py-1.5 text-xs leading-relaxed text-red-700 shadow-lg dark:text-red-300">
+        <span role="alert" className="absolute top-full right-0 z-10 mt-1.5 w-[16.25rem] rounded-lg border border-red-500/30 bg-background px-2.5 py-1.5 text-xs leading-relaxed text-red-700 shadow-lg dark:text-red-300">
           {error}
         </span>
       )}
@@ -77,7 +77,7 @@ export function ExportMenu({ model, turn, className }: { model: SessionModel; tu
           <Download className="size-3.5" />
           Export
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="glass-strong w-[270px] rounded-xl p-1.5 shadow-2xl shadow-black/40 ring-0" align="end" sideOffset={8}>
+        <DropdownMenuContent className="glass-strong w-[16.875rem] rounded-xl p-1.5 shadow-2xl shadow-black/40 ring-0" align="end" sideOffset={8}>
           <p className="px-2.5 pt-1.5 pb-2 text-xs leading-relaxed text-muted-foreground">Save a copy you can open without cc-trace or share. It&apos;s made in your browser.</p>
           {turn && (
             <>

@@ -40,10 +40,10 @@ export function Section({ title, intro, children, right }: { title: string; intr
   return (
     <section>
       <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-[15px] font-semibold tracking-tight">{title}</h3>
+        <h3 className="text-[0.9375rem] font-semibold tracking-tight">{title}</h3>
         {right}
       </div>
-      {intro && <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{intro}</p>}
+      {intro && <p className="mt-1 text-[0.8125rem] leading-relaxed text-muted-foreground">{intro}</p>}
       <div className="mt-3">{children}</div>
     </section>
   );

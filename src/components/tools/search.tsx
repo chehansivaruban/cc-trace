@@ -10,7 +10,7 @@ import { Facts, Pill, fmt, plural } from "./shared";
 function FileList({ files }: { files: string[] }) {
   const mask = useMask();
   return (
-    <ul className="max-h-72 overflow-auto rounded-xl bg-foreground/[0.04] px-3 py-2 font-mono text-[12px] leading-relaxed">
+    <ul className="max-h-72 overflow-auto rounded-xl bg-foreground/[0.04] px-3 py-2 font-mono text-[0.75rem] leading-relaxed">
       {files.slice(0, CAPS.files).map((f, i) => (
         <li key={i} className="break-all">
           {mask(f)}
@@ -31,9 +31,9 @@ export function SearchView({ step }: { step: Step }) {
   const grep = step.tool === "Grep";
   return (
     <div className="space-y-2.5">
-      <p className="text-[13px]">
+      <p className="text-[0.8125rem]">
         <span data-find-skip>{grep ? "Searched inside files for " : "Looked for files named "}</span>
-        <code className="rounded bg-foreground/[0.07] px-1 font-mono text-[12px] break-all">{mask(pattern)}</code>
+        <code className="rounded bg-foreground/[0.07] px-1 font-mono text-[0.75rem] break-all">{mask(pattern)}</code>
       </p>
       <Facts
         items={[

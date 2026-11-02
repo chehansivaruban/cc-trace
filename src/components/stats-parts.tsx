@@ -13,7 +13,7 @@ export function StatTile({ label, value, sub }: { label: ReactNode; value: React
     <div className="min-w-0 rounded-xl border border-foreground/10 px-3.5 py-3">
       <div className="truncate text-xs text-muted-foreground">{label}</div>
       <div className="mt-1 truncate text-xl font-semibold tracking-tight">{value}</div>
-      {sub && <div className="mt-0.5 truncate text-[11px] text-muted-foreground">{sub}</div>}
+      {sub && <div className="mt-0.5 truncate text-[0.6875rem] text-muted-foreground">{sub}</div>}
     </div>
   );
 }
@@ -23,7 +23,7 @@ export function Section({ title, intro, children, aside }: { title: ReactNode; i
     <section className="mt-8">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="text-[15px] font-semibold tracking-tight">{title}</h3>
+          <h3 className="text-[0.9375rem] font-semibold tracking-tight">{title}</h3>
           {intro && <p className="mt-0.5 max-w-2xl text-xs leading-relaxed text-muted-foreground">{intro}</p>}
         </div>
         {aside}
@@ -70,7 +70,7 @@ export function Meter({ pct, compact }: { pct: number; compact?: boolean }) {
   const word = level === "critical" ? "nearly full" : level === "warning" ? "getting full" : "";
   return (
     <div className={cn("flex items-center gap-2", compact ? "w-full" : "")}>
-      <div className="relative h-2 min-w-[48px] flex-1 overflow-hidden rounded-full" style={{ background: `color-mix(in oklab, ${color} 18%, transparent)` }}>
+      <div className="relative h-2 min-w-[3rem] flex-1 overflow-hidden rounded-full" style={{ background: `color-mix(in oklab, ${color} 18%, transparent)` }}>
         <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.max(pct > 0 ? 2 : 0, pct))}%`, background: color }} />
       </div>
       <span className="w-10 shrink-0 text-right text-xs tabular-nums">{pct < 1 && pct > 0 ? "<1" : Math.round(pct)}%</span>
@@ -140,7 +140,7 @@ export function SortTable<T>(props: {
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && props.onRow && (e.preventDefault(), props.onRow(r))}
       style={{ gridTemplateColumns: grid, height: ROW_H, ...style }}
       className={cn(
-        "grid items-center gap-3 border-b border-foreground/[0.06] px-2 text-[13px] outline-none",
+        "grid items-center gap-3 border-b border-foreground/[0.06] px-2 text-[0.8125rem] outline-none",
         props.onRow && "cursor-pointer hover:bg-foreground/[0.05] focus-visible:bg-foreground/[0.07]",
         props.highlight?.(r) && "bg-foreground/[0.06]",
       )}
@@ -155,7 +155,7 @@ export function SortTable<T>(props: {
 
   return (
     <div ref={ref} role="table" className="w-full">
-      <div role="row" style={{ gridTemplateColumns: grid }} className="grid items-end gap-3 border-b border-foreground/10 px-2 pb-1.5 text-[11px] font-medium text-muted-foreground">
+      <div role="row" style={{ gridTemplateColumns: grid }} className="grid items-end gap-3 border-b border-foreground/10 px-2 pb-1.5 text-[0.6875rem] font-medium text-muted-foreground">
         {cols.map((c) => {
           const active = sort?.id === c.id;
           return (
@@ -178,7 +178,7 @@ export function SortTable<T>(props: {
       {!rows.length ? (
         <p className="px-2 py-4 text-xs text-muted-foreground">{props.empty ?? "Nothing here yet."}</p>
       ) : virtual ? (
-        <div ref={scroller} className="max-h-[456px] overflow-y-auto">
+        <div ref={scroller} className="max-h-[28.5rem] overflow-y-auto">
           <div style={{ height: v.getTotalSize(), position: "relative" }}>
             {v.getVirtualItems().map((it) => renderRow(rows[it.index], { position: "absolute", top: 0, left: 0, right: 0, transform: `translateY(${it.start}px)` }))}
           </div>
@@ -222,13 +222,13 @@ export function toolLabel(tool: string) {
 
 /** Token columns shared by the tables: the total, plus the breakdown when technical details are on. */
 export function tokenColumns<T>(usage: (r: T) => Usage, tech: boolean, share?: number): Column<T>[] {
-  const cols: Column<T>[] = [{ id: "tokens", label: "Tokens", width: "108px", align: "right", sort: (r) => totalTokens(usage(r)), cell: (r) => fmt(totalTokens(usage(r))) }];
-  if (share) cols.push({ id: "share", label: "Share", width: "52px", align: "right", minor: true, sort: (r) => totalTokens(usage(r)), cell: (r) => pct((totalTokens(usage(r)) / share) * 100) });
+  const cols: Column<T>[] = [{ id: "tokens", label: "Tokens", width: "6.75rem", align: "right", sort: (r) => totalTokens(usage(r)), cell: (r) => fmt(totalTokens(usage(r))) }];
+  if (share) cols.push({ id: "share", label: "Share", width: "3.25rem", align: "right", minor: true, sort: (r) => totalTokens(usage(r)), cell: (r) => pct((totalTokens(usage(r)) / share) * 100) });
   if (tech) {
     cols.push(
-      { id: "fresh", label: "New", width: "76px", align: "right", minor: true, sort: (r) => usage(r).fresh, cell: (r) => fmt(usage(r).fresh) },
-      { id: "cached", label: "Re-read", width: "84px", align: "right", minor: true, sort: (r) => usage(r).cached, cell: (r) => fmt(usage(r).cached) },
-      { id: "written", label: "Written", width: "72px", align: "right", minor: true, sort: (r) => usage(r).written, cell: (r) => fmt(usage(r).written) },
+      { id: "fresh", label: "New", width: "4.75rem", align: "right", minor: true, sort: (r) => usage(r).fresh, cell: (r) => fmt(usage(r).fresh) },
+      { id: "cached", label: "Re-read", width: "5.25rem", align: "right", minor: true, sort: (r) => usage(r).cached, cell: (r) => fmt(usage(r).cached) },
+      { id: "written", label: "Written", width: "4.5rem", align: "right", minor: true, sort: (r) => usage(r).written, cell: (r) => fmt(usage(r).written) },
     );
   }
   return cols;

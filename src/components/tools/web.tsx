@@ -26,14 +26,14 @@ export function WebView({ step }: { step: Step }) {
     const { query, links, summary, result: r } = webSearchData(step);
     return (
       <div className="space-y-2.5">
-        <p className="text-[13px]">
+        <p className="text-[0.8125rem]">
           <span data-find-skip>Searched the web for </span>
           <b>{mask(query)}</b>
         </p>
         <Facts items={[links.length ? `${plural(links.length, "result")}` : null, typeof r.durationSeconds === "number" ? `${r.durationSeconds.toFixed(1)} s` : null]} />
         {step.status === "error" && <Pill tone="bad">The search failed</Pill>}
         {links.length > 0 && (
-          <ol className="space-y-1 text-[13px]">
+          <ol className="space-y-1 text-[0.8125rem]">
             {links.slice(0, CAPS.webResults).map((l, i) => (
               <li key={i} className="flex gap-2">
                 <span data-find-skip className="w-4 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
@@ -61,7 +61,7 @@ export function WebView({ step }: { step: Step }) {
   const { url, prompt, text, result: r } = webFetchData(step);
   return (
     <div className="space-y-2.5">
-      <p className="text-[13px]">
+      <p className="text-[0.8125rem]">
         <span data-find-skip>Opened </span>
         {url ? <Link href={url}>{url}</Link> : <span data-find-skip>a web page</span>}
       </p>

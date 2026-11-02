@@ -58,23 +58,23 @@ export function StatsView({ model, turn, file }: SessionViewProps) {
 
   const burnCols: Column<BurnPoint>[] = [
     { id: "when", label: "When", width: "minmax(0,1fr)", sort: (p) => p.ts, cell: (p) => dateTime(p.ts) },
-    { id: "request", label: "Request", width: "64px", align: "right", sort: (p) => p.turn ?? 0, cell: (p) => (p.turn ?? 0) + 1 },
-    { id: "tokens", label: "Tokens so far", width: "108px", align: "right", sort: (p) => p.tokens, cell: (p) => fmt(p.tokens) },
+    { id: "request", label: "Request", width: "4rem", align: "right", sort: (p) => p.turn ?? 0, cell: (p) => (p.turn ?? 0) + 1 },
+    { id: "tokens", label: "Tokens so far", width: "6.75rem", align: "right", sort: (p) => p.tokens, cell: (p) => fmt(p.tokens) },
   ];
   const replyCols: Column<Bar & { n: number }>[] = [
-    { id: "n", label: "#", width: "34px", sort: (b) => b.n, cell: (b) => <span className="text-muted-foreground tabular-nums">{b.n}</span> },
+    { id: "n", label: "#", width: "2.125rem", sort: (b) => b.n, cell: (b) => <span className="text-muted-foreground tabular-nums">{b.n}</span> },
     { id: "what", label: "Reply", width: "minmax(0,1fr)", sort: (b) => b.detail ?? "", cell: (b) => `${b.label.replace(/^Reply \d+ · /, "")} · ${b.detail ?? ""}` },
-    { id: "written", label: "Tokens written", width: "108px", align: "right", sort: (b) => b.value, cell: (b) => fmt(b.value) },
+    { id: "written", label: "Tokens written", width: "6.75rem", align: "right", sort: (b) => b.value, cell: (b) => fmt(b.value) },
   ];
 
   const requestCols: Column<Row>[] = [
-    { id: "n", label: "#", width: "34px", sort: (r) => r.jumpTo!.turn, cell: (r) => <span className="text-muted-foreground tabular-nums">{r.jumpTo!.turn + 1}</span> },
+    { id: "n", label: "#", width: "2.125rem", sort: (r) => r.jumpTo!.turn, cell: (r) => <span className="text-muted-foreground tabular-nums">{r.jumpTo!.turn + 1}</span> },
     { id: "label", label: "You asked", width: "minmax(0,1fr)", sort: (r) => r.label, cell: (r) => mask(r.label) },
     ...tokenColumns<Row>((r) => r.usage, tech),
     {
       id: "memory",
       label: "Memory at start",
-      width: "128px",
+      width: "8rem",
       minor: true,
       sort: (r) => gauges.get(r.jumpTo!.turn)?.pct ?? 0,
       cell: (r) => {
@@ -82,15 +82,15 @@ export function StatsView({ model, turn, file }: SessionViewProps) {
         return g && g.used ? <Meter pct={g.pct} compact /> : <span className="text-muted-foreground">–</span>;
       },
     },
-    { id: "steps", label: "Steps", width: "52px", align: "right", minor: true, sort: (r) => r.steps, cell: (r) => r.steps },
-    { id: "time", label: "Time", width: "60px", align: "right", sort: (r) => r.durationMs, cell: (r) => shortDuration(r.durationMs) },
+    { id: "steps", label: "Steps", width: "3.25rem", align: "right", minor: true, sort: (r) => r.steps, cell: (r) => r.steps },
+    { id: "time", label: "Time", width: "3.75rem", align: "right", sort: (r) => r.durationMs, cell: (r) => shortDuration(r.durationMs) },
   ];
 
   const modelCols: Column<Row>[] = [
     { id: "label", label: "Model", width: "minmax(0,1fr)", sort: (r) => r.label, cell: (r) => (tech && r.key !== "unknown" ? <code className="text-xs">{r.key}</code> : r.label) },
     ...tokenColumns<Row>((r) => r.usage, tech, total),
-    { id: "replies", label: "Replies", width: "60px", align: "right", sort: (r) => r.replies ?? 0, cell: (r) => fmt(r.replies ?? 0) },
-    { id: "steps", label: "Steps", width: "52px", align: "right", minor: true, sort: (r) => r.steps, cell: (r) => fmt(r.steps) },
+    { id: "replies", label: "Replies", width: "3.75rem", align: "right", sort: (r) => r.replies ?? 0, cell: (r) => fmt(r.replies ?? 0) },
+    { id: "steps", label: "Steps", width: "3.25rem", align: "right", minor: true, sort: (r) => r.steps, cell: (r) => fmt(r.steps) },
   ];
 
   const agentCols: Column<Row>[] = [
@@ -103,13 +103,13 @@ export function StatsView({ model, turn, file }: SessionViewProps) {
         <span className="flex min-w-0 items-center gap-2">
           <span className="size-2.5 shrink-0 rounded-[3px]" style={{ background: hueColor(model.actors[r.key]?.hue ?? 0) }} />
           <span className="truncate">{mask(r.label)}</span>
-          {tech && model.actors[r.key]?.model && <code className="hidden shrink-0 text-[11px] text-muted-foreground sm:inline">{model.actors[r.key].model}</code>}
+          {tech && model.actors[r.key]?.model && <code className="hidden shrink-0 text-[0.6875rem] text-muted-foreground sm:inline">{model.actors[r.key].model}</code>}
         </span>
       ),
     },
     ...tokenColumns<Row>((r) => r.usage, tech, total),
-    { id: "tools", label: "Tool uses", width: "68px", align: "right", sort: (r) => r.toolCalls ?? 0, cell: (r) => fmt(r.toolCalls ?? 0) },
-    { id: "time", label: "Time", width: "60px", align: "right", minor: true, sort: (r) => r.durationMs, cell: (r) => shortDuration(r.durationMs) },
+    { id: "tools", label: "Tool uses", width: "4.25rem", align: "right", sort: (r) => r.toolCalls ?? 0, cell: (r) => fmt(r.toolCalls ?? 0) },
+    { id: "time", label: "Time", width: "3.75rem", align: "right", minor: true, sort: (r) => r.durationMs, cell: (r) => shortDuration(r.durationMs) },
   ];
 
   const maxTool = Math.max(1, ...stats.tools.map((t) => t.count));
@@ -123,14 +123,14 @@ export function StatsView({ model, turn, file }: SessionViewProps) {
       cell: (r) => (
         <span className="flex min-w-0 items-baseline gap-2">
           <span className="truncate">{toolLabel(r.tool)}</span>
-          {(tech || twins.has(toolLabel(r.tool))) && <code className="truncate text-[11px] text-muted-foreground">{r.tool}</code>}
+          {(tech || twins.has(toolLabel(r.tool))) && <code className="truncate text-[0.6875rem] text-muted-foreground">{r.tool}</code>}
         </span>
       ),
     },
     {
       id: "count",
       label: "Uses",
-      width: "104px",
+      width: "6.5rem",
       sort: (r) => r.count,
       cell: (r) => (
         <span className="flex items-center gap-2">
@@ -139,11 +139,11 @@ export function StatsView({ model, turn, file }: SessionViewProps) {
         </span>
       ),
     },
-    { id: "ok", label: "Worked", width: "60px", align: "right", sort: (r) => (r.count - r.failed) / r.count, cell: (r) => pct(((r.count - r.failed) / r.count) * 100) },
+    { id: "ok", label: "Worked", width: "3.75rem", align: "right", sort: (r) => (r.count - r.failed) / r.count, cell: (r) => pct(((r.count - r.failed) / r.count) * 100) },
     {
       id: "longest",
       label: "Longest",
-      width: "68px",
+      width: "4.25rem",
       align: "right",
       minor: true,
       sort: (r) => r.longest?.durationMs ?? 0,
@@ -169,9 +169,9 @@ export function StatsView({ model, turn, file }: SessionViewProps) {
       <div className="mx-auto max-w-5xl px-4 pt-5 pb-16 sm:px-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Stats</div>
+            <div className="text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">Stats</div>
             <h2 className="mt-1 text-lg font-semibold tracking-tight">How much work this session took</h2>
-            <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-muted-foreground">
+            <p className="mt-1 max-w-2xl text-[0.8125rem] leading-relaxed text-muted-foreground">
               Claude measures text in <Term k="tokens">tokens</Term>, about ¾ of a word each. Here is how many this session used, where they went, and tips for using fewer.
               cc-trace counts them from the log on your computer and uses none itself.
             </p>
@@ -219,7 +219,7 @@ export function StatsView({ model, turn, file }: SessionViewProps) {
               {tips.length ? (
                 <ul className="mt-2 space-y-2">
                   {tips.map((t) => (
-                    <li key={t.id} className="flex gap-2 text-[13px] leading-relaxed">
+                    <li key={t.id} className="flex gap-2 text-[0.8125rem] leading-relaxed">
                       {t.severity === "warn" ? (
                         <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-[var(--status-warning)]" aria-label="Worth acting on" />
                       ) : (

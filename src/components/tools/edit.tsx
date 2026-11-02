@@ -44,10 +44,10 @@ export function DiffView({ diff }: { diff: EditDiff }) {
     return out;
   }, [diff, all, mask]);
   return (
-    <div className="overflow-hidden rounded-xl border border-foreground/10 font-mono text-[12px] leading-[1.55]">
+    <div className="overflow-hidden rounded-xl border border-foreground/10 font-mono text-[0.75rem] leading-[1.55]">
       {hunks.map(({ h, rows }, hi) => (
         <div key={hi} className={cn(hi > 0 && "border-t border-foreground/10")}>
-          <div data-find-skip className="bg-foreground/[0.04] px-3 py-1 font-sans text-[11px] text-muted-foreground">
+          <div data-find-skip className="bg-foreground/[0.04] px-3 py-1 font-sans text-[0.6875rem] text-muted-foreground">
             {diff.fromLog ? `Around line ${fmt(h.newStart || h.oldStart)}` : diff.hunks.length > 1 ? `Change ${hi + 1}` : "The change"}
           </div>
           {rows.map((r, i) => (
@@ -99,7 +99,7 @@ export function EditView({ step }: { step: Step }) {
         <>
           <DiffView diff={diff} />
           {!diff.fromLog && (
-            <p data-find-skip className="text-[11px] text-muted-foreground">
+            <p data-find-skip className="text-[0.6875rem] text-muted-foreground">
               Line numbers aren&apos;t in the log for this change, so this compares the replaced text only.
             </p>
           )}

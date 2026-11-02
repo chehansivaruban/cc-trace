@@ -79,8 +79,8 @@ export function DashboardPage({ navigate }: AppPageProps) {
 
   const dayCols: Column<Overview["days"][number]>[] = [
     { id: "date", label: "Day", width: "minmax(0,1fr)", sort: (d) => d.date, cell: (d) => dayLabel(d.date, { weekday: "short", month: "short", day: "numeric" }) },
-    { id: "sessions", label: "Sessions", width: "72px", align: "right", sort: (d) => d.sessions, cell: (d) => d.sessions },
-    { id: "tokens", label: "Tokens", width: "108px", align: "right", sort: (d) => d.tokens, cell: (d) => fmt(d.tokens) },
+    { id: "sessions", label: "Sessions", width: "4.5rem", align: "right", sort: (d) => d.sessions, cell: (d) => d.sessions },
+    { id: "tokens", label: "Tokens", width: "6.75rem", align: "right", sort: (d) => d.tokens, cell: (d) => fmt(d.tokens) },
   ];
   const projectCols: Column<Row>[] = [
     {
@@ -95,7 +95,7 @@ export function DashboardPage({ navigate }: AppPageProps) {
         </span>
       ),
     },
-    { id: "sessions", label: "Sessions", width: "64px", align: "right", minor: true, sort: (r) => r.sessions ?? 0, cell: (r) => fmt(r.sessions ?? 0) },
+    { id: "sessions", label: "Sessions", width: "4rem", align: "right", minor: true, sort: (r) => r.sessions ?? 0, cell: (r) => fmt(r.sessions ?? 0) },
     ...tokenColumns<Row>((r) => r.usage, tech, total),
   ];
   const modelCols: Column<Row>[] = [
@@ -112,7 +112,7 @@ export function DashboardPage({ navigate }: AppPageProps) {
       ),
     },
     ...tokenColumns<Row>((r) => r.usage, tech, total),
-    { id: "replies", label: "Replies", width: "64px", align: "right", minor: true, sort: (r) => r.replies ?? 0, cell: (r) => fmt(r.replies ?? 0) },
+    { id: "replies", label: "Replies", width: "4rem", align: "right", minor: true, sort: (r) => r.replies ?? 0, cell: (r) => fmt(r.replies ?? 0) },
   ];
   const maxTool = Math.max(1, ...(data?.tools.map((t) => t.count) ?? []));
   const twins = sameLabel(data?.tools.slice(0, 25).map((t) => t.tool) ?? []);
@@ -125,14 +125,14 @@ export function DashboardPage({ navigate }: AppPageProps) {
       cell: (r) => (
         <span className="flex min-w-0 items-baseline gap-2">
           <span className="truncate">{toolLabel(r.tool)}</span>
-          {(tech || twins.has(toolLabel(r.tool))) && <code className="truncate text-[11px] text-muted-foreground">{r.tool}</code>}
+          {(tech || twins.has(toolLabel(r.tool))) && <code className="truncate text-[0.6875rem] text-muted-foreground">{r.tool}</code>}
         </span>
       ),
     },
     {
       id: "count",
       label: "Uses",
-      width: "112px",
+      width: "7rem",
       sort: (r) => r.count,
       cell: (r) => (
         <span className="flex items-center gap-2">
@@ -141,13 +141,13 @@ export function DashboardPage({ navigate }: AppPageProps) {
         </span>
       ),
     },
-    { id: "ok", label: "Worked", width: "60px", align: "right", sort: (r) => (r.count - r.failed) / r.count, cell: (r) => pct(((r.count - r.failed) / r.count) * 100) },
+    { id: "ok", label: "Worked", width: "3.75rem", align: "right", sort: (r) => (r.count - r.failed) / r.count, cell: (r) => pct(((r.count - r.failed) / r.count) * 100) },
   ];
   const sessionCols: Column<Sess>[] = [
     { id: "title", label: "Session", width: "minmax(0,1fr)", sort: (r) => r.title, cell: (r) => mask(r.title) },
     { id: "project", label: "Project", width: "minmax(0,0.5fr)", minor: true, sort: (r) => projectName(r.project), cell: (r) => <span className="text-muted-foreground">{mask(projectName(r.project))}</span> },
-    { id: "tokens", label: "Tokens", width: "108px", align: "right", sort: (r) => r.tokens, cell: (r) => fmt(r.tokens) },
-    { id: "last", label: "Last active", width: "92px", align: "right", minor: true, sort: (r) => r.lastTs, cell: (r) => <span className="text-muted-foreground">{ago(r.lastTs)}</span> },
+    { id: "tokens", label: "Tokens", width: "6.75rem", align: "right", sort: (r) => r.tokens, cell: (r) => fmt(r.tokens) },
+    { id: "last", label: "Last active", width: "5.75rem", align: "right", minor: true, sort: (r) => r.lastTs, cell: (r) => <span className="text-muted-foreground">{ago(r.lastTs)}</span> },
   ];
 
   return (
@@ -157,9 +157,9 @@ export function DashboardPage({ navigate }: AppPageProps) {
       </button>
       <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Dashboard</div>
+          <div className="text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">Dashboard</div>
           <h2 className="mt-1 text-lg font-semibold tracking-tight">All your sessions at a glance</h2>
-          <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-muted-foreground">
+          <p className="mt-1 max-w-2xl text-[0.8125rem] leading-relaxed text-muted-foreground">
             How much work Claude did across all your projects, counted in <Term k="tokens">tokens</Term> (about ¾ of a word each). cc-trace reads your Claude Code logs on this
             computer; nothing is sent anywhere.
           </p>
@@ -189,7 +189,7 @@ export function DashboardPage({ navigate }: AppPageProps) {
         </button>
       </div>
 
-      {error && <p className="mt-4 rounded-xl bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-600 dark:text-red-300">Couldn&apos;t read the logs: {error}</p>}
+      {error && <p className="mt-4 rounded-xl bg-red-500/10 px-3.5 py-2.5 text-[0.8125rem] text-red-600 dark:text-red-300">Couldn&apos;t read the logs: {error}</p>}
       {data?.partial && (
         <p className="mt-4 rounded-xl border border-foreground/10 px-3.5 py-2.5 text-xs leading-relaxed text-muted-foreground">
           Showing {fmt(data.scanned)} of {fmt(data.total)} sessions: reading took longer than 20 seconds, so cc-trace stopped there. Press Refresh to read the rest (sessions

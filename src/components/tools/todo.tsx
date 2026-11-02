@@ -19,7 +19,7 @@ export function TodoView({ step }: { step: Step }) {
     const subject = asText(input.subject) || asText(input.description);
     const status = asText(input.status);
     return (
-      <div className="space-y-1.5 text-[13px]">
+      <div className="space-y-1.5 text-[0.8125rem]">
         {subject && <p className="break-words">{mask(subject)}</p>}
         {input.taskId !== undefined && (
           <p data-find-skip className="text-muted-foreground">
@@ -50,7 +50,7 @@ export function TodoView({ step }: { step: Step }) {
         {items.map((it, i) => {
           const Icon = it.status === "completed" ? CircleCheck : it.status === "in_progress" ? CircleDot : Circle;
           return (
-            <li key={i} className="flex gap-2 text-[13px]">
+            <li key={i} className="flex gap-2 text-[0.8125rem]">
               <Icon
                 className={cn("mt-0.5 size-4 shrink-0", it.status === "completed" ? "text-emerald-500" : it.status === "in_progress" ? "text-sky-500" : "text-muted-foreground/60")}
                 aria-label={STATUS[it.status] ?? it.status}

@@ -201,7 +201,7 @@ export function FindBar({
         aria-label="Find in this request"
         className="h-full w-28 min-w-0 bg-transparent text-xs outline-none placeholder:text-muted-foreground sm:w-44"
       />
-      <span className="shrink-0 px-1 text-[11px] text-muted-foreground tabular-nums" aria-live="polite">
+      <span className="shrink-0 px-1 text-[0.6875rem] text-muted-foreground tabular-nums" aria-live="polite">
         {q ? (total ? `${index + 1} of ${total >= MAX_MATCHES ? `${MAX_MATCHES}+` : total}` : "No matches") : ""}
       </span>
       <button onClick={() => step(-1)} disabled={!total} className="rounded p-1 text-muted-foreground hover:bg-foreground/[0.07] hover:text-foreground disabled:opacity-40" aria-label="Previous match">

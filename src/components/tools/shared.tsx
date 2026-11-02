@@ -15,7 +15,7 @@ export { fmt, plural };
 export const asText = (v: unknown) => (typeof v === "string" ? v : "");
 
 export function Label({ children }: { children: ReactNode }) {
-  return <div data-find-skip className="mb-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{children}</div>;
+  return <div data-find-skip className="mb-1 text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">{children}</div>;
 }
 
 const TONES = {
@@ -27,7 +27,7 @@ const TONES = {
 };
 export function Pill({ tone = "muted", children, title }: { tone?: keyof typeof TONES; children: ReactNode; title?: string }) {
   return (
-    <span data-find-skip title={title} className={cn("inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium", TONES[tone])}>
+    <span data-find-skip title={title} className={cn("inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-[0.6875rem] font-medium", TONES[tone])}>
       {children}
     </span>
   );
@@ -56,7 +56,7 @@ export function FilePath({ path }: { path: unknown }) {
   const p = mask(path);
   const cut = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\")) + 1;
   return (
-    <p className="font-mono text-[12px] break-all">
+    <p className="font-mono text-[0.75rem] break-all">
       <span className="text-muted-foreground">{p.slice(0, cut)}</span>
       <span className="font-semibold">{p.slice(cut)}</span>
     </p>
@@ -70,8 +70,8 @@ export function TextBox({ text, mono, className }: { text: string; mono?: boolea
   const long = text.length > CAPS.textBox;
   const shown = open ? mask(text) : textBoxText(text, mask);
   return (
-    <div className={cn("rounded-xl bg-foreground/[0.05] px-3 py-2.5 text-[13px] leading-relaxed", className)}>
-      <div className={cn("break-words whitespace-pre-wrap", mono && "font-mono text-[12px]")}>{shown}</div>
+    <div className={cn("rounded-xl bg-foreground/[0.05] px-3 py-2.5 text-[0.8125rem] leading-relaxed", className)}>
+      <div className={cn("break-words whitespace-pre-wrap", mono && "font-mono text-[0.75rem]")}>{shown}</div>
       {long && (
         <button data-find-skip onClick={() => setOpen(!open)} className="mt-1.5 text-xs font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground">
           {open ? "Show less" : `Show all (${fmt(text.length)} characters)`}

@@ -44,10 +44,10 @@ function Picker(props: {
   mask: (s: string) => string;
 }) {
   const { projects, file, model, turn, mask } = props;
-  const select = "h-9 w-full min-w-0 rounded-lg border border-foreground/15 bg-background px-2 text-[13px] outline-none focus:border-foreground/40";
+  const select = "h-9 w-full min-w-0 rounded-lg border border-foreground/15 bg-background px-2 text-[0.8125rem] outline-none focus:border-foreground/40";
   return (
     <div className="min-w-0 rounded-xl border border-foreground/10 p-3">
-      <p className="mb-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{props.label}</p>
+      <p className="mb-2 text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">{props.label}</p>
       <select className={select} value={file ?? ""} onChange={(e) => props.onFile(e.target.value)} aria-label={`${props.label}: session`}>
         {!file && <option value="">Pick a session…</option>}
         {file && projects.length > 0 && !projects.some((p) => p.sessions.some((s) => s.file === file)) && <option value={file}>A session that wasn&apos;t found</option>}
@@ -83,8 +83,8 @@ function Picker(props: {
 function Note({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="min-w-0 rounded-xl border border-dashed border-foreground/15 p-3">
-      <p className="mb-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{label}</p>
-      <p className="text-[13px] leading-relaxed text-muted-foreground">{children}</p>
+      <p className="mb-2 text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">{label}</p>
+      <p className="text-[0.8125rem] leading-relaxed text-muted-foreground">{children}</p>
     </div>
   );
 }
@@ -120,12 +120,12 @@ export function ComparePage({ route, navigate }: AppPageProps) {
   const loading = a.loading || b.loading;
 
   return (
-    <div className="mx-auto max-w-[920px] px-4 pt-4 pb-16 sm:px-6">
+    <div className="mx-auto max-w-[57.5rem] px-4 pt-4 pb-16 sm:px-6">
       <button onClick={() => navigate({ page: "session" })} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-3.5" /> Back to the session
       </button>
       <h2 className="mt-3 text-lg font-semibold tracking-tight">Compare two sessions</h2>
-      <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+      <p className="mt-1 text-[0.8125rem] leading-relaxed text-muted-foreground">
         <TermText text="Put two sessions, or two requests, side by side to see which took more effort. Lower numbers mean less work: fewer [[tokens:tokens]], less time, fewer errors." />
       </p>
 
@@ -142,7 +142,7 @@ export function ComparePage({ route, navigate }: AppPageProps) {
         )}
       </div>
       {(a.empty || b.empty) && (
-        <p className="mt-4 rounded-xl bg-foreground/[0.05] px-4 py-3 text-[13px] text-muted-foreground" role="status">
+        <p className="mt-4 rounded-xl bg-foreground/[0.05] px-4 py-3 text-[0.8125rem] text-muted-foreground" role="status">
           {a.empty && b.empty ? "Neither session has any messages yet." : `Session ${a.empty ? "A" : "B"} has no messages yet. Pick another one to compare.`}
         </p>
       )}
@@ -156,7 +156,7 @@ export function ComparePage({ route, navigate }: AppPageProps) {
       {fileA && fileB && !a.empty && !b.empty && (
         <>
           <div className="mt-6 overflow-x-auto rounded-xl border border-foreground/10">
-            <table className="w-full text-[13px]">
+            <table className="w-full text-[0.8125rem]">
               <thead>
                 <tr className="border-b border-foreground/10 text-left text-xs text-muted-foreground">
                   <th className="px-3 py-2 font-medium">What</th>
@@ -195,16 +195,16 @@ export function ComparePage({ route, navigate }: AppPageProps) {
               { label: "B", text: storyB },
             ].map((s) => (
               <div key={s.label} className="min-w-0 rounded-xl bg-foreground/[0.05] px-4 py-3">
-                <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{s.label} in short</p>
-                <p className="mt-1 text-[13px] leading-relaxed break-words">
+                <p className="text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">{s.label} in short</p>
+                <p className="mt-1 text-[0.8125rem] leading-relaxed break-words">
                   <TermText text={s.text} />
                 </p>
               </div>
             ))}
           </div>
 
-          <h3 className="mt-8 text-[15px] font-semibold tracking-tight">Most used tools</h3>
-          <p className="mt-1 mb-3 text-[13px] text-muted-foreground">How many times each side used each tool.</p>
+          <h3 className="mt-8 text-[0.9375rem] font-semibold tracking-tight">Most used tools</h3>
+          <p className="mt-1 mb-3 text-[0.8125rem] text-muted-foreground">How many times each side used each tool.</p>
           {tools.length ? (
             <ul className="space-y-2">
               {tools.map((t) => (
@@ -223,17 +223,17 @@ export function ComparePage({ route, navigate }: AppPageProps) {
               ))}
             </ul>
           ) : (
-            <p className="text-[13px] text-muted-foreground">Neither side used any tools.</p>
+            <p className="text-[0.8125rem] text-muted-foreground">Neither side used any tools.</p>
           )}
 
-          <h3 className="mt-8 text-[15px] font-semibold tracking-tight">Models</h3>
-          <p className="mt-1 mb-3 text-[13px] text-muted-foreground">
+          <h3 className="mt-8 text-[0.9375rem] font-semibold tracking-tight">Models</h3>
+          <p className="mt-1 mb-3 text-[0.8125rem] text-muted-foreground">
             <TermText text="Which [[model:model]] wrote the replies on each side." />
           </p>
-          <div className="grid gap-3 text-[13px] sm:grid-cols-2">
+          <div className="grid gap-3 text-[0.8125rem] sm:grid-cols-2">
             {(["a", "b"] as const).map((k) => (
               <div key={k} className="min-w-0 rounded-xl border border-foreground/10 px-4 py-3">
-                <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{k.toUpperCase()}</p>
+                <p className="text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">{k.toUpperCase()}</p>
                 <p className="mt-1 font-mono text-xs break-words">{models[k].length ? models[k].join(", ") : "None recorded"}</p>
               </div>
             ))}

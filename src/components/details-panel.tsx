@@ -78,16 +78,16 @@ export function DetailsPanel(props: {
 }
 
 function Kicker({ children }: { children: ReactNode }) {
-  return <div className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{children}</div>;
+  return <div className="text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">{children}</div>;
 }
 function H({ children }: { children: ReactNode }) {
-  return <h3 className="mt-5 mb-1.5 text-[13px] font-semibold">{children}</h3>;
+  return <h3 className="mt-5 mb-1.5 text-[0.8125rem] font-semibold">{children}</h3>;
 }
 function Chip({ actor, onClick }: { actor?: Actor; onClick?: () => void }) {
   const mask = useMask();
   if (!actor) return null;
   return (
-    <button onClick={onClick} className="inline-flex max-w-[150px] items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold text-white" style={{ background: hueColor(actor.hue) }}>
+    <button onClick={onClick} className="inline-flex max-w-[9.375rem] items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold text-white" style={{ background: hueColor(actor.hue) }}>
       <span className="truncate">{mask(actor.name)}</span>
     </button>
   );
@@ -99,7 +99,7 @@ function Quote({ text }: { text: string }) {
   const mask = useMask();
   const long = text.length > 420;
   return (
-    <div className="mt-2 rounded-xl bg-foreground/[0.05] px-3.5 py-3 text-[13px] leading-relaxed">
+    <div className="mt-2 rounded-xl bg-foreground/[0.05] px-3.5 py-3 text-[0.8125rem] leading-relaxed">
       <div className={cn("break-words whitespace-pre-wrap", long && !open && "line-clamp-[8]")}>{mask(text)}</div>
       {long && (
         <button onClick={() => setOpen(!open)} className="mt-2 text-xs font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground">
@@ -121,7 +121,7 @@ function TokenBreakdown({ usage, title }: { usage: Usage; title: string }) {
   return (
     <>
       <H>{title}</H>
-      <p className="text-[13px]">
+      <p className="text-[0.8125rem]">
         <span className="text-lg font-semibold tabular-nums">{fmt(total)}</span> <Term k="tokens">tokens</Term> processed
       </p>
       <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-foreground/10">
@@ -202,10 +202,10 @@ function TurnSummary(props: {
         </>
       )}
       <H>In plain words</H>
-      <ul className="space-y-1.5 text-[13px] leading-relaxed">
+      <ul className="space-y-1.5 text-[0.8125rem] leading-relaxed">
         {facts.map((f, i) => (
           <li key={i} className="flex gap-2">
-            <span className="mt-[7px] size-1.5 shrink-0 rounded-full bg-foreground/40" />
+            <span className="mt-[0.4375rem] size-1.5 shrink-0 rounded-full bg-foreground/40" />
             <span>{f}</span>
           </li>
         ))}
@@ -222,7 +222,7 @@ function TurnSummary(props: {
           const a = actors[id];
           const n = s.filter((x) => x.actor === id && !x.from).length + s.filter((x) => x.from === id).length;
           return (
-            <button key={id} onClick={() => onSelect({ type: "actor", id })} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-[13px] hover:bg-foreground/[0.06]">
+            <button key={id} onClick={() => onSelect({ type: "actor", id })} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-[0.8125rem] hover:bg-foreground/[0.06]">
               <span className="size-2.5 shrink-0 rounded-[3px]" style={{ background: hueColor(a.hue) }} />
               <span className="min-w-0 flex-1 truncate font-medium">{mask(a.name)}</span>
               <span className="shrink-0 text-xs text-muted-foreground">{n} step{n === 1 ? "" : "s"}</span>
@@ -290,7 +290,7 @@ function StepCard(props: {
       </div>
 
       <H>What happened</H>
-      <p className="text-[13px] leading-relaxed">
+      <p className="text-[0.8125rem] leading-relaxed">
         <TermText text={mask(s.what)} />
       </p>
       {typeof s.quote === "string" && s.quote && <Quote text={s.quote} />}
@@ -300,11 +300,11 @@ function StepCard(props: {
           See how all your requests connect <ChevronRight className="size-3.5" />
         </button>
       )}
-      {s.status === "error" && <p className="mt-3 rounded-xl bg-red-500/10 px-3.5 py-2.5 text-[13px] leading-relaxed text-red-600 dark:text-red-300">{ERROR_NOTE}</p>}
-      {s.status === "running" && <p className="mt-3 text-[13px] text-sky-600 dark:text-sky-300">Still in progress…</p>}
+      {s.status === "error" && <p className="mt-3 rounded-xl bg-red-500/10 px-3.5 py-2.5 text-[0.8125rem] leading-relaxed text-red-600 dark:text-red-300">{ERROR_NOTE}</p>}
+      {s.status === "running" && <p className="mt-3 text-[0.8125rem] text-sky-600 dark:text-sky-300">Still in progress…</p>}
 
       <H>Why</H>
-      <p className="text-[13px] leading-relaxed text-foreground/85">
+      <p className="text-[0.8125rem] leading-relaxed text-foreground/85">
         <TermText text={mask(s.why)} />
       </p>
 
@@ -320,7 +320,7 @@ function StepCard(props: {
             <ChevronRight className={cn("size-3.5 transition-transform", thinking && "rotate-90")} />
             <Brain className="size-3.5" /> Claude&apos;s thinking before this · {fmt(s.thinking.length)} characters
           </button>
-          {thinking && <div className="mt-2 rounded-xl bg-foreground/[0.04] px-3.5 py-3 text-[12px] leading-relaxed break-words whitespace-pre-wrap text-foreground/75 italic">{mask(s.thinking)}</div>}
+          {thinking && <div className="mt-2 rounded-xl bg-foreground/[0.04] px-3.5 py-3 text-[0.75rem] leading-relaxed break-words whitespace-pre-wrap text-foreground/75 italic">{mask(s.thinking)}</div>}
         </>
       ) : s.usage ? (
         <p className="mt-2 text-xs text-muted-foreground">Claude&apos;s thinking for this reply wasn&apos;t recorded.</p>
@@ -367,12 +367,12 @@ function ActorCard({ actor: a, turn, actors, onSelect }: { actor: Actor; turn: T
         <span className="line-clamp-2 min-w-0 break-words">{mask(a.name)}</span>
       </h2>
       <p className="text-xs text-muted-foreground">{mask(a.role)}</p>
-      <p className="mt-3 text-[13px] leading-relaxed">
+      <p className="mt-3 text-[0.8125rem] leading-relaxed">
         <TermText text={ABOUT[a.kind]} />
       </p>
-      {state && <p className="mt-2 text-[13px] font-medium">{state}.</p>}
+      {state && <p className="mt-2 text-[0.8125rem] font-medium">{state}.</p>}
       {parent && (
-        <p className="mt-2 text-[13px] text-muted-foreground">
+        <p className="mt-2 text-[0.8125rem] text-muted-foreground">
           Created by <Chip actor={parent} onClick={() => onSelect({ type: "actor", id: parent.id })} />
         </p>
       )}
@@ -387,11 +387,11 @@ function ActorCard({ actor: a, turn, actors, onSelect }: { actor: Actor; turn: T
         </>
       )}
       <H>In this request</H>
-      <p className="text-[13px]">
+      <p className="text-[0.8125rem]">
         {own} step{own === 1 ? "" : "s"} of its own · sent {sent} message{sent === 1 ? "" : "s"} · received {got}
       </p>
       {a.model && (
-        <p className="mt-2 text-[13px]">
+        <p className="mt-2 text-[0.8125rem]">
           <Term k="model">Model</Term>: {a.model}
         </p>
       )}
@@ -433,7 +433,7 @@ function Remembered({ memory, turns, onPickTurn }: { memory: NonNullable<Step["m
           return (
             <li key={t.index}>
               <button onClick={() => onPickTurn(t.index)} className="w-full rounded-lg px-2.5 py-2 text-left hover:bg-foreground/[0.06]">
-                <span className="line-clamp-1 text-[13px]">
+                <span className="line-clamp-1 text-[0.8125rem]">
                   <span className="mr-1.5 text-xs text-muted-foreground">#{t.index + 1}</span>
                   {t.text}
                 </span>
@@ -467,7 +467,7 @@ function MemoryChart({ turns, current, onPick }: { turns: Turn[]; current: numbe
         )}
       </p>
       <div className="relative">
-        <span className="absolute -top-0.5 left-0 text-[10px] text-muted-foreground tabular-nums">{short(max)}</span>
+        <span className="absolute -top-0.5 left-0 text-[0.625rem] text-muted-foreground tabular-nums">{short(max)}</span>
         <div className="flex h-24 items-end gap-[2px] border-b border-foreground/15 pt-3" role="img" aria-label={`Memory size per request, from ${short(known[0].context)} to ${short(known.at(-1)!.context)} tokens`}>
           {turns.map((t) => (
             <button
@@ -492,7 +492,7 @@ function MemoryChart({ turns, current, onPick }: { turns: Turn[]; current: numbe
             </button>
           ))}
         </div>
-        <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+        <div className="mt-1 flex justify-between text-[0.625rem] text-muted-foreground">
           <span>#1</span>
           <span>#{turns.length}</span>
         </div>

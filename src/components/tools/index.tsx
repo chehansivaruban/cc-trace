@@ -57,7 +57,7 @@ export function ToolRenderer({ step }: { step: Step }) {
       {step.images?.length && !(View && OWN_IMAGES.has(View)) ? <ImageList images={step.images} /> : null}
       {rich && (step.input !== undefined || step.output !== undefined) && (
         <div data-find-skip>
-          <button onClick={() => setRaw(!raw)} className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground" aria-expanded={raw}>
+          <button onClick={() => setRaw(!raw)} className="flex items-center gap-1 text-[0.6875rem] font-medium text-muted-foreground hover:text-foreground" aria-expanded={raw}>
             <ChevronRight className={cn("size-3 transition-transform", raw && "rotate-90")} />
             {raw ? "Hide" : "Show"} the raw data
           </button>

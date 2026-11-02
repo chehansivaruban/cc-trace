@@ -56,7 +56,7 @@ export function CopyActions({ id, cwd, className, label = true }: { id: string; 
       <DropdownMenuTrigger
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          "flex h-7 shrink-0 items-center gap-1.5 rounded-lg px-2 text-[12px] text-muted-foreground outline-none transition-colors hover:bg-foreground/[0.07] hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/20 data-popup-open:bg-foreground/[0.07]",
+          "flex h-7 shrink-0 items-center gap-1.5 rounded-lg px-2 text-[0.75rem] text-muted-foreground outline-none transition-colors hover:bg-foreground/[0.07] hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/20 data-popup-open:bg-foreground/[0.07]",
           className,
         )}
         aria-label="Copy commands for this session"
@@ -64,7 +64,7 @@ export function CopyActions({ id, cwd, className, label = true }: { id: string; 
         {done && done !== "failed" ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
         {label && <span>{done === "failed" ? "Couldn't copy" : done ? "Copied" : "Copy"}</span>}
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="glass-strong w-[280px] rounded-xl p-1.5 shadow-2xl shadow-black/40 ring-0" align="end" sideOffset={6}>
+      <DropdownMenuContent className="glass-strong w-[17.5rem] rounded-xl p-1.5 shadow-2xl shadow-black/40 ring-0" align="end" sideOffset={6}>
         {items.map((it) => (
           <DropdownMenuItem
             key={it.key}
@@ -74,8 +74,8 @@ export function CopyActions({ id, cwd, className, label = true }: { id: string; 
             }}
             className="flex-col items-start gap-0.5 rounded-lg px-2.5 py-2"
           >
-            <span className="text-[13px] font-medium">{it.label}</span>
-            <span className="w-full text-[11px] leading-snug break-words text-muted-foreground">{it.hint}</span>
+            <span className="text-[0.8125rem] font-medium">{it.label}</span>
+            <span className="w-full text-[0.6875rem] leading-snug break-words text-muted-foreground">{it.hint}</span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
@@ -148,12 +148,12 @@ export function SessionInfoBar({ model, file }: { model: SessionModel; file: str
     ),
     meta.gitBranch && meta.gitBranch !== "HEAD" && (
       <Chip key="branch" icon={GitBranch} title={`Git branch: ${m(meta.gitBranch)}`}>
-        <span className="max-w-[180px] truncate">{m(meta.gitBranch)}</span>
+        <span className="max-w-[11.25rem] truncate">{m(meta.gitBranch)}</span>
       </Chip>
     ),
     resumeCwd && (
       <Chip key="cwd" icon={Folder} title={meta.cwds.map(m).join("\n")}>
-        <span className="max-w-[220px] truncate">{m(shortPath(resumeCwd))}</span>
+        <span className="max-w-[13.75rem] truncate">{m(shortPath(resumeCwd))}</span>
         {meta.cwds.length > 1 && <span className="text-foreground/40">+{meta.cwds.length - 1} more</span>}
       </Chip>
     ),
@@ -166,7 +166,7 @@ export function SessionInfoBar({ model, file }: { model: SessionModel; file: str
   ].filter(Boolean);
 
   return (
-    <div className="flex h-9 shrink-0 items-center gap-2.5 overflow-x-auto border-b border-foreground/10 px-4 text-[12px] text-muted-foreground [scrollbar-width:none]">
+    <div className="flex h-9 shrink-0 items-center gap-2.5 overflow-x-auto border-b border-foreground/10 px-4 text-[0.75rem] text-muted-foreground [scrollbar-width:none]">
       {chips.flatMap((c, i) => (i ? [<span key={`sep${i}`} className="shrink-0 text-foreground/20">·</span>, c] : [c]))}
       <CopyActions id={id} cwd={resumeCwd} className="ml-auto" />
     </div>

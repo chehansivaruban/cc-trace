@@ -3,14 +3,15 @@
 import { useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { GLOSSARY, type TermKey } from "@/lib/explain";
+import { rootRem } from "@/lib/utils";
 
 /** A word with a dotted underline that explains itself on hover, focus or tap. */
 export function Term({ k, children }: { k: TermKey; children: ReactNode }) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const show = (el: HTMLElement) => {
     const r = el.getBoundingClientRect();
-    // Keep the 260px bubble on screen.
-    setPos({ x: Math.max(8, Math.min(r.left, window.innerWidth - 268)), y: r.bottom + 6 });
+    // Keep the bubble (16.25rem wide, so it grows with the text size) on screen.
+    setPos({ x: Math.max(8, Math.min(r.left, window.innerWidth - 16.25 * rootRem() - 8)), y: r.bottom + 6 });
   };
   return (
     <>
@@ -32,7 +33,7 @@ export function Term({ k, children }: { k: TermKey; children: ReactNode }) {
           <span
             role="tooltip"
             style={{ left: pos.x, top: pos.y }}
-            className="pointer-events-none fixed z-[100] w-[260px] rounded-xl bg-foreground px-3 py-2 text-[12px] leading-snug font-normal text-background not-italic shadow-xl"
+            className="pointer-events-none fixed z-[100] w-[16.25rem] rounded-xl bg-foreground px-3 py-2 text-[0.75rem] leading-snug font-normal text-background not-italic shadow-xl"
           >
             {GLOSSARY[k]}
           </span>,

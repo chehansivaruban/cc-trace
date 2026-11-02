@@ -93,11 +93,11 @@ export function LivePage({ navigate }: AppPageProps) {
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                     <span className="min-w-0 truncate text-sm font-medium">{m(title)}</span>
-                    <span className={cn("shrink-0 text-[11px] font-medium", busy ? "text-sky-600 dark:text-sky-400" : "text-emerald-600 dark:text-emerald-400")}>
+                    <span className={cn("shrink-0 text-[0.6875rem] font-medium", busy ? "text-sky-600 dark:text-sky-400" : "text-emerald-600 dark:text-emerald-400")}>
                       {busy ? "Working" : l.status === "idle" ? "Waiting for you" : "Open"}
                     </span>
                   </span>
-                  <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-muted-foreground">
+                  <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[0.75rem] text-muted-foreground">
                     {l.cwd && (
                       <span className="flex min-w-0 items-center gap-1" title={m(l.cwd)}>
                         <Folder className="size-3 shrink-0" />
@@ -120,7 +120,7 @@ export function LivePage({ navigate }: AppPageProps) {
                     {!l.file && <span>no messages yet</span>}
                   </span>
                   {technical && (
-                    <span className="mt-1.5 block font-mono text-[11px] break-all text-muted-foreground/80">
+                    <span className="mt-1.5 block font-mono text-[0.6875rem] break-all text-muted-foreground/80">
                       session {l.sessionId} · process {l.pid}
                       {l.version && ` · Claude Code ${l.version}`}
                       {l.entrypoint && ` · ${l.entrypoint}`}

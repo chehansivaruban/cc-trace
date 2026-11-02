@@ -1,7 +1,7 @@
 "use client";
 // Shared pieces for the hand-written SVG charts: colour tokens, a width hook, the tooltip and number formats.
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import { cn, rootRem } from "@/lib/utils";
 
 /**
  * Categorical slots, validated with the dataviz palette checker (light on #ffffff, dark on the app's dark surface):
@@ -51,12 +51,12 @@ export function niceMax(max: number): number {
 
 /** Hover read-out: the value leads, the label follows; a short line key carries identity. */
 export function ChartTooltip({ x, y, width, children }: { x: number; y: number; width: number; children: ReactNode }) {
-  const W = 200;
+  const W = 12.5 * rootRem(); // the max-w below, in px
   const left = Math.max(0, Math.min(x + 12, width - W));
   return (
     <div
       role="status"
-      className="pointer-events-none absolute z-10 w-max max-w-[200px] rounded-lg border border-foreground/10 bg-background/95 px-2.5 py-1.5 text-xs shadow-lg backdrop-blur"
+      className="pointer-events-none absolute z-10 w-max max-w-[12.5rem] rounded-lg border border-foreground/10 bg-background/95 px-2.5 py-1.5 text-xs shadow-lg backdrop-blur"
       style={{ left: x + 12 + W > width ? Math.max(0, x - W / 2) : left, top: Math.max(0, y - 8) }}
     >
       {children}

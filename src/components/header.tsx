@@ -50,7 +50,7 @@ export function Header(props: {
         initial={{ y: -24, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: "spring", bounce: 0, duration: 0.5 }}
-        className="glass fixed inset-x-3 top-3 z-30 flex h-[60px] items-center gap-1 rounded-2xl px-3 shadow-xl shadow-black/20"
+        className="glass fixed inset-x-3 top-3 z-30 flex h-[3.75rem] items-center gap-1 rounded-2xl px-3 shadow-xl shadow-black/20"
       >
         <div className="mr-2 flex items-center gap-2 pl-1">
           <div className="flex size-7 items-center justify-center rounded-lg bg-foreground text-background">
@@ -66,7 +66,7 @@ export function Header(props: {
           aria-expanded={open}
           aria-haspopup="dialog"
           className={cn(
-            "flex h-11 min-w-0 max-w-[380px] flex-1 items-center sm:flex-initial gap-2 rounded-xl px-2.5 text-left outline-none transition-colors hover:bg-foreground/[0.07] focus-visible:ring-2 focus-visible:ring-foreground/20 active:scale-[0.98]",
+            "flex h-11 min-w-0 max-w-[23.75rem] flex-1 items-center sm:flex-initial gap-2 rounded-xl px-2.5 text-left outline-none transition-colors hover:bg-foreground/[0.07] focus-visible:ring-2 focus-visible:ring-foreground/20 active:scale-[0.98]",
             open && "bg-foreground/[0.07]",
           )}
         >
@@ -76,7 +76,7 @@ export function Header(props: {
               {props.fileName ? m(props.fileName) : session ? m(session.title) : projects.length ? "Choose a session" : "No sessions yet"}
             </span>
             {!props.fileName && project && (
-              <span className="hidden truncate text-[11px] text-muted-foreground sm:block">
+              <span className="hidden truncate text-[0.6875rem] text-muted-foreground sm:block">
                 {m(shortPath(project.path))}
                 {session?.live && " · live"}
               </span>
@@ -111,7 +111,7 @@ export function Header(props: {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -6, scale: 0.98 }}
               transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-              className="glass-strong fixed inset-x-3 top-[80px] bottom-3 z-[45] origin-top-left overflow-hidden rounded-2xl shadow-2xl shadow-black/40 sm:right-auto sm:bottom-auto sm:h-[min(640px,calc(100dvh-100px))] sm:w-[600px]"
+              className="glass-strong fixed inset-x-3 top-[5rem] bottom-3 z-[45] origin-top-left overflow-hidden rounded-2xl shadow-2xl shadow-black/40 sm:right-auto sm:bottom-auto sm:h-[min(40rem,calc(100dvh-6.25rem))] sm:w-[37.5rem]"
             >
               <SessionBrowser
                 projects={projects}
@@ -144,7 +144,7 @@ const PAGE_LINKS = [
 
 // shortcut: a plain menu so the app pages are reachable; the integration task gives them proper navigation.
 function AppMenu({ onOpenPage, onSettings }: { onOpenPage: (page: AppPage) => void; onSettings: () => void }) {
-  const item = "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px]";
+  const item = "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[0.8125rem]";
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -153,7 +153,7 @@ function AppMenu({ onOpenPage, onSettings }: { onOpenPage: (page: AppPage) => vo
       >
         <Menu className="size-4" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="glass-strong w-[200px] rounded-xl p-1.5 shadow-2xl shadow-black/40 ring-0" align="end" sideOffset={10}>
+      <DropdownMenuContent className="glass-strong w-[12.5rem] rounded-xl p-1.5 shadow-2xl shadow-black/40 ring-0" align="end" sideOffset={10}>
         {PAGE_LINKS.map(({ page, label, icon: Icon }) => (
           <DropdownMenuItem key={page} onClick={() => onOpenPage(page)} className={item}>
             <Icon className="size-4 text-muted-foreground" />
@@ -201,7 +201,7 @@ function StatusPill({ live, connected, active }: { live: Live; connected: boolea
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-          className="hidden max-w-[180px] truncate whitespace-nowrap sm:inline"
+          className="hidden max-w-[11.25rem] truncate whitespace-nowrap sm:inline"
         >
           {view.label}
         </motion.span>

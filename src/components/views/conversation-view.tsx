@@ -172,7 +172,7 @@ function Conversation({ model, turn, selected, onSelect }: SessionViewProps) {
     <section className="flex h-full min-h-0 flex-col" aria-label="Conversation">
       <div className="shrink-0 border-b border-foreground/10 px-4 py-3">
         <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
-          <p className="min-w-0 flex-1 basis-[min(100%,420px)] text-[13px] leading-relaxed">
+          <p className="min-w-0 flex-1 basis-[min(100%,26.25rem)] text-[0.8125rem] leading-relaxed">
             Request {turn.index + 1} as a conversation: what you asked, what Claude and its helpers said, and every step they took, in order. Click a step to open it.
           </p>
           <div className="flex shrink-0 items-center gap-2">
@@ -315,7 +315,7 @@ function TokenBadge({ usage }: { usage?: Usage }) {
   if (!total) return null;
   return (
     <span
-      className="shrink-0 rounded-full bg-foreground/[0.06] px-1.5 py-px text-[10.5px] text-muted-foreground tabular-nums"
+      className="shrink-0 rounded-full bg-foreground/[0.06] px-1.5 py-px text-[0.6562rem] text-muted-foreground tabular-nums"
       title={`${fmt(total)} tokens for this reply: ${fmt(usage.fresh)} new to Claude, ${fmt(usage.cached)} re-read from cache, ${fmt(usage.written)} written by Claude`}
     >
       {short(total)} tokens
@@ -326,7 +326,7 @@ function TokenBadge({ usage }: { usage?: Usage }) {
 function ModelBadge({ model, tech }: { model?: string; tech: boolean }) {
   if (!model) return null;
   return (
-    <span className="max-w-[160px] shrink-0 truncate rounded-full border border-foreground/10 px-1.5 py-px text-[10.5px] text-muted-foreground" title={`Model: ${model}`}>
+    <span className="max-w-[10rem] shrink-0 truncate rounded-full border border-foreground/10 px-1.5 py-px text-[0.6562rem] text-muted-foreground" title={`Model: ${model}`}>
       {tech ? model : modelLabel(model)}
     </span>
   );
@@ -357,7 +357,7 @@ function Thinking({ text }: { text: string }) {
   const ref = useFindReveal(() => setOpen(true));
   return (
     <div className="mt-1.5">
-      <button data-find-skip onClick={() => setOpen(!open)} className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground" aria-expanded={open}>
+      <button data-find-skip onClick={() => setOpen(!open)} className="flex items-center gap-1 text-[0.6875rem] font-medium text-muted-foreground hover:text-foreground" aria-expanded={open}>
         <ChevronRight className={cn("size-3 transition-transform", open && "rotate-90")} />
         <Brain className="size-3" /> Claude&apos;s thinking · {fmt(text.length)} characters
       </button>
@@ -365,7 +365,7 @@ function Thinking({ text }: { text: string }) {
         ref={ref}
         hidden={!open}
         data-find-reveal={open ? "open" : "closed"}
-        className="mt-1.5 rounded-lg bg-foreground/[0.04] px-3 py-2 text-[12px] leading-relaxed break-words whitespace-pre-wrap text-foreground/75 italic"
+        className="mt-1.5 rounded-lg bg-foreground/[0.04] px-3 py-2 text-[0.75rem] leading-relaxed break-words whitespace-pre-wrap text-foreground/75 italic"
       >
         {mask(text)}
       </div>
@@ -397,15 +397,15 @@ function YouRow({ step }: { step: Step }) {
   const mask = useMask();
   const text = typeof step.quote === "string" ? step.quote : "";
   return (
-    <div className="ml-auto w-fit max-w-[min(88%,620px)]">
-      <div data-find-skip className="mb-1 flex items-center justify-end gap-1.5 text-[11px] text-muted-foreground">
+    <div className="ml-auto w-fit max-w-[min(88%,38.75rem)]">
+      <div data-find-skip className="mb-1 flex items-center justify-end gap-1.5 text-[0.6875rem] text-muted-foreground">
         <span className="font-semibold" style={{ color: hueColor(220) }}>
           You
         </span>
         <span>{time(step.ts)}</span>
         <CopyButton text={text} label="Copy your message" />
       </div>
-      <div className="rounded-2xl rounded-tr-md px-3.5 py-2.5 text-[13px] leading-relaxed" style={{ background: hueColor(220, 0.14) }}>
+      <div className="rounded-2xl rounded-tr-md px-3.5 py-2.5 text-[0.8125rem] leading-relaxed" style={{ background: hueColor(220, 0.14) }}>
         <Collapsible long={text.length > LONG_TEXT} fade="from-transparent">
           <div className="break-words whitespace-pre-wrap">{text === SESSION_START ? text : mask(text)}</div>
         </Collapsible>
@@ -438,7 +438,7 @@ function TextRow({ row, actors, hue, tech, onDetails }: { row: ConvRow; actors: 
             : "while working";
   return (
     <div className="max-w-full">
-      <div data-find-skip className="mb-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground">
+      <div data-find-skip className="mb-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[0.6875rem] text-muted-foreground">
         <span className="size-2 shrink-0 rounded-[3px]" style={{ background: hueColor(hue) }} />
         <span className="max-w-[16rem] truncate font-semibold text-foreground">{name}</span>
         <span className="max-w-[20rem] truncate">{label}</span>
@@ -460,7 +460,7 @@ function TextRow({ row, actors, hue, tech, onDetails }: { row: ConvRow; actors: 
           {text ? (
             <Markdown text={text} />
           ) : (
-            <p data-find-skip className="text-[13px] text-muted-foreground">
+            <p data-find-skip className="text-[0.8125rem] text-muted-foreground">
               (no text)
             </p>
           )}
@@ -469,7 +469,7 @@ function TextRow({ row, actors, hue, tech, onDetails }: { row: ConvRow; actors: 
       {s.thinking ? (
         <Thinking text={s.thinking} />
       ) : s.usage ? (
-        <p data-find-skip className="mt-1 text-[11px] text-muted-foreground/70">
+        <p data-find-skip className="mt-1 text-[0.6875rem] text-muted-foreground/70">
           Thinking not recorded
         </p>
       ) : null}
@@ -499,33 +499,33 @@ function ToolRow({ row, open, tech, canWhy, onToggle, onWhy, onDetails, hue }: R
           <span className="flex size-6 shrink-0 items-center justify-center rounded-md" style={{ background: hueColor(hue, 0.16), color: hueColor(hue) }}>
             <StepIcon icon={s.icon} className="size-3.5" />
           </span>
-          <span data-find-block className="shrink-0 text-[13px] font-medium">
+          <span data-find-block className="shrink-0 text-[0.8125rem] font-medium">
             {mask(s.title)}
           </span>
           <span data-find-block className="min-w-0 truncate text-xs text-muted-foreground">
             {mask(s.subtitle)}
           </span>
           {tech && s.tool && (
-            <code data-find-skip className="hidden max-w-[180px] shrink-0 truncate text-[10.5px] text-muted-foreground sm:inline">
+            <code data-find-skip className="hidden max-w-[11.25rem] shrink-0 truncate text-[0.6562rem] text-muted-foreground sm:inline">
               {s.tool}
             </code>
           )}
           <span data-find-skip className="ml-auto flex shrink-0 items-center gap-1.5 pl-1">
             {outcome ? (
-              <span className={cn("rounded-full px-1.5 py-px text-[10.5px] font-medium whitespace-nowrap", outcome.cls)}>{outcome.text}</span>
+              <span className={cn("rounded-full px-1.5 py-px text-[0.6562rem] font-medium whitespace-nowrap", outcome.cls)}>{outcome.text}</span>
             ) : s.status === "error" ? (
               <span className="size-2 rounded-full bg-red-500" role="img" aria-label="didn't work" title="Didn't work" />
             ) : s.status === "running" ? (
               <Loader2 className="size-3.5 animate-spin text-sky-500" aria-label="running" />
             ) : null}
-            {s.durationMs !== undefined && <span className="hidden text-[11px] text-muted-foreground tabular-nums sm:inline">{formatDuration(s.durationMs)}</span>}
+            {s.durationMs !== undefined && <span className="hidden text-[0.6875rem] text-muted-foreground tabular-nums sm:inline">{formatDuration(s.durationMs)}</span>}
           </span>
         </button>
         {canWhy && (
           <button
             data-find-skip
             onClick={() => onWhy(s.id)}
-            className="shrink-0 rounded-md px-1.5 py-1 text-[11px] font-medium text-muted-foreground underline-offset-2 hover:bg-foreground/[0.05] hover:text-foreground hover:underline"
+            className="shrink-0 rounded-md px-1.5 py-1 text-[0.6875rem] font-medium text-muted-foreground underline-offset-2 hover:bg-foreground/[0.05] hover:text-foreground hover:underline"
             title="Jump to what Claude said before doing this"
           >
             Why?
@@ -534,11 +534,11 @@ function ToolRow({ row, open, tech, canWhy, onToggle, onWhy, onDetails, hue }: R
       </div>
       {open && (
         <div className="mt-1 mb-1.5 ml-2 space-y-3 rounded-xl border border-foreground/10 p-3 sm:ml-7">
-          <p className="text-[13px] leading-relaxed">
+          <p className="text-[0.8125rem] leading-relaxed">
             <TermText text={mask(s.what)} />
           </p>
           {s.status === "error" && !row.outcome && (
-            <p data-find-skip className="rounded-lg bg-red-500/10 px-3 py-2 text-[12px] leading-relaxed text-red-600 dark:text-red-300">
+            <p data-find-skip className="rounded-lg bg-red-500/10 px-3 py-2 text-[0.75rem] leading-relaxed text-red-600 dark:text-red-300">
               {ERROR_NOTE}
             </p>
           )}
@@ -554,7 +554,7 @@ function ToolRow({ row, open, tech, canWhy, onToggle, onWhy, onDetails, hue }: R
           )}
           <ToolRenderer step={s} />
           {s.thinking && <Thinking text={s.thinking} />}
-          <div data-find-skip className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+          <div data-find-skip className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.6875rem] text-muted-foreground">
             <span>{time(s.ts)}</span>
             {s.durationMs !== undefined && <span>· took {formatDuration(s.durationMs)}</span>}
             <ModelBadge model={s.model} tech={tech} />
@@ -575,7 +575,7 @@ function SpecialRow({ row, onDetails }: { row: ConvRow; onDetails: (id: string) 
   if (row.kind === "memory") {
     const tokens = s.memory?.tokens ?? 0;
     return (
-      <button data-find-skip onClick={() => onDetails(s.id)} className="flex w-full items-center gap-3 py-1 text-[11px] text-muted-foreground hover:text-foreground">
+      <button data-find-skip onClick={() => onDetails(s.id)} className="flex w-full items-center gap-3 py-1 text-[0.6875rem] text-muted-foreground hover:text-foreground">
         <span className="h-px flex-1 bg-foreground/10" />
         <span className="flex items-center gap-1.5 text-center">
           <Brain className="size-3.5 shrink-0" /> Claude re-read the conversation so far{tokens ? ` · ${short(tokens)} tokens` : ""}
@@ -586,7 +586,7 @@ function SpecialRow({ row, onDetails }: { row: ConvRow; onDetails: (id: string) 
   }
   if (row.kind === "compact")
     return (
-      <div data-find-skip className="flex items-center gap-3 py-1 text-[11px] text-amber-700 dark:text-amber-300">
+      <div data-find-skip className="flex items-center gap-3 py-1 text-[0.6875rem] text-amber-700 dark:text-amber-300">
         <span className="h-px flex-1 bg-amber-500/40" />
         <span className="flex items-center gap-1.5 text-center">
           <Scissors className="size-3.5 shrink-0" /> Claude summarised the conversation here to make room in its memory
@@ -597,14 +597,14 @@ function SpecialRow({ row, onDetails }: { row: ConvRow; onDetails: (id: string) 
   if (row.kind === "interrupted")
     return (
       <div data-find-skip className="flex justify-center py-0.5">
-        <span className="flex items-center gap-1.5 rounded-full bg-amber-500/12 px-3 py-1 text-[12px] font-medium text-amber-700 dark:text-amber-300">
+        <span className="flex items-center gap-1.5 rounded-full bg-amber-500/12 px-3 py-1 text-[0.75rem] font-medium text-amber-700 dark:text-amber-300">
           <OctagonX className="size-3.5" /> You stopped Claude here · {time(s.ts)}
         </span>
       </div>
     );
   if (row.kind === "error")
     return (
-      <div className="rounded-xl bg-red-500/[0.08] px-3.5 py-2.5 text-[13px]">
+      <div className="rounded-xl bg-red-500/[0.08] px-3.5 py-2.5 text-[0.8125rem]">
         <p data-find-skip className="flex flex-wrap items-center gap-1.5 font-medium text-red-700 dark:text-red-300">
           <TriangleAlert className="size-3.5 shrink-0" /> {s.title === "Request failed" ? "A request to Claude failed" : mask(s.title)}
           <span className="font-normal text-muted-foreground">· {time(s.ts)}</span>
@@ -616,7 +616,7 @@ function SpecialRow({ row, onDetails }: { row: ConvRow; onDetails: (id: string) 
       </div>
     );
   return (
-    <div data-find-skip className="rounded-xl bg-foreground/[0.04] px-3.5 py-2 text-[12px] text-muted-foreground">
+    <div data-find-skip className="rounded-xl bg-foreground/[0.04] px-3.5 py-2 text-[0.75rem] text-muted-foreground">
       <span className="font-medium text-foreground">{mask(s.title)}</span> · <TermText text={mask(s.what)} />
     </div>
   );

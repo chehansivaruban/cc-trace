@@ -175,7 +175,7 @@ export function DropFile({ onLoad }: { onLoad: LoadLog }) {
           <motion.div
             key="error"
             role="alert"
-            className="glass-strong fixed bottom-4 left-1/2 z-[60] flex w-[min(420px,calc(100vw-32px))] -translate-x-1/2 items-start gap-2 rounded-xl px-4 py-3 text-[13px] shadow-2xl"
+            className="glass-strong fixed bottom-4 left-1/2 z-[60] flex w-[min(26.25rem,calc(100vw-2rem))] -translate-x-1/2 items-start gap-2 rounded-xl px-4 py-3 text-[0.8125rem] shadow-2xl"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
@@ -195,7 +195,7 @@ export function DropFile({ onLoad }: { onLoad: LoadLog }) {
 export function DroppedBanner({ name, onClose }: { name: string; onClose: () => void }) {
   const mask = useMask();
   return (
-    <div className="flex shrink-0 items-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-[12px]" role="status">
+    <div className="flex shrink-0 items-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-[0.75rem]" role="status">
       <FileText className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
       <span className="min-w-0 flex-1 truncate">
         <span className="font-medium">Viewing a file, not live:</span> {mask(name)}

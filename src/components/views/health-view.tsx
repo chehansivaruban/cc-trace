@@ -84,9 +84,9 @@ export function HealthView(props: SessionViewProps) {
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-3xl space-y-9 px-4 pt-5 pb-16 sm:px-6">
         <header>
-          <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Health</p>
+          <p className="text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">Health</p>
           <h2 className="mt-1 text-lg font-semibold tracking-tight">How smoothly did Claude work?</h2>
-          <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+          <p className="mt-1 text-[0.8125rem] leading-relaxed text-muted-foreground">
             Simple checks for steps that didn&apos;t work, effort that went round in circles and actions worth a second look. Everything is counted on your computer; no AI is used.
           </p>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
@@ -117,7 +117,7 @@ export function HealthView(props: SessionViewProps) {
             <Empty>Every step worked{scope === "request" ? " in this request" : ""}.</Empty>
           ) : (
             <>
-              <p className="text-[13px]">
+              <p className="text-[0.8125rem]">
                 <b className="tabular-nums">{fmt(report.errors.total)}</b> of {plural(report.errors.toolCalls, "tool step")} didn&apos;t work
                 {report.errors.mostFailing && (
                   <span className="text-muted-foreground">
@@ -142,7 +142,7 @@ export function HealthView(props: SessionViewProps) {
                     <Row onClick={() => jump.select(t, step.id)} onMap={() => jump.toMap(t, step.id)}>
                       <StepIcon icon={step.icon} className="mt-0.5 size-3.5 shrink-0 text-red-500" />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[13px] font-medium">
+                        <span className="block truncate text-[0.8125rem] font-medium">
                           {mask(step.title)}
                           {step.subtitle && <span className="font-normal text-muted-foreground"> · {mask(step.subtitle)}</span>}
                         </span>
@@ -151,7 +151,7 @@ export function HealthView(props: SessionViewProps) {
                           <span className={cn("inline-flex items-center gap-1", n.cls)}>
                             <n.icon className="size-3" /> {n.label}
                           </span>
-                          {tech && step.tool && <code className="text-[11px]">{step.tool}</code>}
+                          {tech && step.tool && <code className="text-[0.6875rem]">{step.tool}</code>}
                         </span>
                       </span>
                     </Row>
@@ -195,7 +195,7 @@ export function HealthView(props: SessionViewProps) {
 
         <Section title="Actions worth a second look" intro="Steps that delete things, install software, change files outside your project or skip safety checks. Most are fine; it's just good to know they happened.">
           {mode && (
-            <div className="mb-3 flex gap-2.5 rounded-xl bg-red-500/10 px-3.5 py-3 text-[13px] leading-relaxed text-red-700 dark:text-red-300">
+            <div className="mb-3 flex gap-2.5 rounded-xl bg-red-500/10 px-3.5 py-3 text-[0.8125rem] leading-relaxed text-red-700 dark:text-red-300">
               <ShieldAlert className="mt-0.5 size-4 shrink-0" />
               <span>{mode.why}</span>
             </div>
@@ -217,19 +217,19 @@ export function HealthView(props: SessionViewProps) {
                     <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", style.dot)} />
                     <span className="min-w-0 flex-1">
                       <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className={cn("shrink-0 rounded-full px-2 py-px text-[11px] font-medium", style.cls)}>{style.label}</span>
-                        <span className="min-w-0 truncate text-[13px] font-medium">
+                        <span className={cn("shrink-0 rounded-full px-2 py-px text-[0.6875rem] font-medium", style.cls)}>{style.label}</span>
+                        <span className="min-w-0 truncate text-[0.8125rem] font-medium">
                           {mask(step.title)}
                           {step.subtitle && <span className="font-normal text-muted-foreground"> · {mask(step.subtitle)}</span>}
                         </span>
                       </span>
-                      <span className="mt-1 block text-[13px] leading-relaxed text-foreground/85">{risk.why}</span>
+                      <span className="mt-1 block text-[0.8125rem] leading-relaxed text-foreground/85">{risk.why}</span>
                       <span className="mt-0.5 block text-xs text-muted-foreground">
                         {scope === "session" && <>Request {t + 1} · </>}
                         {model.actors[step.actor]?.name ?? "Claude"}
                       </span>
                       {tech && typeof cmd === "string" && (
-                        <code className="mt-1.5 block max-h-24 overflow-hidden rounded-lg bg-foreground/[0.05] px-2.5 py-1.5 text-[11px] break-all whitespace-pre-wrap">{mask(cmd)}</code>
+                        <code className="mt-1.5 block max-h-24 overflow-hidden rounded-lg bg-foreground/[0.05] px-2.5 py-1.5 text-[0.6875rem] break-all whitespace-pre-wrap">{mask(cmd)}</code>
                       )}
                     </span>
                   </Row>
@@ -246,7 +246,7 @@ export function HealthView(props: SessionViewProps) {
 }
 
 function Empty({ children }: { children: ReactNode }) {
-  return <p className="rounded-xl border border-dashed border-foreground/15 px-3.5 py-3 text-[13px] text-muted-foreground">{children}</p>;
+  return <p className="rounded-xl border border-dashed border-foreground/15 px-3.5 py-3 text-[0.8125rem] text-muted-foreground">{children}</p>;
 }
 
 function Row({ onClick, onMap, children }: { onClick: () => void; onMap?: () => void; children: ReactNode }) {
@@ -273,7 +273,7 @@ function ScoreCard({ score, findings, scope }: { score: number; findings: number
     score === 100 ? "Nothing stood out." : score >= 85 ? "Mostly smooth, with a thing or two worth a look." : score >= 60 ? "A few things worth a look." : "Claude seemed to struggle in places.";
   return (
     <div className="flex flex-col items-start gap-4 rounded-2xl border border-foreground/10 p-4 sm:flex-row sm:items-center">
-      <div className="relative size-[88px] shrink-0" role="img" aria-label={`Health score ${score} out of 100`}>
+      <div className="relative size-[5.5rem] shrink-0" role="img" aria-label={`Health score ${score} out of 100`}>
         <svg viewBox="0 0 88 88" className="size-full -rotate-90">
           <circle cx="44" cy="44" r={r} fill="none" stroke="currentColor" strokeWidth="8" className="text-foreground/10" />
           <circle
@@ -291,15 +291,15 @@ function ScoreCard({ score, findings, scope }: { score: number; findings: number
         </svg>
         <span className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-2xl font-semibold tabular-nums">{score}</span>
-          <span className="-mt-0.5 text-[10px] text-muted-foreground">of 100</span>
+          <span className="-mt-0.5 text-[0.625rem] text-muted-foreground">of 100</span>
         </span>
       </div>
       <div className="min-w-0">
-        <p className="text-[15px] font-medium">
+        <p className="text-[0.9375rem] font-medium">
           {summary}{" "}
           {findings > 0 && <span className="font-normal text-muted-foreground">({plural(findings, "thing")} stood out{scope === "request" ? " in this request" : ""}.)</span>}
         </p>
-        <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+        <p className="mt-1 text-[0.8125rem] leading-relaxed text-muted-foreground">
           <TermText text="The [[healthScore:health score]] is a rough guide to how smoothly Claude worked, from simple checks like repeated steps, loops and errors: 100 means nothing stood out. It's not a grade of you or your request." />
         </p>
       </div>
@@ -339,7 +339,7 @@ function ErrorStrip({ turns, onPick, mask }: { turns: Turn[]; onPick: (turn: num
           </rect>
         ))}
       </svg>
-      <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+      <div className="mt-1 flex justify-between text-[0.625rem] text-muted-foreground">
         <span>start</span>
         <span>end</span>
       </div>
@@ -365,11 +365,11 @@ function FindingCard(props: { finding: Finding; neutral?: boolean; turn?: Turn; 
           <Icon className="size-3.5" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold break-words">
+          <p className="text-[0.8125rem] font-semibold break-words">
             {props.mask(f.title)}
             {props.showTurn && <span className="font-normal text-muted-foreground"> · Request {f.turn + 1}</span>}
           </p>
-          <p className="mt-0.5 text-[13px] leading-relaxed break-words text-foreground/85">{props.mask(f.explain)}</p>
+          <p className="mt-0.5 text-[0.8125rem] leading-relaxed break-words text-foreground/85">{props.mask(f.explain)}</p>
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             {ids.map((id) => (
               <button key={id} onClick={() => props.onPick(id)} className="rounded-full border border-foreground/10 px-2 py-0.5 text-xs hover:bg-foreground/[0.06]">
@@ -403,7 +403,7 @@ function Hooks({ hooks, tech, mask }: { hooks: HookRun[]; tech: boolean; mask: (
       ) : (
         <>
           {failed > 0 && (
-            <p className="mb-2 flex items-start gap-1.5 text-[13px] leading-relaxed text-red-600 dark:text-red-300">
+            <p className="mb-2 flex items-start gap-1.5 text-[0.8125rem] leading-relaxed text-red-600 dark:text-red-300">
               <Webhook className="mt-0.5 size-3.5 shrink-0" /> {plural(failed, "hook run")} didn&apos;t work. Claude Code carried on, but whatever the hook was meant to do may not have happened.
             </p>
           )}
@@ -423,8 +423,8 @@ function HookRow({ hook: h, tech, mask }: { hook: HookRun; tech: boolean; mask: 
     <div className="px-3.5 py-2.5">
       <button onClick={() => setOpen(!open)} className="flex w-full items-start gap-3 text-left" aria-expanded={open}>
         <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-medium">{HOOK_WHEN[h.event] ?? h.event}</span>
-          <code className="block truncate text-[11px] text-muted-foreground">{mask(h.name)}</code>
+          <span className="block text-[0.8125rem] font-medium">{HOOK_WHEN[h.event] ?? h.event}</span>
+          <code className="block truncate text-[0.6875rem] text-muted-foreground">{mask(h.name)}</code>
         </span>
         <span className="shrink-0 text-right text-xs">
           <span className="block tabular-nums">{plural(h.runs, "run")}</span>
@@ -437,7 +437,7 @@ function HookRow({ hook: h, tech, mask }: { hook: HookRun; tech: boolean; mask: 
           {sample?.stderr ? (
             <>
               <p>What it said{sample.exitCode !== undefined ? ` (exit code ${sample.exitCode})` : ""}:</p>
-              <code className="block max-h-32 overflow-auto rounded-lg bg-foreground/[0.05] px-2.5 py-1.5 text-[11px] break-all whitespace-pre-wrap text-foreground/85">{mask(sample.stderr)}</code>
+              <code className="block max-h-32 overflow-auto rounded-lg bg-foreground/[0.05] px-2.5 py-1.5 text-[0.6875rem] break-all whitespace-pre-wrap text-foreground/85">{mask(sample.stderr)}</code>
             </>
           ) : (
             <p>It didn&apos;t print any error messages.</p>

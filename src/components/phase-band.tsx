@@ -22,7 +22,7 @@ export function PhaseBand({ turn, selected, onPick }: { turn: Turn; selected?: s
   const at = selected ? turn.steps.findIndex((s) => s.id === selected) : -1;
   return (
     <div className="flex items-center gap-2 border-b border-foreground/10 px-4 py-1.5" aria-label="Phases of this request">
-      <span className="shrink-0 text-[11px] font-medium text-muted-foreground" title="What Claude was mostly doing at each point of this request">
+      <span className="shrink-0 text-[0.6875rem] font-medium text-muted-foreground" title="What Claude was mostly doing at each point of this request">
         Phases
       </span>
       <div className="flex h-6 min-w-0 flex-1 gap-[2px] overflow-hidden rounded-md">
@@ -40,7 +40,7 @@ export function PhaseBand({ turn, selected, onPick }: { turn: Turn; selected?: s
               className={cn("flex min-w-[6px] items-center overflow-hidden rounded-[4px] px-1.5 text-left transition-[filter] hover:brightness-110", active && "ring-2 ring-inset")}
               style={{ flex: `${n} 1 0`, background: hueColor(hue, active ? 0.34 : 0.2), color: hueColor(hue), ["--tw-ring-color" as string]: hueColor(hue) }}
             >
-              <span className="truncate text-[11px] font-medium text-foreground/80">{PHASE_LABEL[p.kind]}</span>
+              <span className="truncate text-[0.6875rem] font-medium text-foreground/80">{PHASE_LABEL[p.kind]}</span>
             </button>
           );
         })}

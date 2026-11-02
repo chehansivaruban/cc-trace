@@ -77,7 +77,7 @@ export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => vo
             exit={{ y: 8, opacity: 0 }}
             transition={{ type: "spring", bounce: 0, duration: 0.35 }}
             onClick={(e) => e.stopPropagation()}
-            className="glass-strong max-h-[85vh] w-full max-w-[640px] overflow-y-auto rounded-2xl p-6 shadow-2xl outline-none"
+            className="glass-strong max-h-[85vh] w-full max-w-[40rem] overflow-y-auto rounded-2xl p-6 shadow-2xl outline-none"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -95,8 +95,8 @@ export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => vo
                     <Icon className="size-4" />
                   </span>
                   <div>
-                    <h3 className="text-[14px] font-semibold">{title}</h3>
-                    <p className="mt-1 text-[13px] leading-relaxed text-foreground/85">
+                    <h3 className="text-[0.875rem] font-semibold">{title}</h3>
+                    <p className="mt-1 text-[0.8125rem] leading-relaxed text-foreground/85">
                       <TermText text={text} />
                     </p>
                   </div>

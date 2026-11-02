@@ -95,13 +95,13 @@ export function CodeBlock({ label, value, lang, className }: { label: string; va
   return (
     <section className={cn("overflow-hidden rounded-xl border border-foreground/10 bg-neutral-950/90 text-neutral-200", className)}>
       <header data-find-skip className="flex items-center justify-between gap-2 border-b border-white/5 px-3 py-2">
-        <span className="min-w-0 truncate text-[11px] font-medium tracking-wide text-neutral-400 uppercase">
+        <span className="min-w-0 truncate text-[0.6875rem] font-medium tracking-wide text-neutral-400 uppercase">
           {label}
           {language && language !== label.toLowerCase() && <span className="ml-2 font-normal tracking-normal text-neutral-500 normal-case">{language}</span>}
         </span>
         <button
           onClick={copy}
-          className="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-neutral-400 transition-colors hover:bg-white/10 hover:text-neutral-100 active:scale-95"
+          className="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[0.6875rem] text-neutral-400 transition-colors hover:bg-white/10 hover:text-neutral-100 active:scale-95"
           aria-label={`Copy ${label}`}
         >
           <AnimatePresence mode="popLayout" initial={false}>
@@ -118,7 +118,7 @@ export function CodeBlock({ label, value, lang, className }: { label: string; va
           {copied ? "Copied" : "Copy"}
         </button>
       </header>
-      <pre className="max-h-[50vh] overflow-auto p-3 font-mono text-[12px] leading-relaxed break-words whitespace-pre-wrap">
+      <pre className="max-h-[50vh] overflow-auto p-3 font-mono text-[0.75rem] leading-relaxed break-words whitespace-pre-wrap">
         {body}
         {text.length > MAX_RENDER && (
           <span data-find-skip className="mt-2 block text-neutral-500">

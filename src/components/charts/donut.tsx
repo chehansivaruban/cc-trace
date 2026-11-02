@@ -77,10 +77,10 @@ export function Donut(props: { slices: Slice[]; colorOf: (key: string) => string
         </svg>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
           <span className="text-base font-semibold">{compact(focus?.value ?? total)}</span>
-          <span className="max-w-[80px] truncate text-[10px] text-muted-foreground">{focus ? `${Math.round((focus.value / total) * 100)}% · ${focus.label}` : props.centerLabel}</span>
+          <span className="max-w-[5rem] truncate text-[0.625rem] text-muted-foreground">{focus ? `${Math.round((focus.value / total) * 100)}% · ${focus.label}` : props.centerLabel}</span>
         </div>
       </div>
-      <ul className="min-w-[180px] flex-1 space-y-1 text-xs">
+      <ul className="min-w-[11.25rem] flex-1 space-y-1 text-xs">
         {slices.map((s) => (
           <li
             key={s.key}
@@ -94,7 +94,7 @@ export function Donut(props: { slices: Slice[]; colorOf: (key: string) => string
             <span className="w-9 shrink-0 text-right text-muted-foreground tabular-nums">{Math.round((s.value / total) * 100)}%</span>
           </li>
         ))}
-        <li className="px-1.5 pt-1 text-[11px] text-muted-foreground">
+        <li className="px-1.5 pt-1 text-[0.6875rem] text-muted-foreground">
           {fmt(total)} {unit} in all
         </li>
       </ul>

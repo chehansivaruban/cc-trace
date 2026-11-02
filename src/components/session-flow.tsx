@@ -76,9 +76,9 @@ export function SessionFlow(props: {
   return (
     <section className="relative h-full" aria-label="Whole session">
       <div ref={scroller} className="h-full cursor-grab overflow-auto data-[panning]:cursor-grabbing data-[panning]:select-none">
-        <div className="mx-auto max-w-[920px] px-4 pt-5 pb-16 sm:px-6" style={{ zoom }}>
+        <div className="mx-auto max-w-[57.5rem] px-4 pt-5 pb-16 sm:px-6" style={{ zoom }}>
           <h2 className="text-lg font-semibold tracking-tight">How your requests connect</h2>
-          <p className="mt-1 max-w-[640px] text-[13px] leading-relaxed text-muted-foreground">
+          <p className="mt-1 max-w-[40rem] text-[0.8125rem] leading-relaxed text-muted-foreground">
             The orange stream is Claude&apos;s <Term k="context">memory</Term>. Before every reply Claude re-reads everything above it, so each request builds on the
             ones before and the stream gets wider. Where it narrows, Claude summarised older parts to make room. <Term k="helper">Helpers</Term> branch off to the
             side: they never get this memory, only their <Term k="brief">brief</Term>. Hover a request to see what it remembers; click it to open it.
@@ -138,7 +138,7 @@ function Band({ top, bottom, strong, first }: { top: number; bottom: number; str
 
 function Compaction({ top, bottom, from }: { top: number; bottom: number; from: number }) {
   return (
-    <div className="relative flex min-h-[56px] items-center" style={{ paddingLeft: BAND_W + 12 }}>
+    <div className="relative flex min-h-[3.5rem] items-center" style={{ paddingLeft: BAND_W + 12 }}>
       <Band top={top} bottom={bottom} strong={false} first={false} />
       <div className="flex items-center gap-2 rounded-full border border-dashed border-foreground/20 px-3 py-1.5 text-xs text-muted-foreground">
         <Brain className="size-3.5" />
@@ -180,7 +180,7 @@ function Row(props: {
         onClick={props.onOpen}
         onFocus={props.onHover}
         className={cn(
-          "relative w-full max-w-[460px] rounded-2xl border bg-card px-4 py-3 text-left shadow-sm transition-[box-shadow,border-color,opacity] hover:shadow-md",
+          "relative w-full max-w-[28.75rem] rounded-2xl border bg-card px-4 py-3 text-left shadow-sm transition-[box-shadow,border-color,opacity] hover:shadow-md",
           props.selected ? "border-foreground/40" : "border-foreground/10",
           props.focus && "ring-2 ring-offset-0",
           props.summarised && "opacity-60",
@@ -189,7 +189,7 @@ function Row(props: {
       >
         {/* The request plugs into the memory stream on its left. */}
         <span className="absolute top-1/2 -left-3 h-px w-3" style={{ background: hueColor(LEAD_HUE, 0.6) }} />
-        <span className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+        <span className="flex items-center gap-2 text-[0.6875rem] font-medium text-muted-foreground">
           <span>Request {t.index + 1}</span>
           {props.live && (
             <span className="flex items-center gap-1 text-sky-500 dark:text-sky-300">
@@ -197,15 +197,15 @@ function Row(props: {
             </span>
           )}
           {tag && (
-            <span className="rounded-full px-1.5 py-px text-[10px] font-semibold text-white" style={{ background: hueColor(LEAD_HUE, props.remembered ? 0.9 : 0.5) }}>
+            <span className="rounded-full px-1.5 py-px text-[0.625rem] font-semibold text-white" style={{ background: hueColor(LEAD_HUE, props.remembered ? 0.9 : 0.5) }}>
               {tag}
             </span>
           )}
           <span className="ml-auto">{ago(t.ts)}</span>
         </span>
-        <span className="mt-1 line-clamp-2 text-[13.5px] leading-snug font-medium">{mask(safeClip(t.text, 400))}</span>
+        <span className="mt-1 line-clamp-2 text-[0.8438rem] leading-snug font-medium">{mask(safeClip(t.text, 400))}</span>
         {shortReply && <span className="mt-1.5 line-clamp-2 text-xs leading-snug text-muted-foreground">Claude: {shortReply}</span>}
-        <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+        <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.6875rem] text-muted-foreground">
           {mem ? (
             <span>
               remembers {mem.summarized ? "a summary + " : ""}
@@ -222,22 +222,22 @@ function Row(props: {
 
       {helpers.length > 0 && (
         <div className="min-w-0 border-l border-dashed border-foreground/25 py-1 pl-4">
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-[0.6875rem] text-muted-foreground">
             {helpers.length} helper{helpers.length === 1 ? "" : "s"} · got only a brief
           </p>
-          <div className="mt-1.5 flex max-w-[340px] flex-wrap gap-1.5">
+          <div className="mt-1.5 flex max-w-[21.25rem] flex-wrap gap-1.5">
             {helpers.slice(0, MAX_HELPER_CHIPS).map((id) => (
               <button
                 key={id}
                 onClick={() => props.onOpenActor(id)}
-                className="max-w-[160px] truncate rounded-full px-2.5 py-0.5 text-[11px] font-semibold text-white"
+                className="max-w-[10rem] truncate rounded-full px-2.5 py-0.5 text-[0.6875rem] font-semibold text-white"
                 style={{ background: hueColor(actors[id].hue) }}
                 title={mask(actors[id].name)}
               >
                 {mask(actors[id].name)}
               </button>
             ))}
-            {helpers.length > MAX_HELPER_CHIPS && <span className="px-1 text-[11px] text-muted-foreground">+{helpers.length - MAX_HELPER_CHIPS} more</span>}
+            {helpers.length > MAX_HELPER_CHIPS && <span className="px-1 text-[0.6875rem] text-muted-foreground">+{helpers.length - MAX_HELPER_CHIPS} more</span>}
           </div>
         </div>
       )}

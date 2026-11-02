@@ -63,7 +63,7 @@ export function FilesView(props: SessionViewProps) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className={cn("border-b border-foreground/10 px-4 py-3", detailOpen && "hidden md:block")}>
-        <p className="text-[13px] leading-relaxed">
+        <p className="text-[0.8125rem] leading-relaxed">
           <span className="font-medium">What changed in your project.</span>{" "}
           <span className="text-muted-foreground">
             Every file Claude changed with its file tools in this session, with each change in order as a before and after. Changes made by running commands or scripts
@@ -145,10 +145,10 @@ function FileList({ files, picked, cwds, mask, onPick, empty }: { files: FileTou
               >
                 {n ? f.writes ? <FilePlus className="size-3.5 shrink-0 text-violet-500" /> : <FilePen className="size-3.5 shrink-0 text-violet-500" /> : <FileText className="size-3.5 shrink-0 text-muted-foreground" />}
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-medium">{mask(base(f.path))}</span>
-                  {dir && <span className="block truncate text-[11px] text-muted-foreground">{mask(dir)}</span>}
+                  <span className="block truncate text-[0.8125rem] font-medium">{mask(base(f.path))}</span>
+                  {dir && <span className="block truncate text-[0.6875rem] text-muted-foreground">{mask(dir)}</span>}
                 </span>
-                <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">{n ? plural(n, "change") : `read ${f.reads}×`}</span>
+                <span className="shrink-0 text-[0.6875rem] text-muted-foreground tabular-nums">{n ? plural(n, "change") : `read ${f.reads}×`}</span>
               </button>
             </li>
           );
@@ -170,7 +170,7 @@ function FileDetail({ entry: file, model, mask, tech, onBack, ...props }: { entr
       </button>
       <h2 className="text-lg font-semibold tracking-tight break-all">{mask(base(file.path))}</h2>
       <p className="mt-0.5 text-xs break-all text-muted-foreground">{mask(tech ? file.path : shownPath(file.path, model.meta.cwds))}</p>
-      <p className="mt-3 text-[13px] leading-relaxed">
+      <p className="mt-3 text-[0.8125rem] leading-relaxed">
         {file.changes.length ? (
           <>
             Changed {plural(file.changes.length, "time")}
@@ -190,24 +190,24 @@ function FileDetail({ entry: file, model, mask, tech, onBack, ...props }: { entr
             const who = model.actors[step.actor]?.name ?? "Claude";
             return (
               <li key={step.id} className="relative">
-                <span className="absolute top-1.5 -left-[25px] size-2.5 rounded-full bg-violet-400 ring-4 ring-background" />
+                <span className="absolute top-1.5 -left-[1.5625rem] size-2.5 rounded-full bg-violet-400 ring-4 ring-background" />
                 <div className="flex items-start gap-2">
                   <button onClick={() => jump.select(turn, step.id)} className="min-w-0 flex-1 text-left">
-                    <span className="block text-[13px] font-semibold hover:underline">
+                    <span className="block text-[0.8125rem] font-semibold hover:underline">
                       {i + 1}. {mask(step.title)}
                     </span>
                     <span className="block text-xs text-muted-foreground">
                       Request {turn + 1} · {who} · {new Date(step.ts).toLocaleTimeString()}
                       {tech && step.tool && (
                         <>
-                          {" "}· <code className="text-[11px]">{step.tool}</code>
+                          {" "}· <code className="text-[0.6875rem]">{step.tool}</code>
                         </>
                       )}
                     </span>
                   </button>
                   <MapButton onClick={() => jump.toMap(turn, step.id)} />
                 </div>
-                <p className="mt-1 text-[13px] leading-relaxed text-foreground/85">
+                <p className="mt-1 text-[0.8125rem] leading-relaxed text-foreground/85">
                   <TermText text={mask(step.what)} />
                 </p>
                 <div className="mt-2 min-w-0">

@@ -168,7 +168,7 @@ export function LineChart(props: {
         <ChartTooltip x={sx(h.x)} y={sy(h.y) - 44} width={width}>
           <TipRow color="var(--series-1)" value={formatY(h.y)} label={props.seriesLabel} />
           <div className="mt-0.5 text-muted-foreground">{formatX(h.x)}</div>
-          {props.onPick && props.pickHint && <div className="mt-0.5 text-[11px] text-muted-foreground">{props.pickHint}</div>}
+          {props.onPick && props.pickHint && <div className="mt-0.5 text-[0.6875rem] text-muted-foreground">{props.pickHint}</div>}
         </ChartTooltip>
       )}
       <div style={{ height: width > 0 ? 0 : height }} />

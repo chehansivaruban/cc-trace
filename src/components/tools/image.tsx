@@ -39,7 +39,7 @@ export function ImageList({ images }: { images: NonNullable<Step["images"]> }) {
             <img
               src={`data:${img.mediaType};base64,${img.data}`}
               alt={`Image ${i + 1}`}
-              className={cn("block object-contain", open === i ? "max-h-[70vh] w-full" : "max-h-40 max-w-[240px]")}
+              className={cn("block object-contain", open === i ? "max-h-[70vh] w-full" : "max-h-40 max-w-[15rem]")}
               loading="lazy"
             />
           </button>

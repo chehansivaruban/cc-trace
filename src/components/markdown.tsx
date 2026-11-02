@@ -40,17 +40,17 @@ const COMPONENTS: Components = {
   ul: ({ children }) => <ul className="my-2 list-disc space-y-0.5 pl-5">{children}</ul>,
   ol: ({ children }) => <ol className="my-2 list-decimal space-y-0.5 pl-5">{children}</ol>,
   li: ({ children }) => <li className="pl-0.5">{children}</li>,
-  h1: ({ children }) => <h4 className="mt-3 mb-1.5 text-[15px] font-semibold first:mt-0">{children}</h4>,
-  h2: ({ children }) => <h4 className="mt-3 mb-1.5 text-[14px] font-semibold first:mt-0">{children}</h4>,
-  h3: ({ children }) => <h5 className="mt-3 mb-1 text-[13px] font-semibold first:mt-0">{children}</h5>,
-  h4: ({ children }) => <h5 className="mt-2 mb-1 text-[13px] font-semibold first:mt-0">{children}</h5>,
-  h5: ({ children }) => <h6 className="mt-2 mb-1 text-[13px] font-semibold first:mt-0">{children}</h6>,
-  h6: ({ children }) => <h6 className="mt-2 mb-1 text-[13px] font-semibold first:mt-0">{children}</h6>,
+  h1: ({ children }) => <h4 className="mt-3 mb-1.5 text-[0.9375rem] font-semibold first:mt-0">{children}</h4>,
+  h2: ({ children }) => <h4 className="mt-3 mb-1.5 text-[0.875rem] font-semibold first:mt-0">{children}</h4>,
+  h3: ({ children }) => <h5 className="mt-3 mb-1 text-[0.8125rem] font-semibold first:mt-0">{children}</h5>,
+  h4: ({ children }) => <h5 className="mt-2 mb-1 text-[0.8125rem] font-semibold first:mt-0">{children}</h5>,
+  h5: ({ children }) => <h6 className="mt-2 mb-1 text-[0.8125rem] font-semibold first:mt-0">{children}</h6>,
+  h6: ({ children }) => <h6 className="mt-2 mb-1 text-[0.8125rem] font-semibold first:mt-0">{children}</h6>,
   blockquote: ({ children }) => <blockquote className="my-2 border-l-2 border-foreground/20 pl-3 text-foreground/80">{children}</blockquote>,
   hr: () => <hr className="my-3 border-foreground/10" />,
   table: ({ children }) => (
     <div className="my-2 max-w-full overflow-x-auto">
-      <table className="w-max min-w-full border-collapse text-[12px]">{children}</table>
+      <table className="w-max min-w-full border-collapse text-[0.75rem]">{children}</table>
     </div>
   ),
   th: ({ children }) => <th className="border border-foreground/10 bg-foreground/[0.04] px-2 py-1 text-left font-semibold">{children}</th>,
@@ -78,7 +78,7 @@ export function Markdown({ text, className }: { text: string; className?: string
   const long = text.length > CAPS.markdown;
   const shown = useMemo(() => (all ? mask(text) : markdownSource(text, mask)), [all, mask, text]);
   return (
-    <div className={cn("min-w-0 text-[13px] leading-relaxed break-words", className)}>
+    <div className={cn("min-w-0 text-[0.8125rem] leading-relaxed break-words", className)}>
       <Rendered text={shown} />
       {long && (
         <button data-find-skip onClick={() => setAll(!all)} className="mt-1 text-xs font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground">

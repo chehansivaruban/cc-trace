@@ -121,9 +121,9 @@ export function BarChart(props: {
       {h && hover !== null && (
         <ChartTooltip x={cx(hover)} y={Math.min(sy(h.value), base - 30) - 50} width={width}>
           <TipRow color="var(--series-1)" value={formatY(h.value)} label={props.seriesLabel} />
-          <div className="mt-0.5 max-w-[180px] truncate text-muted-foreground">{h.label}</div>
-          {h.detail && <div className="text-[11px] text-muted-foreground">{h.detail}</div>}
-          {props.onPick && props.pickHint && <div className="mt-0.5 text-[11px] text-muted-foreground">{props.pickHint}</div>}
+          <div className="mt-0.5 max-w-[11.25rem] truncate text-muted-foreground">{h.label}</div>
+          {h.detail && <div className="text-[0.6875rem] text-muted-foreground">{h.detail}</div>}
+          {props.onPick && props.pickHint && <div className="mt-0.5 text-[0.6875rem] text-muted-foreground">{props.pickHint}</div>}
         </ChartTooltip>
       )}
       <div style={{ height: width > 0 ? 0 : height }} />
