@@ -234,6 +234,27 @@ try {
     console.log("✓ reports the folders it reads from");
   }
   // ── end debug log ──
+  // ── search ──
+  const search = async (q, extra = "") => {
+    const res = await get(`/api/search?q=${encodeURIComponent(q)}${extra}`);
+    assert.equal(res.status, 200, `search ${q}`);
+    const rows = res.body.trim().split("\n").map((l) => JSON.parse(l));
+    assert.equal(rows.at(-1).done, true, "search ends with a summary line");
+    return rows.filter((r) => !r.done);
+  };
+  const prompt = await search("HELLO from smoke");
+  assert.ok(prompt.some((h) => h.file === project.sessions[0].file && h.turn === 0 && h.snippet.includes("hello from smoke test") && !h.step), JSON.stringify(prompt));
+  const masked = await search("hello from smoke", "&mask=1");
+  assert.ok(masked.some((h) => h.snippet.includes("hello from smoke test")), "masked search still finds plain text");
+  const toolHit = await search("live-line-ok");
+  assert.equal(toolHit[0]?.step, "t1", "a match in a tool result points at its step");
+  assert.ok((await search("helper-line-ok")).length === 1, "helper logs are searched");
+  assert.deepEqual(await search("../../etc/passwd"), []);
+  assert.equal((await get("/api/search?q=a")).status, 400);
+  assert.equal((await get("/api/search?q=%20%20")).status, 400);
+  assert.equal((await get("/api/search?q=hello", { Host: "evil.example" })).status, 403);
+  console.log("✓ searches across sessions and refuses one-letter searches");
+  // ── end search ──
 
   console.log(`smoke test passed (${process.platform}, node ${process.version})`);
   finish(0);
