@@ -35,7 +35,8 @@ const WHY = {
 /** Every rule that matches counts; the first "danger" wins, otherwise the first "caution". Deleting is handled by `deletions`. */
 const COMMAND_RULES: [RegExp, Risk["level"], string][] = [
   [/\bfind\b[^;|&\n]*\s-delete\b/, "danger", WHY.findDelete],
-  [/\bgit\s+push\b[^;|&\n]*\s(?:--force(?!-)|-f(?=\s|$)|\+[\w./-])/, "danger", WHY.forcePush],
+  // --force, -f, "+src:dst" or "src:+dst" refspecs.
+  [/\bgit\s+push\b[^;|&\n]*\s(?:--force(?!-)|-f(?=\s|$)|\+[\w./-]|[\w./@{}~^-]*:\+[\w./-])/, "danger", WHY.forcePush],
   [/\bgit\s+push\b[^;|&\n]*\s--force-(?:with-lease|if-includes)\b/, "caution", WHY.forceLease],
   [/\bgit\s+reset\b[^;|&\n]*\s--hard\b/, "danger", WHY.resetHard],
   [/\bgit\s+clean\b[^;|&\n]*\s-[a-zA-Z]*f/, "danger", WHY.gitClean],
@@ -58,8 +59,21 @@ const EXPECTED_OUTSIDE = /^(\/tmp|\/private\/tmp|\/var\/folders|\/private\/var\/
 
 const HEREDOC = /<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?(?:\n\s*\2(?=\s|$)|$)/g;
 // A quoted argument right after one of these is itself a command: `bash -c '…'`, `ssh host "…"`, `cmd /c "…"`.
-const WRAPPER =
-  /(?:\s-c|\s-command|\s\/c|(?:^|[\s;&|(])(?:ba|z|da)?sh\s+(?:-\w+\s+)*-\w*c|(?:^|[\s;&|(])eval|(?:^|[\s;&|(])ssh(?:\s+[^\s;&|"']+)+|(?:^|[\s;&|(])(?:sh|bash|zsh|pwsh|powershell(?:\.exe)?|cmd(?:\.exe)?))\s*$/i;
+// The -c, -Command and /c flags only count after a shell's name (`grep -c "…"` just counts matches).
+const SHELL_WORD = String.raw`(?:^|[\s;&|(/\\])`;
+const WRAPPER = new RegExp(
+  "(?:" +
+    [
+      String.raw`${SHELL_WORD}(?:sh|bash|zsh|fish|dash|ksh)(?:\.exe)?(?:\s+-[\w-]+)*\s+-\w*c`,
+      String.raw`${SHELL_WORD}(?:pwsh|powershell)(?:\.exe)?(?:\s+-[\w-]+)*\s+-(?:c|command|encodedcommand)`,
+      String.raw`${SHELL_WORD}cmd(?:\.exe)?(?:\s+\/\w+)*\s+\/[ck]`,
+      String.raw`(?:^|[\s;&|(])eval`,
+      String.raw`(?:^|[\s;&|(])ssh(?:\s+[^\s;&|"']+)+`,
+      String.raw`${SHELL_WORD}(?:sh|bash|zsh|fish|dash|ksh|pwsh|powershell|cmd)(?:\.exe)?`,
+    ].join("|") +
+    String.raw`)\s*$`,
+  "i",
+);
 
 /**
  * The command with data left out: here-documents (a file's contents) are dropped, and quoted text (a commit
@@ -126,7 +140,9 @@ function deletions(cmd: string): Deletion[] {
 function rebuildable(target: string, cwds: string[]): boolean {
   if (!REBUILDABLE.test(target)) return false;
   if (/^[~$%]/.test(target)) return false; // the home folder or a variable: can't tell where it points
-  return !isAbsolutePath(target) || cwds.some((dir) => isInside(target, dir));
+  // "../node_modules" climbs out of the project: someone else's folder.
+  if (!isAbsolutePath(target)) return !normalizePath(target).startsWith("..");
+  return cwds.some((dir) => isInside(target, dir));
 }
 
 /**

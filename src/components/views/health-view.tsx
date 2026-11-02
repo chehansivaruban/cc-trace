@@ -33,9 +33,10 @@ const NEXT: Record<Recovery, { label: string; icon: typeof Repeat; cls: string }
   "gave-up": { label: "Claude didn't try it again", icon: Undo2, cls: "text-muted-foreground" },
 };
 
+// "Good to know" is kept for the neutral notes section; risk badges never use it.
 const RISK_STYLE: Record<Risk["level"], { label: string; cls: string; dot: string }> = {
-  danger: { label: "Take care", cls: "bg-red-500/10 text-red-600 dark:text-red-300", dot: "bg-red-500" },
-  caution: { label: "Good to know", cls: "bg-amber-400/15 text-amber-700 dark:text-amber-300", dot: "bg-amber-400" },
+  danger: { label: "Risky", cls: "bg-red-500/10 text-red-600 dark:text-red-300", dot: "bg-red-500" },
+  caution: { label: "Take care", cls: "bg-amber-400/15 text-amber-700 dark:text-amber-300", dot: "bg-amber-400" },
 };
 
 const HOOK_WHEN: Record<string, string> = {

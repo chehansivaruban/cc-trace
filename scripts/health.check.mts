@@ -207,6 +207,24 @@ const risky: [string, "caution" | "danger" | undefined][] = [
   ["grep -r 'sudo' .", undefined],
   ["npm run format", undefined],
   ["firmware --check", undefined],
+  // A rebuildable folder outside the project (any ".." that climbs out of it) isn't routine.
+  ["rm -rf ../node_modules", "danger"],
+  ["rm -rf app/../../dist", "danger"],
+  ["rm -rf ./node_modules", "caution"],
+  ["rm -rf app/../node_modules", "caution"],
+  // A bare -c only wraps a command after a shell; grep -c just counts.
+  ['grep -c "rm -rf /" f', undefined],
+  ["wc -c 'sudo rm -rf /'", undefined],
+  ["/bin/bash -c 'rm -rf docs'", "danger"],
+  ["fish -c 'rm -rf docs'", "danger"],
+  ["pwsh -c 'Remove-Item -Recurse -Force C:\\x'", "danger"],
+  ["cmd.exe /c \"del /s C:\\x\"", "danger"],
+  ['tool /c "rm -rf /"', undefined],
+  // Force refspecs: "+src:dst" and "src:+dst".
+  ["git push origin HEAD:+main", "danger"],
+  ["git push origin feature:+refs/heads/main", "danger"],
+  ["git push origin +HEAD:main", "danger"],
+  ["git push origin HEAD:main", undefined],
 ];
 for (const [cmd, level] of risky) assert.equal(sh(cmd), level, cmd);
 assert.equal(riskOf(step("PowerShell", { command: "Remove-Item -Path C:\\x -Recurse -Force" }))?.level, "danger");
