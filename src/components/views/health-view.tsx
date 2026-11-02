@@ -2,12 +2,12 @@
 
 // Health (E1–E3, N3): how smoothly Claude worked, what went wrong and what it did next, risky actions and hooks.
 import { useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, CornerDownRight, FileSearch, Files, Repeat, RotateCcw, SearchX, ShieldAlert, Undo2, Webhook, XCircle } from "lucide-react";
+import { AlertTriangle, CornerDownRight, Info, FileSearch, Files, Repeat, RotateCcw, SearchX, ShieldAlert, Undo2, Webhook, XCircle } from "lucide-react";
 import { MapButton, Section, fmt, plural, useJump, useMasker, useTechnical } from "@/components/view-kit";
 import { VirtualList } from "@/components/virtual-list";
 import { TermText } from "@/components/term-text";
 import { StepIcon } from "@/components/step-icon";
-import { healthReport, type Finding, type Recovery } from "@/lib/analytics/health";
+import { FINDING_WEIGHT, healthReport, type Finding, type Recovery } from "@/lib/analytics/health";
 import { hookRuns, type HookRun } from "@/lib/analytics/hooks";
 import { permissionModeRisk, riskOf, type Risk } from "@/lib/analytics/risk";
 import { explainTool } from "@/lib/explain";
@@ -58,6 +58,9 @@ export function HealthView(props: SessionViewProps) {
 
   const turns = useMemo(() => (scope === "request" ? [turn] : model.turns), [scope, turn, model.turns]);
   const report = useMemo(() => healthReport(model, scope === "request" ? turn : undefined), [model, turn, scope]);
+  // Weight-0 findings (a file built up in steps) are neutral notes, not problems.
+  const stoodOut = useMemo(() => report.findings.filter((f) => FINDING_WEIGHT[f.kind] > 0), [report]);
+  const notes = useMemo(() => report.findings.filter((f) => FINDING_WEIGHT[f.kind] === 0), [report]);
   const hooks = useMemo(() => hookRuns(model), [model]);
   const risks = useMemo(() => {
     const out: { step: Step; turn: number; risk: Risk }[] = [];
@@ -102,7 +105,7 @@ export function HealthView(props: SessionViewProps) {
           </div>
         </header>
 
-        <ScoreCard score={report.score} findings={report.findings.length} scope={scope} />
+        <ScoreCard score={report.score} findings={stoodOut.length} scope={scope} />
 
         <Section
           title="Steps that didn't work"
@@ -159,21 +162,34 @@ export function HealthView(props: SessionViewProps) {
 
         <Section
           title="Things that stood out"
-          intro={report.findings.length ? "Patterns that often mean wasted effort. They're hints, not proof: open the steps to judge for yourself." : undefined}
+          intro={stoodOut.length ? "Patterns that often mean wasted effort. They're hints, not proof: open the steps to judge for yourself." : undefined}
         >
-          {!report.findings.length ? (
+          {!stoodOut.length ? (
             <Empty>Nothing stood out: no loops, repeats or piles of errors.</Empty>
           ) : (
             <VirtualList
               className="space-y-2"
               label="Things that stood out"
               initial={5}
-              items={report.findings}
+              items={stoodOut}
               estimate={120}
               render={(f) => <FindingCard finding={f} turn={model.turns[f.turn]} showTurn={scope === "session"} mask={mask} onPick={(id) => jump.select(f.turn, id)} onMap={(id) => jump.toMap(f.turn, id)} />}
             />
           )}
         </Section>
+
+        {notes.length > 0 && (
+          <Section title="Good to know" intro="Nothing wrong here, and it doesn't change the score: just notes to help you follow how the work took shape.">
+            <VirtualList
+              className="space-y-2"
+              label="Good to know"
+              initial={3}
+              items={notes}
+              estimate={110}
+              render={(f) => <FindingCard neutral finding={f} turn={model.turns[f.turn]} showTurn={scope === "session"} mask={mask} onPick={(id) => jump.select(f.turn, id)} onMap={(id) => jump.toMap(f.turn, id)} />}
+            />
+          </Section>
+        )}
 
         <Section title="Actions worth a second look" intro="Steps that delete things, install software, change files outside your project or skip safety checks. Most are fine; it's just good to know they happened.">
           {mode && (
@@ -329,16 +345,21 @@ function ErrorStrip({ turns, onPick }: { turns: Turn[]; onPick: (turn: number, i
   );
 }
 
-function FindingCard(props: { finding: Finding; turn?: Turn; showTurn: boolean; mask: (t: string) => string; onPick: (id: string) => void; onMap: (id: string) => void }) {
+function FindingCard(props: { finding: Finding; neutral?: boolean; turn?: Turn; showTurn: boolean; mask: (t: string) => string; onPick: (id: string) => void; onMap: (id: string) => void }) {
   const { finding: f, turn } = props;
   const [all, setAll] = useState(false);
-  const Icon = FINDING_ICON[f.kind] ?? AlertTriangle;
+  const Icon = props.neutral ? Info : (FINDING_ICON[f.kind] ?? AlertTriangle);
   const index = useMemo(() => new Map(turn?.steps.map((s, i) => [s.id, i]) ?? []), [turn]);
   const ids = all ? f.steps : f.steps.slice(0, 8);
   return (
     <div className="rounded-xl border border-foreground/10 px-3.5 py-3">
       <div className="flex items-start gap-2.5">
-        <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-400/15 text-amber-600 dark:text-amber-300">
+        <span
+          className={cn(
+            "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg",
+            props.neutral ? "bg-sky-400/15 text-sky-600 dark:text-sky-300" : "bg-amber-400/15 text-amber-600 dark:text-amber-300",
+          )}
+        >
           <Icon className="size-3.5" />
         </span>
         <div className="min-w-0 flex-1">

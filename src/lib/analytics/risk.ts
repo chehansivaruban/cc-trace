@@ -7,14 +7,15 @@ export type Risk = { level: "caution" | "danger"; why: string };
 export type RiskContext = { cwds?: string[] };
 
 const COMMAND_TOOLS = new Set(["Bash", "bash", "PowerShell"]);
-// Start of a command word: the line start, a space, or a shell separator.
-const W = String.raw`(?:^|[\s;&|(\x60])`;
+// Where a command word can start: the line start or a shell separator (and, for sudo, nowhere else).
+const CMD_START = "(?:^|[;&|(\\n\\x60]|\\$\\()\\s*";
 
 const WHY = {
   deleteFolder: "This deletes a folder and everything in it. It can't be undone from the bin.",
-  deleteRebuildable: "This deletes a folder and everything in it. It can't be undone from the bin, but it only holds files the project can rebuild or scratch files.",
+  deleteRebuildable: "This deletes a folder and everything in it. It can't be undone from the bin, but it only holds files the project can rebuild.",
   deleteFile: "This deletes a file. It skips the bin, so it can't simply be restored.",
   forcePush: "This overwrites the online copy of the project (for example on GitHub) with this one. Work that anyone else saved there can be lost.",
+  findDelete: "This deletes every file the search finds. It skips the bin, so they can't simply be restored.",
   forceLease: "This overwrites the online copy of the project with this one. It first checks nobody else changed it, so it's safer than a plain force push, but it still rewrites the project's history.",
   resetHard: "This throws away every change that wasn't saved in a checkpoint. It can't be undone.",
   gitClean: "This deletes the new files that were never saved in a checkpoint. It can't be undone.",
@@ -30,16 +31,11 @@ const WHY = {
     "Claude was allowed to act without asking you first (“bypass permissions” mode), so nothing paused for your OK. That's fine for a quick experiment, but take care with real projects.",
 };
 
-const RM_RECURSIVE = String.raw`rm\s+(?:-{1,2}[\w-]+\s+)*(?:-[a-zA-Z]*[rR][a-zA-Z]*|--recursive)(?=\s|$)`;
-
-/** Every rule that matches counts; the first "danger" wins, otherwise the first "caution". */
+/** Every rule that matches counts; the first "danger" wins, otherwise the first "caution". Deleting is handled by `deletions`. */
 const COMMAND_RULES: [RegExp, Risk["level"], string][] = [
-  [new RegExp(W + RM_RECURSIVE), "danger", WHY.deleteFolder], // keep first: see onlyRebuildable
-  [/\bremove-item\b[^;|&\n]*\s-r(?:ecurse)?\b/i, "danger", WHY.deleteFolder],
-  [/\b(?:rmdir|rd)\s+(?:\/\w\s+)*\/s\b/i, "danger", WHY.deleteFolder],
-  [/\b(?:del|erase)\s+(?:\/\w\s+)*\/s\b/i, "danger", WHY.deleteFolder],
-  [/\bgit\s+push\b[^;|&\n]*\s(?:--force(?!-)|-f)(?=\s|$)/, "danger", WHY.forcePush],
-  [/\bgit\s+push\b[^;|&\n]*\s--force-with-lease\b/, "caution", WHY.forceLease],
+  [/\bfind\b[^;|&\n]*\s-delete\b/, "danger", WHY.findDelete],
+  [/\bgit\s+push\b[^;|&\n]*\s(?:--force(?!-)|-f(?=\s|$)|\+[\w./-])/, "danger", WHY.forcePush],
+  [/\bgit\s+push\b[^;|&\n]*\s--force-(?:with-lease|if-includes)\b/, "caution", WHY.forceLease],
   [/\bgit\s+reset\b[^;|&\n]*\s--hard\b/, "danger", WHY.resetHard],
   [/\bgit\s+clean\b[^;|&\n]*\s-[a-zA-Z]*f/, "danger", WHY.gitClean],
   [/\bchmod\b(?=[^;|&\n]*\s(?:-[a-zA-Z]*R|--recursive)\b)[^;|&\n]*\s(?:0?777|a\+rwx)\b/, "danger", WHY.chmodAll],
@@ -48,37 +44,88 @@ const COMMAND_RULES: [RegExp, Risk["level"], string][] = [
   [/\b(?:curl|wget|iwr|irm|invoke-webrequest|invoke-restmethod)\b[^;&\n]*\|\s*(?:sudo\s+)?(?:sh|bash|zsh|iex|invoke-expression|python3?|node)\b(?![^;&|\n]*\s-[cem]\b)/i, "danger", WHY.pipeToShell],
   [/--dangerously-skip-permissions\b|--permission-mode[\s=]+bypassPermissions\b/, "danger", WHY.skipPermissions],
   [/\bmkfs(?:\.\w+)?\s|\bdd\b[^;|&\n]*\bof=\/dev\//, "danger", WHY.disk],
-  [new RegExp(`${W}sudo\\s`), "caution", WHY.sudo],
+  [new RegExp(`${CMD_START}sudo\\s`), "caution", WHY.sudo],
   [
     /\b(?:npm|pnpm|yarn|bun)\s+(?:i|install|add|ci)\b|\b(?:pip3?|pipx|gem|brew|cargo|go|choco|winget|scoop|apt|apt-get|dnf|yum)\s+install\b|\bpython3?\s+-m\s+pip\s+install\b|\b(?:flutter|dart)\s+pub\s+(?:add|get)\b/,
     "caution",
     WHY.install,
   ],
-  [new RegExp(`${W}(?:rm|unlink)\\s+\\S`), "caution", WHY.deleteFile],
-  [/(?:^|[\s;&|(])(?:remove-item|del|erase)\s+\S/i, "caution", WHY.deleteFile],
 ];
 
 // Scratch folders and Claude's own files (plans, memory) are expected places to write.
 const EXPECTED_OUTSIDE = /^(\/tmp|\/private\/tmp|\/var\/folders|\/private\/var\/folders)(\/|$)|\/appdata\/local\/temp(\/|$)|(^|\/)\.claude(\/|$)/;
 
 const HEREDOC = /<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?(?:\n\s*\2(?=\s|$)|$)/g;
-const noHeredocs = (cmd: string) => cmd.replace(HEREDOC, "<<$2");
-/** Quoted text and here-documents are data (a commit message, a file's contents), not commands: leave them out. */
-const unquote = (cmd: string) => noHeredocs(cmd).replace(/"(?:[^"\\]|\\.)*"/g, '""').replace(/'[^']*'/g, "''");
+// A quoted argument right after one of these is itself a command: `bash -c '…'`, `ssh host "…"`, `cmd /c "…"`.
+const WRAPPER =
+  /(?:\s-c|\s-command|\s\/c|(?:^|[\s;&|(])(?:ba|z|da)?sh\s+(?:-\w+\s+)*-\w*c|(?:^|[\s;&|(])eval|(?:^|[\s;&|(])ssh(?:\s+[^\s;&|"']+)+|(?:^|[\s;&|(])(?:sh|bash|zsh|pwsh|powershell(?:\.exe)?|cmd(?:\.exe)?))\s*$/i;
 
-// Folders a project rebuilds on its own, and scratch folders: deleting them is routine.
-const REBUILDABLE =
-  /(?:^|[\\/])(?:node_modules|\.next|dist|build|out|\.turbo|\.cache|coverage|target|__pycache__|\.dart_tool|\.pytest_cache|test-results|playwright-report|\.vite|\.svelte-kit|\.nuxt|\.parcel-cache)(?:[\\/]|$)|^(?:\/tmp|\/private\/tmp|\$TMPDIR|\$\{TMPDIR\})(?:[\\/]|$)/;
-
-/** Whether every `rm -r` in the command only removes rebuildable or scratch folders. */
-function onlyRebuildable(command: string): boolean {
-  let any = false;
-  for (const m of noHeredocs(command).matchAll(new RegExp(`${W}${RM_RECURSIVE}([^;&|\\n]*)`, "g"))) {
-    const targets = m[1].trim().split(/\s+/).filter((t) => t && !t.startsWith("-")).map((t) => t.replace(/^["']+|["']+$/g, ""));
-    if (!targets.length || !targets.every((t) => REBUILDABLE.test(t))) return false;
-    any = true;
+/**
+ * The command with data left out: here-documents (a file's contents) are dropped, and quoted text (a commit
+ * message, a search pattern) is kept as one inert word so file names survive but nothing in it reads as a
+ * command. Quoted arguments of wrappers (`bash -c`, `ssh host`, `powershell -Command`, `eval`) are commands, and
+ * are read like the rest. An apostrophe inside a word (don't) doesn't start a quote.
+ */
+function unquote(cmd: string, depth = 0): string {
+  const src = depth ? cmd : cmd.replace(HEREDOC, "<<$2");
+  let out = "";
+  let i = 0;
+  while (i < src.length) {
+    const c = src[i];
+    const prev = i ? src[i - 1] : " ";
+    if ((c === "'" || c === '"') && prev !== "\\" && !(c === "'" && /\w/.test(prev))) {
+      let j = i + 1;
+      if (c === "'") j = src.indexOf("'", j);
+      else while (j < src.length && src[j] !== '"') j += src[j] === "\\" ? 2 : 1;
+      if (j < 0 || j > src.length) j = src.length;
+      const inner = src.slice(i + 1, j);
+      out += depth < 3 && WRAPPER.test(out)
+        ? ` ; ${unquote(c === '"' ? inner.replace(/\\(["\\$`])/g, "$1") : inner, depth + 1)} ; `
+        : c + inner.replace(/[\s;&|<>()`$]+/g, "_") + c;
+      i = j + 1;
+      continue;
+    }
+    out += c;
+    i++;
   }
-  return any;
+  return out;
+}
+
+// Folders a project rebuilds on its own: deleting them is routine (when they're the project's own).
+const REBUILDABLE =
+  /(?:^|[\\/])(?:node_modules|\.next|dist|build|out|\.turbo|\.cache|coverage|target|__pycache__|\.dart_tool|\.pytest_cache|test-results|playwright-report|\.vite|\.svelte-kit|\.nuxt|\.parcel-cache)(?:[\\/]\*?)?$|(?:^|[\\/])(?:node_modules|\.next|dist|build|out|\.turbo|\.cache|coverage|target|test-results|playwright-report)[\\/]/;
+
+type Deletion = { recursive: boolean; targets: string[] };
+
+/** Every delete in the command: rm, git rm (not --cached), unlink, Remove-Item, rmdir /s, del. */
+function deletions(cmd: string): Deletion[] {
+  const out: Deletion[] = [];
+  for (const seg of cmd.split(/&&|\|\||[;|&\n]/)) {
+    const m = /(?:^|[\s(`])(git\s+rm|rm|unlink|remove-item|ri|rmdir|rd|del|erase)(?=\s|$)(.*)$/i.exec(seg);
+    if (!m || /\b(?:npm|pnpm|yarn|bun)\s+$/.test(seg.slice(0, m.index + 1))) continue;
+    const word = m[1].toLowerCase().replace(/\s+/g, " ");
+    const tokens = m[2].trim().split(/\s+/).filter(Boolean).map((t) => t.replace(/[)}]+$/, ""));
+    const dosStyle = word === "rmdir" || word === "rd" || word === "del" || word === "erase";
+    const isFlag = (t: string) => t.startsWith("-") || (dosStyle && /^\/\w$/.test(t));
+    const flags = tokens.filter(isFlag);
+    const targets = tokens.filter((t) => t && !isFlag(t)).map((t) => t.replace(/^["']+|["']+$/g, ""));
+    if (word === "git rm" && flags.includes("--cached")) continue;
+    let recursive = false;
+    if (word === "rm" || word === "git rm") recursive = flags.some((f) => /^-[fiIdvP]*[rR][fiIdvrRP]*$/.test(f) || f === "--recursive");
+    else if (word === "remove-item" || word === "ri") recursive = flags.some((f) => /^-r(?:ecurse)?$/i.test(f));
+    else if (dosStyle) recursive = flags.some((f) => /^\/s$/i.test(f));
+    // rmdir without /s only removes an empty folder: nothing is lost.
+    if ((word === "rmdir" || word === "rd") && !recursive) continue;
+    out.push({ recursive, targets });
+  }
+  return out;
+}
+
+/** A folder the project rebuilds, written relative to the project or as a path inside it. */
+function rebuildable(target: string, cwds: string[]): boolean {
+  if (!REBUILDABLE.test(target)) return false;
+  if (/^[~$%]/.test(target)) return false; // the home folder or a variable: can't tell where it points
+  return !isAbsolutePath(target) || cwds.some((dir) => isInside(target, dir));
 }
 
 /**
@@ -91,13 +138,17 @@ export function riskOf(step: Step, ctx: RiskContext = {}): Risk | undefined {
   if (COMMAND_TOOLS.has(step.tool)) {
     if (typeof input.command !== "string") return undefined;
     const cmd = unquote(input.command);
-    const hits: Risk[] = [];
-    COMMAND_RULES.forEach(([re, level, why], i) => {
-      if (!re.test(cmd)) return;
-      // rm -r of only rebuildable or scratch folders: still worth knowing, not a danger.
-      hits.push(i === 0 && onlyRebuildable(input.command as string) ? { level: "caution", why: WHY.deleteRebuildable } : { level, why });
-    });
-    return hits.find((h) => h.level === "danger") ?? hits[0];
+    const hits: Risk[] = COMMAND_RULES.filter(([re]) => re.test(cmd)).map(([, level, why]) => ({ level, why }));
+    const dels = deletions(cmd);
+    const folders = dels.filter((d) => d.recursive);
+    if (folders.length) {
+      const routine = folders.every((d) => d.targets.length && d.targets.every((t) => rebuildable(t, ctx.cwds ?? [])));
+      hits.push(routine ? { level: "caution", why: WHY.deleteRebuildable } : { level: "danger", why: WHY.deleteFolder });
+    }
+    if (dels.some((d) => !d.recursive)) hits.push({ level: "caution", why: WHY.deleteFile });
+    // Deleting comes first among cautions: it's the one that loses work.
+    const order = (h: Risk) => (h.level === "danger" ? 0 : h.why === WHY.deleteRebuildable || h.why === WHY.deleteFile ? 1 : 2);
+    return hits.sort((x, y) => order(x) - order(y))[0];
   }
   if (FILE_CHANGE_TOOLS.has(step.tool) && ctx.cwds?.length) {
     const file = fileOf(step);

@@ -433,7 +433,8 @@ const StepNode = memo(function StepNode(props: {
 }) {
   const { step: s, hue } = props;
   const message = !!s.from || s.kind === "prompt";
-  const risk = riskOf(s);
+  const { tool, input } = s;
+  const risk = useMemo(() => riskOf({ tool, input } as Step), [tool, input]);
   return (
     <button
       onClick={props.onClick}

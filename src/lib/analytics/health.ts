@@ -12,19 +12,22 @@ export type HealthReport = {
   errors: { total: number; toolCalls: number; mostFailing?: string; items: { step: Step; next: Recovery }[] };
 };
 
-/** How much each kind of finding lowers the score; repeats of a kind count for less each time. */
+/**
+ * How much each kind of finding lowers the score; repeats of a kind count for less each time. Weight 0 means a
+ * neutral "good to know" note: building a file up in steps is a normal way to work.
+ */
 export const FINDING_WEIGHT: Record<FindingKind, number> = {
   "fix-loop": 0.12,
   "high-error-rate": 0.12,
   "repeated-tool": 0.08,
   "excessive-reads": 0.05,
-  "write-then-edit": 0.05,
   "empty-result": 0.04,
+  "write-then-edit": 0,
 };
 
 const REPEAT_MIN = 3; // identical calls in a row
-const FIX_LOOP_MIN = 3; // failures of the same command
-const EMPTY_MIN = 3; // searches that found nothing
+const FIX_LOOP_MIN = 3; // failures of the same command, stuck on the same error or with nothing changed
+const EMPTY_MIN = 5; // searches in a row that found nothing
 const READS_MIN = 3; // reads of one unchanged file
 const EDITS_AFTER_WRITE_MIN = 3;
 const ERRORS_MIN = 4;
@@ -66,6 +69,12 @@ function target(s: Step): string {
   return `${s.tool}:${stable(s.input)}`;
 }
 
+/** An error message with the noise taken out (numbers, timings, spacing), to tell "the same error" from progress. */
+function errorText(s: Step): string {
+  const out = typeof s.output === "string" ? s.output : JSON.stringify(s.output ?? "") ?? "";
+  return out.slice(0, 4000).toLowerCase().replace(/\d+/g, "#").replace(/\s+/g, " ").trim();
+}
+
 function isEmptyResult(s: Step) {
   if (!SEARCH_TOOLS.has(s.tool ?? "") || s.status !== "success") return false;
   const out = s.output;
@@ -81,24 +90,47 @@ function findingsFor(turn: Turn, actors: Record<string, Actor>): Finding[] {
   const who = (id: string) => actors[id]?.name ?? "Claude";
   const add = (kind: FindingKind, title: string, explain: string, ids: string[]) => out.push({ kind, title, explain, steps: ids, turn: turn.index });
 
-  // Fix loops: the same command failing again and again.
-  const runs = new Map<string, Step[]>();
+  // Fix loops: the same command failing again and again, either with the same error each time (the fixes in
+  // between didn't help) or with nothing changed in between (trying again can't help). A success ends the loop.
+  type Chain = { key: string; cmd: string; ids: string[] };
+  const chains: Chain[] = [];
+  const open = new Map<string, { chain: Chain; err: string; at: number }>();
+  let changes = 0; // successful file changes and other commands so far: things that may have changed the outcome
   for (const s of tools) {
-    const cmd = commandOf(s);
-    if (!COMMAND_TOOLS.has(s.tool!) || !cmd) continue;
+    const cmd = COMMAND_TOOLS.has(s.tool!) ? commandOf(s) : undefined;
+    if (!cmd) {
+      if (FILE_CHANGE_TOOLS.has(s.tool!) && s.status === "success") changes++;
+      continue;
+    }
     const key = `${owner(s)}\u0000${cmd}`;
-    const list = runs.get(key);
-    if (list) list.push(s);
-    else runs.set(key, [s]);
+    const cur = open.get(key);
+    if (s.status === "error") {
+      const err = errorText(s);
+      if (cur && (cur.err === err || cur.at === changes)) cur.chain.ids.push(s.id);
+      else {
+        const chain = { key, cmd, ids: [s.id] };
+        chains.push(chain);
+        open.set(key, { chain, err, at: changes });
+      }
+      const now = open.get(key)!;
+      now.err = err;
+      now.at = changes;
+    } else if (s.status === "success") {
+      open.delete(key);
+      changes++;
+    }
   }
-  const loops = new Set<string>();
-  for (const [key, list] of runs) {
-    const failed = list.filter((s) => s.status === "error");
-    if (failed.length < FIX_LOOP_MIN) continue;
-    loops.add(key);
+  const loops = new Map<string, { cmd: string; ids: string[] }>();
+  for (const c of chains) {
+    if (c.ids.length < FIX_LOOP_MIN) continue;
+    const l = loops.get(c.key);
+    if (l) l.ids.push(...c.ids);
+    else loops.set(c.key, { cmd: c.cmd, ids: [...c.ids] });
+  }
+  for (const { cmd, ids } of loops.values()) {
     add("fix-loop", "Kept hitting the same error",
-      `The same command (“${clip(commandOf(failed[0])!)}”) failed ${failed.length} times. Claude kept trying fixes, but the problem didn't go away. Loops like this use up time and tokens; a hint from you can often break them.`,
-      failed.map((s) => s.id));
+      `The same command (“${clip(cmd)}”) failed ${ids.length} times, either with the same error after each fix or with nothing changed in between. Loops like this use up time and tokens; a hint from you can often break them.`,
+      ids);
   }
 
   // Repeats: the identical call several times in a row by the same agent (file reads are counted below).
@@ -134,12 +166,25 @@ function findingsFor(turn: Turn, actors: Record<string, Actor>): Finding[] {
       ids);
   }
 
-  // Searches that found nothing.
-  const empty = tools.filter(isEmptyResult);
-  if (empty.length >= EMPTY_MIN) {
-    add("empty-result", `Searched and found nothing, ${empty.length} times`,
-      `${empty.length} searches came back empty. Claude may have been looking in the wrong place or for the wrong name. It's harmless, but each try takes a moment.`,
-      empty.map((s) => s.id));
+  // Searches that found nothing, several in a row by the same agent.
+  const emptyRun = new Map<string, string[]>();
+  const emptyRuns: string[][] = [];
+  for (const s of tools) {
+    const actor = owner(s);
+    if (!isEmptyResult(s)) {
+      emptyRun.delete(actor);
+      continue;
+    }
+    let run = emptyRun.get(actor);
+    if (!run) emptyRuns.push((run = []));
+    emptyRun.set(actor, run);
+    run.push(s.id);
+  }
+  for (const ids of emptyRuns) {
+    if (ids.length < EMPTY_MIN) continue;
+    add("empty-result", `Searched and found nothing, ${ids.length} times in a row`,
+      `${ids.length} searches in a row came back empty. Claude may have been looking in the wrong place or for the wrong name. It's harmless, but each try takes a moment.`,
+      ids);
   }
 
   // The same file read over and over without changing in between.
@@ -189,8 +234,8 @@ function findingsFor(turn: Turn, actors: Record<string, Actor>): Finding[] {
   }
   for (const w of written.values()) {
     if (!w.flagged) continue;
-    add("write-then-edit", `Rewrote ${base(w.file)} piece by piece`,
-      `Claude created ${base(w.file)}, then went back to change it ${w.ids.length - 1} more times in the same request. Sometimes that's just building it up step by step; lots of quick fixes can mean the first version wasn't quite right.`,
+    add("write-then-edit", `Built ${base(w.file)} up in steps`,
+      `Claude created ${base(w.file)}, then changed it ${w.ids.length - 1} more times in the same request. That's a normal way to build something up; it's listed so you can follow how the file took shape.`,
       w.ids);
   }
 
@@ -204,13 +249,20 @@ function findingsFor(turn: Turn, actors: Record<string, Actor>): Finding[] {
   return out;
 }
 
-/** After a failed step: did the same agent try it again, try something else, or stop there? */
-function recovery(err: Step, after: Step[]): Recovery {
+/** After the failed step `steps[i]`: did the same agent try it again, try something else, or stop there? */
+function recovery(steps: Step[], i: number): Recovery {
+  const err = steps[i];
   const who = owner(err);
-  if (err.event === "api_error") return after.some((s) => owner(s) === who && s.kind !== "note") ? "retried" : "gave-up";
-  const next = after.find((s) => owner(s) === who && s.tool !== undefined);
-  if (!next) return "gave-up";
-  return target(next) === target(err) ? "retried" : "different";
+  for (let j = i + 1; j < steps.length; j++) {
+    const s = steps[j];
+    if (owner(s) !== who) continue;
+    if (err.event === "api_error") {
+      if (s.kind !== "note") return "retried";
+      continue;
+    }
+    if (s.tool !== undefined) return target(s) === target(err) ? "retried" : "different";
+  }
+  return "gave-up";
 }
 
 /** 100 when nothing stood out; each finding takes a share off, repeats of the same kind a smaller one. */
@@ -239,7 +291,7 @@ export function healthReport(m: SessionModel, turn?: Turn): HealthReport {
     steps.forEach((s, i) => {
       if (s.tool !== undefined) toolCalls++;
       if (s.status !== "error") return;
-      items.push({ step: s, next: recovery(s, steps.slice(i + 1)) });
+      items.push({ step: s, next: recovery(steps, i) });
       if (s.tool === undefined) return;
       total++;
       failures.set(s.tool, (failures.get(s.tool) ?? 0) + 1);

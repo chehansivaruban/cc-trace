@@ -2,7 +2,7 @@
 //   node --no-warnings --experimental-strip-types scripts/health.check.mts
 import assert from "node:assert/strict";
 import { buildSession, type LogRecord, type SessionModel, type Step } from "../src/lib/session.ts";
-import { healthReport, type Finding } from "../src/lib/analytics/health.ts";
+import { FINDING_WEIGHT, healthReport, type Finding } from "../src/lib/analytics/health.ts";
 import { filesTouched, isInside, pathKey } from "../src/lib/analytics/files.ts";
 import { riskOf } from "../src/lib/analytics/risk.ts";
 import { phasesOf } from "../src/lib/analytics/phases.ts";
@@ -53,10 +53,10 @@ const pad = [read("/work/app/x.ts"), read("/work/app/y.ts"), grep("found", { out
 const fixtures: Record<Finding["kind"], Call[]> = {
   // The identical call three times with nothing changed in between.
   "repeated-tool": [...pad, grep("needle", { output: "a.ts" }), grep("needle", { output: "a.ts" }), grep("needle", { output: "a.ts" })],
-  // The same command failing again and again, with attempted fixes in between.
-  "fix-loop": [...pad, bash("npm test", { error: true }), edit("/work/app/a.ts"), bash("npm test", { error: true }), edit("/work/app/a.ts"), bash("npm test", { error: true }), read("/work/app/z.ts")],
-  // Three searches that found nothing.
-  "empty-result": [...pad, grep("one", { output: "No matches found" }), grep("two", { output: "" }), call("Glob", { pattern: "**/*.zz" }, { output: "No files found" })],
+  // The same command failing again and again with the same error, despite attempted fixes in between.
+  "fix-loop": [...pad, bash("npm test", { error: true, output: "1 failed (ran in 2.1s)" }), edit("/work/app/a.ts"), bash("npm test", { error: true, output: "1 failed (ran in 1.9s)" }), edit("/work/app/a.ts"), bash("npm test", { error: true, output: "1 failed  (ran in 2.4s)" }), read("/work/app/z.ts")],
+  // Five searches in a row that found nothing.
+  "empty-result": [...pad, grep("one", { output: "No matches found" }), grep("two", { output: "" }), call("Glob", { pattern: "**/*.zz" }, { output: "No files found" }), grep("three", { output: "No matches found" }), grep("four", { output: "No matches found" })],
   // One file opened four times.
   "excessive-reads": [...pad, read("/work/app/big.ts"), edit("/work/app/other.ts"), read("/work/app/big.ts"), read("/work/app/big.ts"), edit("/work/app/other2.ts"), read("/work/app/big.ts")],
   // A new file, then patched over and over.
@@ -75,11 +75,25 @@ for (const [kind, calls] of Object.entries(fixtures)) {
   assert.ok(f.steps.length > 0, kind);
   const ids = new Set(m.turns[0].steps.map((s) => s.id));
   for (const id of f.steps) assert.ok(ids.has(id), `${kind}: unknown step ${id}`);
-  assert.ok(r.score < 100 && r.score > 0, `${kind}: score ${r.score}`);
+  // Write-then-edit is a neutral note: it never lowers the score.
+  if (kind === "write-then-edit") assert.equal(r.score, 100, kind);
+  else assert.ok(r.score < 100 && r.score > 0, `${kind}: score ${r.score}`);
   // The same report scoped to the request agrees.
   assert.deepEqual(kinds(healthReport(m, m.turns[0]).findings), [kind]);
   scores.push(r.score);
 }
+assert.equal(FINDING_WEIGHT["write-then-edit"], 0);
+assert.doesNotMatch(healthReport(session([fixtures["write-then-edit"]])).findings[0].explain, /wasn't quite right|mistake|wrong/);
+// A failing command whose error changes after each fix is progress, not a loop.
+assert.deepEqual(kinds(healthReport(session([[bash("npm test", { error: true, output: "3 failed" }), edit("/work/app/a.ts"), bash("npm test", { error: true, output: "2 failed: auth" }), edit("/work/app/b.ts"), bash("npm test", { error: true, output: "1 failed: cart" })]])).findings), []);
+// The same command failing with nothing changed in between is a loop, even when the error text varies.
+assert.deepEqual(kinds(healthReport(session([[bash("curl -f localhost:3000", { error: true, output: "refused 1" }), read("/work/app/a.ts"), bash("curl -f localhost:3000", { error: true, output: "refused 2" }), grep("port"), bash("curl -f localhost:3000", { error: true, output: "timeout" })]])).findings), ["fix-loop"]);
+// A success in between breaks the loop.
+assert.deepEqual(kinds(healthReport(session([[bash("npm test", { error: true }), read("/work/app/a.ts"), bash("npm test", { error: true }), read("/work/app/b.ts"), bash("npm test"), read("/work/app/c.ts"), bash("npm test", { error: true })]])).findings), []);
+// Four empty searches, or five that aren't in a row, aren't flagged.
+const empty = (q: string) => grep(q, { output: "No matches found" });
+assert.deepEqual(healthReport(session([[empty("a"), empty("b"), empty("c"), empty("d")]])).findings, []);
+assert.deepEqual(healthReport(session([[empty("a"), empty("b"), empty("c"), grep("x", { output: "x.ts" }), empty("d"), empty("e")]])).findings, []);
 // Re-running the tests after real edits, or reading a big file in parts, isn't flagged.
 assert.deepEqual(healthReport(session([[bash("npm test"), edit("/work/app/a.ts"), bash("npm test"), edit("/work/app/a.ts"), bash("npm test")]])).findings, []);
 assert.deepEqual(healthReport(session([[1, 2, 3, 4].map((n) => call("Read", { file_path: "/work/app/huge.ts", offset: n * 100, limit: 100 }))])).findings, []);
@@ -91,7 +105,9 @@ for (let n = 1; n <= all.length; n++) {
   const m = session(all.slice(0, n));
   const r = healthReport(m);
   assert.equal(r.findings.length, n, `${n} requests -> ${kinds(r.findings).join(", ")}`);
-  assert.ok(r.score < prev, `score ${r.score} should be below ${prev}`);
+  const kind = Object.keys(fixtures)[n - 1] as Finding["kind"];
+  if (FINDING_WEIGHT[kind] > 0) assert.ok(r.score < prev, `score ${r.score} should be below ${prev}`);
+  else assert.equal(r.score, prev, `${kind} shouldn't change the score`);
   assert.ok(r.score >= 0 && Number.isInteger(r.score));
   prev = r.score;
   // Per-request scope only sees its own request's findings.
@@ -121,6 +137,32 @@ const sh = (command: string) => riskOf(step("Bash", { command }))?.level;
 const risky: [string, "caution" | "danger" | undefined][] = [
   ["rm -rf src", "danger"],
   ["cd /tmp && rm -r photos", "danger"],
+  // Wrappers: the quoted command is still a command.
+  ['powershell -Command "Remove-Item -Recurse -Force C:\\x"', "danger"],
+  ["bash -c 'rm -rf ~'", "danger"],
+  ["bash -lc 'rm -rf docs'", "danger"],
+  ['ssh h "sudo rm -rf /"', "danger"],
+  ['ssh -i key.pem me@host "rm -rf /srv/app"', "danger"],
+  ['cmd /c "rmdir /s /q C:\\proj"', "danger"],
+  ["eval 'git reset --hard'", "danger"],
+  ["find . -delete", "danger"],
+  ["find . -name '*.log' -delete", "danger"],
+  ["git push origin +main", "danger"],
+  ["git push --force-if-includes origin main", "caution"],
+  // Only a real recursive flag makes rm -r; git rm --cached deletes nothing; sudo only as a command.
+  ["rm -Force a.txt", "caution"],
+  ["git rm -r --cached dist", undefined],
+  ["git rm old.txt", "caution"],
+  ["grep -n sudo README.md", undefined],
+  ["ls && sudo whoami", "caution"],
+  ["echo don't; rm -rf /; echo 'x'", "danger"],
+  ["echo \"it's fine\"", undefined],
+  // Rebuildable folders: only relative ones or ones inside the project are a caution.
+  ["rm -rf ~/build", "danger"],
+  ["rm -rf /usr/local/lib/node_modules", "danger"],
+  ["Remove-Item -Recurse -Force node_modules", "caution"],
+  ["rmdir /s node_modules", "caution"],
+  ['rm -rf "node_modules"', "caution"],
   ["cd app && rm -r build", "caution"],
   ["rm -fr docs", "danger"],
   ["rm -f -R assets", "danger"],
@@ -139,13 +181,13 @@ const risky: [string, "caution" | "danger" | undefined][] = [
   ["pip install requests", "caution"],
   ["brew install jq", "caution"],
   ["Remove-Item -Recurse -Force C:\\proj\\dist", "danger"],
-  ["remove-item .\\build -recurse", "danger"],
+  ["remove-item .\\photos -recurse", "danger"],
   ["Remove-Item notes.txt", "caution"],
-  ["rmdir /s /q build", "danger"],
+  ["rmdir /s /q photos", "danger"],
   ["claude --dangerously-skip-permissions -p hi", "danger"],
   // Rebuildable or scratch folders are a caution; anything else alongside them still counts.
   ["rm -rf node_modules .next", "caution"],
-  ["rm -rf /tmp/scratch-1 && npm ci", "caution"],
+  ["rm -rf /tmp/scratch-1 && npm ci", "danger"],
   ["rm -rf dist && git push --force", "danger"],
   ["rm -rf dist src", "danger"],
   ["rm -rf build/ios/upload", "caution"],
@@ -185,6 +227,9 @@ assert.equal(riskOf(step("Write", { file_path: "c:/users/me/app/src/a.ts" }), wi
 assert.equal(riskOf(step("Write", { file_path: "C:\\Users\\Me\\App\\src\\a.ts" }), win), undefined);
 assert.equal(riskOf(step("Write", { file_path: "C:\\Users\\Me\\Other\\a.ts" }), win)?.level, "caution");
 assert.equal(riskOf(step("Write", { file_path: "/tmp/scratch.txt" }), posix), undefined, "scratch files in the temp folder are fine");
+// Rebuildable folders inside the project, by full path, are a caution too.
+assert.equal(riskOf(step("Bash", { command: "rm -rf /work/app/node_modules" }), posix)?.level, "caution");
+assert.equal(riskOf(step("Bash", { command: "rm -rf /work/other/node_modules" }), posix)?.level, "danger");
 assert.equal(riskOf(step("Write", { file_path: "/Users/me/.claude/plans/p.md" }), posix), undefined, "Claude's own plan files are fine");
 assert.equal(riskOf(step("Read", { file_path: "/etc/hosts" }), posix), undefined, "reading is never risky");
 assert.equal(riskOf(step("Write", { file_path: "/etc/hosts" })), undefined, "no folder known: no outside check");

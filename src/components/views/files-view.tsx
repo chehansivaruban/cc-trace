@@ -6,7 +6,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronLeft, FilePen, FilePlus, FileText, Search } from "lucide-react";
 import { ToolRenderer } from "@/components/tools";
 import { TermText } from "@/components/term-text";
-import { MapButton, plural, useJump, useMasker } from "@/components/view-kit";
+import { MapButton, plural, useJump, useMasker, useTechnical } from "@/components/view-kit";
 import { filesTouched, isInside, pathKey, type FileTouched } from "@/lib/analytics/files";
 import { cn } from "@/lib/utils";
 import type { SessionViewProps } from "./registry";
@@ -25,6 +25,7 @@ function shownPath(p: string, cwds: string[]) {
 export function FilesView(props: SessionViewProps) {
   const { model, selected } = props;
   const mask = useMasker(model);
+  const [tech, techToggle] = useTechnical();
   const files = useMemo(() => filesTouched(model), [model]);
   const changed = useMemo(() => files.filter((f) => f.changes.length), [files]);
   const readOnly = useMemo(() => files.filter((f) => !f.changes.length), [files]);
@@ -62,11 +63,17 @@ export function FilesView(props: SessionViewProps) {
       <div className={cn("border-b border-foreground/10 px-4 py-3", detailOpen && "hidden md:block")}>
         <p className="text-[13px] leading-relaxed">
           <span className="font-medium">What changed in your project.</span>{" "}
-          <span className="text-muted-foreground">Every file Claude changed in this session, with each change in order as a before and after.</span>
+          <span className="text-muted-foreground">
+            Every file Claude changed with its file tools in this session, with each change in order as a before and after. Changes made by running commands or scripts
+            aren&apos;t listed here.
+          </span>
         </p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {plural(changed.length, "file")} changed · {plural(readOnly.length, "file")} only read
-        </p>
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          <p className="text-xs text-muted-foreground">
+            {plural(changed.length, "file")} changed · {plural(readOnly.length, "file")} only read
+          </p>
+          {techToggle}
+        </div>
       </div>
       <div className="flex min-h-0 flex-1">
         <aside className={cn("min-h-0 w-full flex-col border-foreground/10 md:flex md:w-72 md:shrink-0 md:border-r", detailOpen ? "hidden" : "flex")} aria-label="Files">
@@ -103,7 +110,7 @@ export function FilesView(props: SessionViewProps) {
         </aside>
         <div className={cn("min-w-0 flex-1 overflow-y-auto md:block", detailOpen ? "block" : "hidden")}>
           {current ? (
-            <FileDetail key={picked} {...props} entry={current} mask={mask} onBack={() => setDetailOpen(false)} />
+            <FileDetail key={picked} {...props} entry={current} mask={mask} tech={tech} onBack={() => setDetailOpen(false)} />
           ) : (
             <p className="p-6 text-sm text-muted-foreground">Pick a file to see how it changed.</p>
           )}
@@ -149,7 +156,7 @@ function FileList({ files, picked, cwds, mask, onPick, empty }: { files: FileTou
   );
 }
 
-function FileDetail({ entry: file, model, mask, onBack, ...props }: { entry: FileTouched; mask: (t: string) => string; onBack: () => void } & SessionViewProps) {
+function FileDetail({ entry: file, model, mask, tech, onBack, ...props }: { entry: FileTouched; mask: (t: string) => string; tech: boolean; onBack: () => void } & SessionViewProps) {
   const jump = useJump({ model, ...props });
   const [shown, setShown] = useState(PAGE);
   const requests = new Set(file.changes.map((c) => c.turn)).size;
@@ -160,7 +167,7 @@ function FileDetail({ entry: file, model, mask, onBack, ...props }: { entry: Fil
         <ChevronLeft className="size-3.5" /> All files
       </button>
       <h2 className="text-lg font-semibold tracking-tight break-all">{mask(base(file.path))}</h2>
-      <p className="mt-0.5 text-xs break-all text-muted-foreground">{mask(file.path)}</p>
+      <p className="mt-0.5 text-xs break-all text-muted-foreground">{mask(tech ? file.path : shownPath(file.path, model.meta.cwds))}</p>
       <p className="mt-3 text-[13px] leading-relaxed">
         {file.changes.length ? (
           <>
@@ -189,6 +196,11 @@ function FileDetail({ entry: file, model, mask, onBack, ...props }: { entry: Fil
                     </span>
                     <span className="block text-xs text-muted-foreground">
                       Request {turn + 1} · {who} · {new Date(step.ts).toLocaleTimeString()}
+                      {tech && step.tool && (
+                        <>
+                          {" "}· <code className="text-[11px]">{step.tool}</code>
+                        </>
+                      )}
                     </span>
                   </button>
                   <MapButton onClick={() => jump.toMap(turn, step.id)} />
