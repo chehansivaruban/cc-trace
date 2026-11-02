@@ -102,6 +102,14 @@ import { SHORTCUTS, isTypingTarget, matchShortcut } from "../src/hooks/use-short
   mem3.subscribe(() => {});
   assert.ok(mem3.has("p/d.jsonl"), "a failed write never loses the change");
 
+  // A dropped file isn't in the Claude folder, so it can't be reopened later: never bookmarked.
+  const dropStore = createBookmarkStore(() => ok);
+  const before = dropStore.get().items.length;
+  dropStore.toggle({ file: "dropped:session.jsonl", label: "x" });
+  dropStore.toggle({ file: "dropped:session.jsonl", step: "s1", label: "x" });
+  assert.equal(dropStore.get().items.length, before, "dropped files are never bookmarked");
+  assert.ok(!dropStore.has("dropped:session.jsonl"));
+
   // No storage at all (server render).
   assert.deepEqual(createBookmarkStore(() => undefined).get().items, []);
   console.log("bookmark checks passed");

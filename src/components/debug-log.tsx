@@ -10,6 +10,7 @@ import { parseDebugLog, type DebugEntry, type DebugLevel } from "@/lib/debug-log
 import { useMask } from "@/hooks/use-mask";
 import { cn } from "@/lib/utils";
 import { TermText } from "./term-text";
+import { isDroppedFile } from "@/lib/paths";
 
 type Filter = "all" | "warn" | "error";
 const FILTERS: { value: Filter; label: string; title: string }[] = [
@@ -25,7 +26,7 @@ const LEVEL_STYLE: Record<DebugLevel, string> = {
   error: "bg-red-500/15 text-red-700 dark:text-red-300",
 };
 
-type State = { status: "loading" } | { status: "missing" } | { status: "error" } | { status: "ok"; entries: DebugEntry[]; truncated: boolean };
+type State = { status: "loading" } | { status: "missing" } | { status: "dropped" } | { status: "error" } | { status: "ok"; entries: DebugEntry[]; truncated: boolean };
 
 const time = (ts?: number) => (ts === undefined ? "" : new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
 
@@ -37,6 +38,8 @@ export function DebugLog({ file, className }: { file: string; className?: string
   const scroller = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // A dropped file has no debug log on this computer, and the server only reads the Claude folder.
+    if (isDroppedFile(file)) return setState({ status: "dropped" });
     const ctrl = new AbortController();
     setState({ status: "loading" });
     fetch(`/api/debug-log?file=${encodeURIComponent(file)}`, { signal: ctrl.signal })
@@ -81,6 +84,9 @@ export function DebugLog({ file, className }: { file: string; className?: string
         </div>
       )}
       {state.status === "error" && <p className="mt-4 text-sm text-muted-foreground">The debug log couldn&apos;t be read.</p>}
+      {state.status === "dropped" && (
+        <p className="mt-4 text-sm text-muted-foreground">This session was opened from a dropped file, so cc-trace has no debug log for it.</p>
+      )}
 
       {all && (
         <>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { isDroppedFile } from "@/lib/paths";
 import type { AgentLog, AgentMeta, LogRecord } from "@/lib/session";
 
 export type SessionLogs = { main: LogRecord[]; agents: Record<string, AgentLog> };
@@ -15,7 +16,8 @@ export function useSessionStream(file: string | null) {
   useEffect(() => {
     setLogs(EMPTY);
     setConnected(false);
-    if (!file) return;
+    // A dropped file is read in the browser; the server only streams logs in the Claude folder.
+    if (!file || isDroppedFile(file)) return;
 
     // The initial replay can be hundreds of events; apply them once per frame, not one render each.
     let queued: ((l: SessionLogs) => SessionLogs)[] = [];

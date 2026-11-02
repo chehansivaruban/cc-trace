@@ -28,3 +28,8 @@ export function normalizePath(p: string): string {
   const key = lead + out.join("/");
   return windows ? key.toLowerCase() : key || lead;
 }
+
+/** A log opened by drag and drop is shown as file "dropped:<name>": it isn't in the Claude folder. */
+export const DROPPED_PREFIX = "dropped:";
+/** True for a dropped log: it has no URL, bookmark, debug log or server copy, so features that need one skip it. */
+export const isDroppedFile = (file?: string | null): boolean => typeof file === "string" && file.startsWith(DROPPED_PREFIX);

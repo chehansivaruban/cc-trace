@@ -23,6 +23,7 @@ import { useSessionStream } from "@/hooks/use-session-stream";
 import type { ProjectInfo, SessionInfo } from "@/lib/claude-logs";
 import { parseRoute, useRoute, type AppPage, type AppPageProps, type Navigate, type Route, type SessionView } from "@/lib/route";
 import { SESSION_START, buildSession, type AgentLog, type LogRecord } from "@/lib/session";
+import { DROPPED_PREFIX } from "@/lib/paths";
 import { safeClip } from "@/lib/redact";
 import { cn } from "@/lib/utils";
 
@@ -207,11 +208,11 @@ export default function Home() {
                 {turn && <Welcome onHelp={() => setHelp(true)} />}
                 {turn && (file || dropped) ? (
                   <ActiveView
-                    key={`${dropped ? "dropped:" + dropped.name : file}:${view}`}
+                    key={`${dropped ? DROPPED_PREFIX + dropped.name : file}:${view}`}
                     view={view}
                     model={model}
                     turn={turn}
-                    file={dropped ? `dropped:${dropped.name}` : file!}
+                    file={dropped ? DROPPED_PREFIX + dropped.name : file!}
                     selected={selected}
                     onSelect={setSelected}
                     onPickTurn={pickTurn}

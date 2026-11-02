@@ -1,6 +1,7 @@
 // Bookmarks, tags and your own session names, kept in this browser only (localStorage `cc-trace:bookmarks`).
 // Nothing is sent anywhere. Storage can be missing or throw: everything then works in memory until the page closes.
 import { useMemo, useSyncExternalStore } from "react";
+import { isDroppedFile } from "./paths.ts";
 import { maskSecrets } from "./redact.ts";
 
 export type Bookmark = { file: string; step?: string; turn?: number; label: string; createdAt: number };
@@ -110,6 +111,8 @@ export function createBookmarkStore(getStorage: () => StorageLike | null | undef
       for (const l of listeners) l();
     },
     toggle(b: Omit<Bookmark, "createdAt">) {
+      // A dropped log isn't in the Claude folder, so a bookmark could never reopen it.
+      if (isDroppedFile(b.file)) return;
       const d = get();
       if (d.items.some((x) => sameSpot(x, b.file, b.step))) {
         save({ ...d, items: d.items.filter((x) => !sameSpot(x, b.file, b.step)) });

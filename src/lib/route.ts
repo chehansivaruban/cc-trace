@@ -11,6 +11,7 @@
 //   #/search?q=<text>
 //   #/compare?a=<file>&b=<file>         a -> route.file, b -> route.other
 import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { isDroppedFile } from "./paths.ts";
 
 export type SessionView = "map" | "conversation" | "stats" | "health" | "files" | "agents" | "flow";
 export type AppPage = "session" | "dashboard" | "live" | "search" | "compare" | "bookmarks";
@@ -72,6 +73,8 @@ export function parseRoute(hash: string): Route {
       const r: Route = { page: "session", view: "map" };
       if (params.project !== undefined) r.project = params.project;
       const [file, ...tail] = rest;
+      // A dropped log only lives in the page that opened it; a link to one opens nothing in particular.
+      if (isDroppedFile(file)) return defaultRoute();
       if (file) {
         r.file = file;
         if (tail[0] !== undefined && /^\d+$/.test(tail[0])) r.turn = Number(tail.shift());
@@ -85,8 +88,8 @@ export function parseRoute(hash: string): Route {
     const r: Route = { page: head as AppPage, view: "map" };
     if (head === "search" && params.q !== undefined) r.q = params.q;
     if (head === "compare") {
-      if (params.a !== undefined) r.file = params.a;
-      if (params.b !== undefined) r.other = params.b;
+      if (params.a !== undefined && !isDroppedFile(params.a)) r.file = params.a;
+      if (params.b !== undefined && !isDroppedFile(params.b)) r.other = params.b;
     }
     return r;
   } catch {
@@ -106,7 +109,11 @@ function order(r: Route): Route {
 }
 
 /** The canonical hash for a route ("" for the default route). Fields a page doesn't use are dropped. */
-export function formatRoute(r: Route): string {
+export function formatRoute(route: Route): string {
+  // A dropped log ("dropped:<name>") can't be reopened from a link: leave it out.
+  const r = { ...route };
+  if (isDroppedFile(r.file)) r.file = r.turn = undefined;
+  if (isDroppedFile(r.other)) r.other = undefined;
   switch (r.page) {
     case "dashboard":
     case "live":

@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { formatRoute, nextRoute, parseRoute } from "../src/lib/route.ts";
 import { DEFAULT_SETTINGS, parseSettings } from "../src/lib/settings.ts";
+import { isDroppedFile } from "../src/lib/paths.ts";
 
 const DEFAULT = { page: "session", view: "map" };
 const enc = encodeURIComponent;
@@ -79,6 +80,13 @@ assert.equal(formatRoute(parseRoute(`#/s/${enc(posix)}/map?project=${enc("-Users
 assert.deepEqual(parseRoute(`#/s/${enc(posix)}/map?project=${enc("-Users-me-app")}`), { page: "session", project: "-Users-me-app", file: posix, view: "map" });
 assert.deepEqual(parseRoute("#/s/a.jsonl/3/bogus"), { page: "session", file: "a.jsonl", turn: 3, view: "map" });
 assert.equal(formatRoute(parseRoute("#/s/a.jsonl/3/bogus")), "#/s/a.jsonl/3/map");
+
+// A dropped file ("dropped:<name>") lives only in the page: it never reaches or comes from the URL.
+assert.deepEqual(parseRoute(`#/s/${enc("dropped:x.jsonl")}/2/stats`), { page: "session", view: "map" });
+assert.equal(formatRoute({ page: "session", file: "dropped:x.jsonl", turn: 2, view: "stats", step: "s1" }), "#/s?view=stats&step=s1");
+assert.equal(formatRoute({ page: "compare", file: "dropped:x.jsonl", other: "p/b.jsonl", view: "map" }), `#/compare?b=${enc("p/b.jsonl")}`);
+assert.deepEqual(parseRoute(`#/compare?a=${enc("dropped:x.jsonl")}`), { page: "compare", view: "map" });
+assert.ok(isDroppedFile("dropped:a.jsonl") && !isDroppedFile("p/a.jsonl") && !isDroppedFile(undefined));
 
 // Moving to another page only carries what belongs to it: Compare's a= never becomes the session's file.
 const compareAt = parseRoute(`#/compare?a=${enc("x/a.jsonl")}&b=${enc("x/b.jsonl")}`);

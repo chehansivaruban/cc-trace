@@ -15,6 +15,7 @@ import { useRoute } from "@/lib/route";
 import { useSettings } from "@/lib/settings";
 import { totalTokens, type Usage } from "@/lib/session";
 import { cn } from "@/lib/utils";
+import { isDroppedFile } from "@/lib/paths";
 import type { SessionViewProps } from "./registry";
 
 const time = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -34,7 +35,9 @@ export function StatsView({ model, turn, file }: SessionViewProps) {
 
   const last = model.turns.length - 1;
   // Open a request (and step) on the map.
-  const jump = (to?: { turn: number; step?: string }) => to && navigate({ page: "session", file, turn: to.turn === last ? undefined : to.turn, view: "map", step: to.step });
+  // A dropped file has no URL: stay on it rather than putting "dropped:…" in the link.
+  const jump = (to?: { turn: number; step?: string }) =>
+    to && navigate({ page: "session", ...(isDroppedFile(file) ? null : { file }), turn: to.turn === last ? undefined : to.turn, view: "map", step: to.step });
 
   const total = totalTokens(stats.totals);
   const replies = stats.byRequest.reduce((a, r) => a + (r.replies ?? 0), 0);
