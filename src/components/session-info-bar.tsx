@@ -7,7 +7,7 @@ import type { LiveSession } from "@/lib/claude-logs";
 import { useMask } from "@/hooks/use-mask";
 import type { SessionModel, Turn } from "@/lib/session";
 import { BookmarkButton } from "./bookmark-button";
-import { DebugLogDialog } from "./debug-log";
+import { DebugLogDialog, useHasDebugLog } from "./debug-log";
 import { ExportMenu } from "./export-menu";
 import { appName, cwdIsSafe, encodeProjectDir, permissionLabel, projectOfFile, resumeCommand, shortPath } from "@/lib/sessions-list";
 import { useSettings } from "@/lib/settings";
@@ -122,6 +122,7 @@ function Chip({ icon: Icon, children, title, className }: { icon?: typeof Folder
 export function SessionInfoBar({ model, file, title, turn }: { model: SessionModel; file: string; title: string; turn?: Turn }) {
   const [{ showTechnical }] = useSettings();
   const [debugOpen, setDebugOpen] = useState(false);
+  const hasDebugLog = useHasDebugLog(file);
   const live = useLiveSessions();
   const id = idOf(file);
   const { meta } = model;
@@ -181,9 +182,14 @@ export function SessionInfoBar({ model, file, title, turn }: { model: SessionMod
         <BookmarkButton file={file} label={title} className="h-7" />
         <button
           onClick={() => setDebugOpen(true)}
-          className="flex h-7 items-center gap-1.5 rounded-lg px-2 text-muted-foreground transition-[background-color,color,transform] duration-150 ease-out hover:bg-foreground/[0.07] hover:text-foreground active:scale-[0.97]"
-          aria-label="Claude Code's own log for this session"
-          title="Claude Code's own log for this session"
+          disabled={hasDebugLog === false}
+          className="flex h-7 items-center gap-1.5 rounded-lg px-2 text-muted-foreground transition-[background-color,color,transform] duration-150 ease-out hover:bg-foreground/[0.07] hover:text-foreground active:scale-[0.97] disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground disabled:active:scale-100"
+          aria-label={hasDebugLog === false ? "No debug log for this session" : "Claude Code's own log for this session"}
+          title={
+            hasDebugLog === false
+              ? "No debug log for this session: Claude Code only writes one when it's started with “claude --debug”"
+              : "Claude Code's own log for this session"
+          }
         >
           <ScrollText className="size-3.5" />
           <span className="hidden @min-[64rem]:inline">Debug log</span>

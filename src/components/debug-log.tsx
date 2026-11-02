@@ -4,7 +4,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AnimatePresence, motion } from "framer-motion";
-import { POP } from "@/lib/motion";
+import { appear } from "@/lib/motion";
+import { useReducedMotion } from "@/components/settings-provider";
 import { FileText, Loader2, Search, X } from "lucide-react";
 import { useEscape } from "@/hooks/use-escape";
 import { useFocusTrap } from "@/hooks/use-focus-trap";
@@ -32,6 +33,22 @@ type State = { status: "loading" } | { status: "missing" } | { status: "dropped"
 
 const time = (ts?: number) => (ts === undefined ? "" : new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
 
+/** Whether a session has a debug log: undefined while asking, false for none (or a dropped file). */
+export function useHasDebugLog(file: string): boolean | undefined {
+  const [has, setHas] = useState<{ file: string; has: boolean } | null>(null);
+  useEffect(() => {
+    if (isDroppedFile(file)) return;
+    const ctrl = new AbortController();
+    fetch(`/api/debug-log?check=1&file=${encodeURIComponent(file)}`, { signal: ctrl.signal })
+      .then((r) => (r.ok ? (r.json() as Promise<{ missing?: boolean }>) : { missing: true }))
+      .then((d) => setHas({ file, has: d.missing === false }))
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [file]);
+  if (isDroppedFile(file)) return false;
+  return has?.file === file ? has.has : undefined;
+}
+
 /** The debug log of one session (`file` as the API lists it), with a level filter and a text filter. */
 export function DebugLog({ file, className }: { file: string; className?: string }) {
   const [state, setState] = useState<State>({ status: "loading" });
@@ -46,8 +63,9 @@ export function DebugLog({ file, className }: { file: string; className?: string
     setState({ status: "loading" });
     fetch(`/api/debug-log?file=${encodeURIComponent(file)}`, { signal: ctrl.signal })
       .then(async (r) => {
-        if (r.status === 404) return setState({ status: "missing" });
         if (!r.ok) return setState({ status: "error" });
+        // No log comes back as JSON { missing: true }; a log comes back as plain text.
+        if (r.headers.get("Content-Type")?.includes("application/json")) return setState({ status: "missing" });
         setState({ status: "ok", entries: parseDebugLog(await r.text()), truncated: r.headers.get("X-Truncated") === "1" });
       })
       .catch((e) => e?.name !== "AbortError" && setState({ status: "error" }));
@@ -158,6 +176,7 @@ export function DebugLog({ file, className }: { file: string; className?: string
 
 /** The debug log in its own dialog. */
 export function DebugLogDialog({ file, open, onClose }: { file: string; open: boolean; onClose: () => void }) {
+  const reduce = useReducedMotion();
   const panel = useRef<HTMLDivElement>(null);
   useFocusTrap(open, panel);
   useEscape(open, onClose);
@@ -179,10 +198,7 @@ export function DebugLogDialog({ file, open, onClose }: { file: string; open: bo
             role="dialog"
             aria-modal
             aria-labelledby="debug-title"
-            initial={{ opacity: 0, transform: "scale(0.98)" }}
-            animate={{ opacity: 1, transform: "scale(1)" }}
-            exit={{ opacity: 0, transform: "scale(0.98)", transition: { duration: 0.12 } }}
-            transition={POP}
+            {...appear(reduce, { scale: 0.98 })}
             onClick={(e) => e.stopPropagation()}
             className="glass-strong flex h-[80dvh] outline-none w-full max-w-[53.75rem] flex-col rounded-2xl p-5 shadow-2xl sm:p-6"
           >

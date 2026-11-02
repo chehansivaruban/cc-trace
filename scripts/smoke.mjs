@@ -210,6 +210,8 @@ try {
     const ok = await get("/api/debug-log?file=" + encodeURIComponent(`C--Users-demo-app/${id}.jsonl`));
     assert.equal(ok.status, 200);
     assert.ok(ok.body.includes("debug-log-ok"));
+    const has = await get("/api/debug-log?check=1&file=" + encodeURIComponent(`C--Users-demo-app/${id}.jsonl`));
+    assert.deepEqual([has.status, JSON.parse(has.body)], [200, { missing: false }], "check=1 says a log is there, without sending it");
     console.log("✓ reads a session's debug log");
 
     // Bigger than 2 MB: only the tail is sent, starting on a whole line.
@@ -224,9 +226,14 @@ try {
     for (const bad of ["../x.jsonl", "../../debug/" + id + ".jsonl", "C--Users-demo-app/a.txt", ""]) {
       assert.equal((await get("/api/debug-log?file=" + encodeURIComponent(bad))).status, 400, bad);
     }
-    assert.equal((await get("/api/debug-log?file=" + encodeURIComponent("C--Users-demo-app/s1.jsonl"))).status, 404, "not a session id");
-    assert.equal((await get("/api/debug-log?file=" + encodeURIComponent("C--Users-demo-app/9b2f6a4e-0000-4000-8000-000000000000.jsonl"))).status, 404, "no log");
-    console.log("✓ refuses bad paths and answers 404 when there is no debug log");
+    // No debug log is a normal answer, not a failed request (the browser would log an error for a 404).
+    for (const [name, why] of [["C--Users-demo-app/s1.jsonl", "not a session id"], ["C--Users-demo-app/9b2f6a4e-0000-4000-8000-000000000000.jsonl", "no log"]]) {
+      for (const extra of ["", "check=1&"]) {
+        const res = await get(`/api/debug-log?${extra}file=` + encodeURIComponent(name));
+        assert.deepEqual([res.status, JSON.parse(res.body)], [200, { missing: true }], `${why} ${extra}`);
+      }
+    }
+    console.log("✓ refuses bad paths and says plainly when there is no debug log");
 
     const folders = JSON.parse((await get("/api/folders")).body);
     assert.equal(folders.projects, path.join(config, "projects"));
