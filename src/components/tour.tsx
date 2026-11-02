@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
+import { useFocusTrap } from "@/hooks/use-focus-trap";
 
 export type TourStop = { id: string; title: string; text: string };
 
@@ -40,7 +41,7 @@ export function Tour({ steps = TOUR_STEPS }: { steps?: TourStop[] }) {
   const [index, setIndex] = useState<number | null>(null);
   const [box, setBox] = useState<Box | null>(null);
   const [cardH, setCardH] = useState(190);
-  const [view, setView] = useState({ w: 1024, h: 768 });
+  const [view, setView] = useState({ w: 1024, h: 768, rem: 16 });
   const card = useRef<HTMLDivElement>(null);
   const next = useRef<HTMLButtonElement>(null);
   // Only the stops whose element is on screen right now.
@@ -57,21 +58,25 @@ export function Tour({ steps = TOUR_STEPS }: { steps?: TourStop[] }) {
     return () => window.removeEventListener(TOUR_EVENT, start);
   }, [steps]);
 
+  const open = index !== null;
   const stop = index !== null ? stops[index] : undefined;
+  useFocusTrap(open, card);
 
   // Follow the highlighted element as the page scrolls or resizes.
   useLayoutEffect(() => {
-    if (!stop) return;
-    let el = anchor(stop.id);
+    if (!open) return;
+    let el = stop ? anchor(stop.id) : null;
     el?.scrollIntoView({ block: "nearest", inline: "nearest" });
     let frame = 0;
     const measure = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        if (!el?.isConnected) el = anchor(stop.id);
+        if (stop && !el?.isConnected) el = anchor(stop.id);
         const r = el?.getBoundingClientRect();
         setBox(r && r.width > 0 ? { top: r.top, left: r.left, width: r.width, height: r.height } : null);
-        setView({ w: window.innerWidth, h: window.innerHeight });
+        // The card is sized in rem so it grows with Settings → Text size.
+        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+        setView({ w: window.innerWidth, h: window.innerHeight, rem });
         if (card.current) setCardH(card.current.offsetHeight);
       });
     };
@@ -86,13 +91,15 @@ export function Tour({ steps = TOUR_STEPS }: { steps?: TourStop[] }) {
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", measure, true);
     };
-  }, [stop]);
+  }, [open, stop]);
 
   useEffect(() => {
     if (index === null) return;
     next.current?.focus();
     const onKey = (e: KeyboardEvent) => {
-      const go = e.key === "ArrowRight" || e.key === "Enter" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+      // Enter only moves on from the card or Next; on Back or Close it presses that button as usual.
+      const enter = e.key === "Enter" && (document.activeElement === card.current || document.activeElement === next.current);
+      const go = e.key === "ArrowRight" || enter ? 1 : e.key === "ArrowLeft" ? -1 : 0;
       if (!go && e.key !== "Escape") return;
       // Keep the map and the app shortcuts from also reacting.
       e.preventDefault();
@@ -106,9 +113,8 @@ export function Tour({ steps = TOUR_STEPS }: { steps?: TourStop[] }) {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [index, stops.length, close]);
 
-  const open = index !== null;
   const last = index === stops.length - 1;
-  const cardW = Math.min(340, view.w - 24);
+  const cardW = Math.min(21.25 * view.rem, view.w - 24);
   const pos = (() => {
     if (!box) return { top: Math.max(12, (view.h - cardH) / 2), left: (view.w - cardW) / 2 };
     const below = box.top + box.height + PAD + GAP;
@@ -138,11 +144,12 @@ export function Tour({ steps = TOUR_STEPS }: { steps?: TourStop[] }) {
           <div className="fixed inset-0" onClick={close} aria-hidden />
           <div
             ref={card}
+            tabIndex={-1}
             role="dialog"
             aria-modal
             aria-labelledby="tour-title"
             aria-describedby="tour-text"
-            className="glass-strong fixed rounded-2xl p-4 shadow-2xl transition-[top,left] duration-300 ease-out"
+            className="glass-strong fixed rounded-2xl p-4 shadow-2xl outline-none transition-[top,left] duration-300 ease-out"
             style={{ top: pos.top, left: pos.left, width: cardW }}
           >
             <button onClick={close} className="absolute top-2.5 right-2.5 rounded-full p-1.5 text-muted-foreground hover:bg-foreground/10" aria-label="Close the tour">
@@ -150,13 +157,13 @@ export function Tour({ steps = TOUR_STEPS }: { steps?: TourStop[] }) {
             </button>
             {stop ? (
               <>
-                <div className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+                <div className="text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">
                   Tour · {index + 1} of {stops.length}
                 </div>
-                <h2 id="tour-title" className="mt-1 pr-6 text-[15px] font-semibold tracking-tight">
+                <h2 id="tour-title" className="mt-1 pr-6 text-[0.9375rem] font-semibold tracking-tight">
                   {stop.title}
                 </h2>
-                <p id="tour-text" className="mt-1 text-[13px] leading-relaxed text-foreground/85">
+                <p id="tour-text" className="mt-1 text-[0.8125rem] leading-relaxed text-foreground/85">
                   {stop.text}
                 </p>
                 <div className="mt-4 flex items-center gap-2">
@@ -186,10 +193,10 @@ export function Tour({ steps = TOUR_STEPS }: { steps?: TourStop[] }) {
               </>
             ) : (
               <>
-                <h2 id="tour-title" className="pr-6 text-[15px] font-semibold tracking-tight">
+                <h2 id="tour-title" className="pr-6 text-[0.9375rem] font-semibold tracking-tight">
                   Open a session first
                 </h2>
-                <p id="tour-text" className="mt-1 text-[13px] leading-relaxed text-foreground/85">
+                <p id="tour-text" className="mt-1 text-[0.8125rem] leading-relaxed text-foreground/85">
                   The tour points out the parts of a session screen. Pick a session, then start the tour again.
                 </p>
                 <button ref={next} onClick={close} className="mt-4 h-8 rounded-lg bg-foreground px-3.5 text-xs font-medium text-background">

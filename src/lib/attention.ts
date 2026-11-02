@@ -18,12 +18,12 @@ const EDITS = /^(Write|Edit|MultiEdit|NotebookEdit)$/;
 export const PERMISSION_WAIT_MS = 8_000;
 
 /**
- * The newest thing Claude is waiting on you for, or undefined. Logs never record a permission prompt itself,
- * so "permission" is a guess: a tool that usually asks, still without a result after a few seconds, with
- * nothing newer from that agent. Nothing is reported for a stale (idle) session.
+ * The newest thing Claude is waiting on you for, or undefined. An unanswered question or plan keeps needing
+ * you however long it waits. Logs never record a permission prompt itself, so "permission" is a guess: a tool
+ * that usually asks, still without a result after a few seconds, with nothing newer from that agent; that
+ * guess stops once the session goes stale (idle), when a missing result more likely means it was interrupted.
  */
 export function needsAttention(m: SessionModel, now = Date.now()): Attention | undefined {
-  if (m.stale) return undefined;
   const steps = m.turns.at(-1)?.steps ?? [];
   let latest: Record<string, number> | undefined;
   for (let i = steps.length - 1; i >= 0; i--) {
@@ -31,7 +31,7 @@ export function needsAttention(m: SessionModel, now = Date.now()): Attention | u
     if (s.status !== "running" || !s.tool) continue;
     if (s.tool === "AskUserQuestion") return { reason: "question", step: s };
     if (s.tool === "ExitPlanMode") return { reason: "plan", step: s };
-    if (!ASKS.test(s.tool) || now - s.ts < PERMISSION_WAIT_MS) continue;
+    if (m.stale || !ASKS.test(s.tool) || now - s.ts < PERMISSION_WAIT_MS) continue;
     const mode = m.meta.permissionMode;
     if (mode === "bypassPermissions" || (mode === "acceptEdits" && EDITS.test(s.tool))) continue;
     if (!latest) {

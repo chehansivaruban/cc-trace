@@ -82,6 +82,26 @@ import { SHORTCUTS, isTypingTarget, matchShortcut } from "../src/hooks/use-short
     mem.set("cc-trace:bookmarks", junk);
     assert.deepEqual(createBookmarkStore(() => ok).get().items, [], junk);
   }
+  // Storage that throws: the in-memory copy survives every listener leaving and coming back.
+  const mem2 = createBookmarkStore(() => throwing);
+  const off1 = mem2.subscribe(() => {});
+  mem2.toggle({ file: "p/c.jsonl", label: "Keep me" });
+  mem2.setTags("p/c.jsonl", ["kept"]);
+  off1();
+  const off2 = mem2.subscribe(() => {});
+  assert.ok(mem2.has("p/c.jsonl"), "memory-only bookmarks survive unmount");
+  assert.deepEqual(mem2.tags("p/c.jsonl"), ["kept"]);
+  off2();
+  // A store whose writes fail (full or blocked) keeps its copy too, even though reads work.
+  const readOnly = { getItem: () => null, setItem: () => { throw new Error("quota"); } };
+  const mem3 = createBookmarkStore(() => readOnly);
+  mem3.subscribe(() => {})();
+  mem3.toggle({ file: "p/d.jsonl", label: "x" });
+  const off3 = mem3.subscribe(() => {});
+  off3();
+  mem3.subscribe(() => {});
+  assert.ok(mem3.has("p/d.jsonl"), "a failed write never loses the change");
+
   // No storage at all (server render).
   assert.deepEqual(createBookmarkStore(() => undefined).get().items, []);
   console.log("bookmark checks passed");
@@ -102,15 +122,19 @@ import { SHORTCUTS, isTypingTarget, matchShortcut } from "../src/hooks/use-short
 
   const answered = [...base, { type: "user", timestamp: at(9), message: { content: [{ type: "tool_result", tool_use_id: "q1", content: "blue" }] } }];
   assert.equal(needsAttention(buildSession(answered, {}, t0 + 10_000), t0 + 10_000), undefined, "answered");
-  assert.equal(needsAttention(buildSession(base, {}, t0 + 10 * 60_000), t0 + 10 * 60_000), undefined, "stale session");
+  // An unanswered question still needs you after the session goes idle.
+  const later = needsAttention(buildSession(base, {}, t0 + 10 * 60_000), t0 + 10 * 60_000);
+  assert.equal(later?.reason, "question", "a question left unanswered keeps needing you");
 
   const plan = [base[0], { type: "assistant", timestamp: at(1), message: { id: "m1", stop_reason: "tool_use", content: [{ type: "tool_use", id: "p1", name: "ExitPlanMode", input: { plan: "1. do it" } }] } }];
   assert.equal(needsAttention(buildSession(plan, {}, t0 + 5_000), t0 + 5_000)?.reason, "plan");
+  assert.equal(needsAttention(buildSession(plan, {}, t0 + 60 * 60_000), t0 + 60 * 60_000)?.reason, "plan", "a plan waiting an hour still needs you");
 
   // A command that has been waiting a while with nothing after it is probably a permission prompt.
   const bash = [base[0], { type: "assistant", timestamp: at(1), message: { id: "m1", stop_reason: "tool_use", content: [{ type: "tool_use", id: "b1", name: "Bash", input: { command: "rm -rf build" } }] } }];
   assert.equal(needsAttention(buildSession(bash, {}, t0 + 3_000), t0 + 3_000), undefined, "a command that just started is still running");
   assert.equal(needsAttention(buildSession(bash, {}, t0 + 30_000), t0 + 30_000)?.reason, "permission");
+  assert.equal(needsAttention(buildSession(bash, {}, t0 + 10 * 60_000), t0 + 10 * 60_000), undefined, "the permission guess stops once the session is stale");
   const bypass = [{ type: "user", timestamp: at(0), permissionMode: "bypassPermissions", message: { content: "go" } }, bash[1]];
   assert.equal(needsAttention(buildSession(bypass, {}, t0 + 30_000), t0 + 30_000), undefined, "no prompts in bypass mode");
   const reading = [base[0], { type: "assistant", timestamp: at(1), message: { id: "m1", stop_reason: "tool_use", content: [{ type: "tool_use", id: "r1", name: "Read", input: { file_path: "/a" } }] } }];

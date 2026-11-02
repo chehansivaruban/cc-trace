@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { FolderOpen, Keyboard, Map as MapIcon, X } from "lucide-react";
 import { toggleShortcuts } from "@/hooks/use-shortcuts";
+import { useFocusTrap } from "@/hooks/use-focus-trap";
 import { useFolders } from "@/hooks/use-folders";
 import { maskSecrets } from "@/lib/redact";
 import { LEGACY_THEME_KEY, useSettings, type Settings } from "@/lib/settings";
@@ -29,12 +30,12 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
   const folders = useFolders();
   const [notice, setNotice] = useState<string | null>(null);
   const panel = useRef<HTMLDivElement>(null);
+  useFocusTrap(open, panel);
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
-    panel.current?.querySelector<HTMLElement>("button")?.focus();
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
@@ -83,6 +84,7 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
         >
           <motion.div
             ref={panel}
+            tabIndex={-1}
             role="dialog"
             aria-modal
             aria-labelledby="settings-title"
@@ -91,7 +93,7 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
             exit={{ y: 8, opacity: 0 }}
             transition={{ type: "spring", bounce: 0, duration: 0.35 }}
             onClick={(e) => e.stopPropagation()}
-            className="glass-strong max-h-[88dvh] w-full max-w-[560px] overflow-y-auto rounded-2xl p-5 shadow-2xl sm:p-6"
+            className="glass-strong max-h-[88dvh] w-full outline-none max-w-[35rem] overflow-y-auto rounded-2xl p-5 shadow-2xl sm:p-6"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -153,7 +155,7 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
               <div className="flex items-start gap-2.5 rounded-xl border border-foreground/10 px-3 py-2.5">
                 <FolderOpen className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                 <div className="min-w-0">
-                  <code className="block font-mono text-[12px] break-all">{folders ? mask(folders.projects) : "…"}</code>
+                  <code className="block font-mono text-[0.75rem] break-all">{folders ? mask(folders.projects) : "…"}</code>
                   <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                     cc-trace only reads this folder. It never changes it and never sends anything over the internet.
                   </p>
@@ -195,7 +197,7 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="mt-5 border-t border-foreground/[0.08] pt-4">
-      <h3 className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{title}</h3>
+      <h3 className="text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">{title}</h3>
       <div className="mt-3 space-y-3.5">{children}</div>
     </section>
   );
@@ -204,7 +206,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex flex-col items-start gap-1.5">
-      <span className="text-[13px] font-medium">{label}</span>
+      <span className="text-[0.8125rem] font-medium">{label}</span>
       {children}
     </div>
   );
@@ -234,7 +236,7 @@ function Toggle({ label, text, checked, onChange }: { label: string; text: strin
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
-        <div className="text-[13px] font-medium">{label}</div>
+        <div className="text-[0.8125rem] font-medium">{label}</div>
         <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{text}</p>
       </div>
       <button

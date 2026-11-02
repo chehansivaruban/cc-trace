@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AnimatePresence, motion } from "framer-motion";
 import { FileText, Loader2, Search, X } from "lucide-react";
+import { useFocusTrap } from "@/hooks/use-focus-trap";
 import { useFolders } from "@/hooks/use-folders";
 import { parseDebugLog, type DebugEntry, type DebugLevel } from "@/lib/debug-log";
 import { maskSecrets } from "@/lib/redact";
@@ -64,8 +65,8 @@ export function DebugLog({ file, className }: { file: string; className?: string
   const mask = (t: string) => (settings.maskSensitive ? maskSecrets(t, folders?.home) : t);
 
   return (
-    <div className={cn("flex h-full min-h-[320px] flex-col", className)}>
-      <p className="text-[13px] leading-relaxed text-foreground/85">
+    <div className={cn("flex h-full min-h-[20rem] flex-col", className)}>
+      <p className="text-[0.8125rem] leading-relaxed text-foreground/85">
         <TermText text="Claude Code's own [[debuglog:debug log]] for this session: a detailed diary of what it did behind the scenes. Most people never need it; it helps when something went wrong." />
       </p>
 
@@ -104,7 +105,7 @@ export function DebugLog({ file, className }: { file: string; className?: string
                 </button>
               ))}
             </div>
-            <label className="flex h-8 min-w-[160px] flex-1 items-center gap-2 rounded-xl border border-foreground/10 px-2.5 focus-within:border-foreground/25">
+            <label className="flex h-8 min-w-[10rem] flex-1 items-center gap-2 rounded-xl border border-foreground/10 px-2.5 focus-within:border-foreground/25">
               <Search className="size-3.5 shrink-0 text-muted-foreground" />
               <input
                 value={query}
@@ -115,7 +116,7 @@ export function DebugLog({ file, className }: { file: string; className?: string
               />
             </label>
           </div>
-          <p className="mt-2 text-[11px] text-muted-foreground">
+          <p className="mt-2 text-[0.6875rem] text-muted-foreground">
             {shown.length.toLocaleString()} of {all.length.toLocaleString()} entries
             {state.status === "ok" && state.truncated ? " · showing the last 2 MB" : ""}
           </p>
@@ -135,10 +136,10 @@ export function DebugLog({ file, className }: { file: string; className?: string
                       style={{ transform: `translateY(${v.start}px)` }}
                     >
                       <span className="flex shrink-0 items-center gap-2">
-                        <span className="w-[62px] font-mono text-[11px] text-muted-foreground tabular-nums">{time(e.ts)}</span>
-                        <span className={cn("w-[46px] rounded px-1.5 py-px text-center text-[10px] font-semibold uppercase", LEVEL_STYLE[e.level])}>{e.level}</span>
+                        <span className="w-[3.875rem] font-mono text-[0.6875rem] text-muted-foreground tabular-nums">{time(e.ts)}</span>
+                        <span className={cn("w-[2.875rem] rounded px-1.5 py-px text-center text-[0.625rem] font-semibold uppercase", LEVEL_STYLE[e.level])}>{e.level}</span>
                       </span>
-                      <span className="min-w-0 flex-1 font-mono text-[12px] leading-relaxed break-words whitespace-pre-wrap">{mask(e.text)}</span>
+                      <span className="min-w-0 flex-1 font-mono text-[0.75rem] leading-relaxed break-words whitespace-pre-wrap">{mask(e.text)}</span>
                     </div>
                   );
                 })}
@@ -153,6 +154,8 @@ export function DebugLog({ file, className }: { file: string; className?: string
 
 /** The debug log in its own dialog. */
 export function DebugLogDialog({ file, open, onClose }: { file: string; open: boolean; onClose: () => void }) {
+  const panel = useRef<HTMLDivElement>(null);
+  useFocusTrap(open, panel);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -171,6 +174,8 @@ export function DebugLogDialog({ file, open, onClose }: { file: string; open: bo
           onClick={onClose}
         >
           <motion.div
+            ref={panel}
+            tabIndex={-1}
             role="dialog"
             aria-modal
             aria-labelledby="debug-title"
@@ -179,13 +184,13 @@ export function DebugLogDialog({ file, open, onClose }: { file: string; open: bo
             exit={{ y: 8, opacity: 0 }}
             transition={{ type: "spring", bounce: 0, duration: 0.35 }}
             onClick={(e) => e.stopPropagation()}
-            className="glass-strong flex h-[80dvh] w-full max-w-[860px] flex-col rounded-2xl p-5 shadow-2xl sm:p-6"
+            className="glass-strong flex h-[80dvh] outline-none w-full max-w-[53.75rem] flex-col rounded-2xl p-5 shadow-2xl sm:p-6"
           >
             <div className="mb-2 flex items-start justify-between gap-4">
               <h2 id="debug-title" className="text-xl font-semibold tracking-tight">
                 Debug log
               </h2>
-              <button autoFocus onClick={onClose} className="rounded-full p-1.5 text-muted-foreground hover:bg-foreground/10" aria-label="Close">
+              <button onClick={onClose} className="rounded-full p-1.5 text-muted-foreground hover:bg-foreground/10" aria-label="Close">
                 <X className="size-4" />
               </button>
             </div>

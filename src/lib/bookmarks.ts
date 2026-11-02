@@ -60,6 +60,8 @@ const sameSpot = (b: Bookmark, file: string, step?: string) => b.file === file &
 /** A bookmark store over any storage; the app uses one over localStorage, the self-check one over fakes. */
 export function createBookmarkStore(getStorage: () => StorageLike | null | undefined) {
   let current: BookmarkData | null = null;
+  // Set once storage fails to read or write: the in-memory copy is then the only one, so it is never dropped.
+  let memoryOnly = false;
   const listeners = new Set<() => void>();
 
   const storage = () => {
@@ -75,7 +77,7 @@ export function createBookmarkStore(getStorage: () => StorageLike | null | undef
     try {
       raw = storage()?.getItem(BOOKMARKS_KEY) ?? null;
     } catch {
-      // blocked: start empty
+      memoryOnly = true; // blocked: start empty and keep what follows in memory
     }
     current = parseBookmarks(raw);
     return current;
@@ -83,9 +85,11 @@ export function createBookmarkStore(getStorage: () => StorageLike | null | undef
   const save = (next: BookmarkData) => {
     current = next;
     try {
-      storage()?.setItem(BOOKMARKS_KEY, JSON.stringify(next));
+      const st = storage();
+      if (st) st.setItem(BOOKMARKS_KEY, JSON.stringify(next));
+      else memoryOnly = true; // no storage at all
     } catch {
-      // blocked or full: the change lasts until the page is closed
+      memoryOnly = true; // blocked or full: the change lasts until the page is closed
     }
     for (const l of listeners) l();
   };
@@ -96,12 +100,13 @@ export function createBookmarkStore(getStorage: () => StorageLike | null | undef
       listeners.add(cb);
       return () => {
         listeners.delete(cb);
-        if (!listeners.size) current = null; // re-read on the next subscribe: another tab may have changed it
+        // Re-read on the next subscribe (another tab may have changed it), unless memory is all there is.
+        if (!listeners.size && !memoryOnly) current = null;
       };
     },
     /** Another tab changed storage. */
     reload() {
-      current = null;
+      if (!memoryOnly) current = null;
       for (const l of listeners) l();
     },
     toggle(b: Omit<Bookmark, "createdAt">) {

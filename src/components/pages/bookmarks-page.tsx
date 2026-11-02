@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { ArrowLeft, Bookmark, BookmarkCheck, Pencil, Search, Tag, X } from "lucide-react";
 import { useFolders } from "@/hooks/use-folders";
 import { useBookmarks, type Bookmark as Saved } from "@/lib/bookmarks";
@@ -76,7 +76,7 @@ export function BookmarksPage({ navigate }: AppPageProps) {
   const open = (file: string, b?: Saved) => navigate({ page: "session", file, turn: b?.turn, view: "map", step: b?.step });
 
   return (
-    <div className="mx-auto w-full max-w-[880px] px-4 pt-4 pb-16 sm:px-6">
+    <div className="mx-auto w-full max-w-[55rem] px-4 pt-4 pb-16 sm:px-6">
       <button onClick={() => navigate({ page: "session" })} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-3.5" /> Back to the session
       </button>
@@ -94,7 +94,7 @@ export function BookmarksPage({ navigate }: AppPageProps) {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Filter by name, tag or step"
               aria-label="Filter bookmarks"
-              className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground"
+              className="min-w-0 flex-1 bg-transparent text-[0.8125rem] outline-none placeholder:text-muted-foreground"
             />
             {query && (
               <button onClick={() => setQuery("")} aria-label="Clear the filter" className="rounded-full p-0.5 text-muted-foreground hover:text-foreground">
@@ -172,8 +172,18 @@ function SessionCard(props: {
   const [draft, setDraft] = useState("");
   const [newTag, setNewTag] = useState("");
 
+  // Escape cancels; the blur that follows when the field disappears must not save.
+  const skipSave = useRef(false);
   const saveName = () => {
+    if (skipSave.current) {
+      skipSave.current = false;
+      return;
+    }
     props.onRename(draft);
+    setEditing(false);
+  };
+  const cancelName = () => {
+    skipSave.current = true;
     setEditing(false);
   };
   const addTag = () => {
@@ -196,14 +206,20 @@ function SessionCard(props: {
               autoFocus
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => (e.key === "Enter" ? saveName() : e.key === "Escape" && setEditing(false))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") saveName();
+                else if (e.key === "Escape") {
+                  e.stopPropagation();
+                  cancelName();
+                }
+              }}
               onBlur={saveName}
               placeholder="Your name for this session"
               aria-label="Your name for this session"
-              className="h-8 w-full rounded-lg border border-foreground/20 bg-transparent px-2 text-[14px] font-medium outline-none focus:border-foreground/40"
+              className="h-8 w-full rounded-lg border border-foreground/20 bg-transparent px-2 text-[0.875rem] font-medium outline-none focus:border-foreground/40"
             />
           ) : (
-            <button onClick={() => props.onOpen()} className="block max-w-full truncate text-left text-[14px] font-semibold hover:underline">
+            <button onClick={() => props.onOpen()} className="block max-w-full truncate text-left text-[0.875rem] font-semibold hover:underline">
               {props.title}
             </button>
           )}
@@ -213,6 +229,7 @@ function SessionCard(props: {
         </div>
         <button
           onClick={() => {
+            skipSave.current = false;
             setDraft(g.name ?? "");
             setEditing(true);
           }}
@@ -263,8 +280,8 @@ function SessionCard(props: {
           {g.steps.map((b) => (
             <li key={b.step} className="flex items-center gap-2 py-1.5">
               <button onClick={() => props.onOpen(b)} className="flex min-w-0 flex-1 items-baseline gap-2 rounded-lg px-1 py-1 text-left hover:bg-foreground/[0.04]">
-                <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">{b.turn !== undefined ? `Request ${b.turn + 1}` : "Step"}</span>
-                <span className="truncate text-[13px]">{props.mask(b.label) || "A step"}</span>
+                <span className="shrink-0 text-[0.6875rem] text-muted-foreground tabular-nums">{b.turn !== undefined ? `Request ${b.turn + 1}` : "Step"}</span>
+                <span className="truncate text-[0.8125rem]">{props.mask(b.label) || "A step"}</span>
               </button>
               <button
                 onClick={() => props.onRemove(b)}

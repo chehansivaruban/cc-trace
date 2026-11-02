@@ -34,7 +34,7 @@ export function Welcome({ onHelp }: { onHelp: () => void }) {
           animate={{ opacity: 1, transform: "translateY(0px)" }}
           exit={{ opacity: 0, transform: "translateY(4px)", transition: { duration: 0.15 } }}
           transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
-          className="glass-strong absolute top-3 right-3 left-3 z-40 mx-auto max-w-[520px] rounded-2xl p-5 shadow-2xl"
+          className="glass-strong absolute top-3 right-3 left-3 z-40 mx-auto max-w-[32.5rem] rounded-2xl p-5 shadow-2xl"
           role="dialog"
           aria-label="Welcome to cc-trace"
         >
@@ -42,8 +42,8 @@ export function Welcome({ onHelp }: { onHelp: () => void }) {
             <X className="size-4" />
           </button>
           <h2 className="text-base font-semibold tracking-tight">Welcome to cc-trace</h2>
-          <p className="mt-1 text-[13px] text-muted-foreground">See what Claude is doing while it works, in plain words.</p>
-          <ol className="mt-3 space-y-2 text-[13px] leading-relaxed">
+          <p className="mt-1 text-[0.8125rem] text-muted-foreground">See what Claude is doing while it works, in plain words.</p>
+          <ol className="mt-3 space-y-2 text-[0.8125rem] leading-relaxed">
             <li>
               <b>1.</b> Each message you send is a <b>request</b>. Pick one on the left, or open <b>Whole session</b> to see how they connect.
             </li>
