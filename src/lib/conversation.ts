@@ -1,5 +1,6 @@
 // Pure helpers behind the Conversation view and the tool renderers: chat rows, diffs, command outcomes, labels.
 import { diffWords as wordDiff, structuredPatch } from "diff";
+import { maskThenClip } from "./redact.ts";
 import type { Actor, Step, Turn } from "./session.ts";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- tool inputs and results are untyped JSON */
@@ -306,14 +307,20 @@ export function formatDuration(ms: number): string {
 /** How much of a long text the UI renders before "Show all" (or "copy to get all"). */
 export const CAPS = { code: 60_000, markdown: 20_000, textBox: 1200, diffRows: 400, files: 60, webResults: 12 } as const;
 
-/** The text a code panel renders for a value: strings as written, anything else as JSON, cut at CAPS.code. */
-export function codeText(value: unknown): string {
-  const text = typeof value === "string" ? value : JSON.stringify(value, null, 2) ?? String(value);
-  return text.length > CAPS.code ? text.slice(0, CAPS.code) : text;
-}
+const same = (t: string) => t;
 
-/** The text a collapsed text box renders. */
-export const textBoxText = (text: string) => (text.length > CAPS.textBox ? text.slice(0, CAPS.textBox) + "…" : text);
+/** The raw text of a code panel's value: strings as written, anything else as JSON. */
+export const rawCodeText = (value: unknown): string => (typeof value === "string" ? value : JSON.stringify(value, null, 2) ?? String(value));
+
+/** The text a code panel renders for a value, masked, then cut at CAPS.code. */
+export const codeText = (value: unknown, mask: (t: string) => string = same): string => maskThenClip(rawCodeText(value), CAPS.code, mask);
+
+/** The text a collapsed text box renders, masked, then cut. */
+export const textBoxText = (text: string, mask: (t: string) => string = same) =>
+  text.length > CAPS.textBox ? maskThenClip(text, CAPS.textBox, mask) + "…" : mask(text);
+
+/** The markdown source a message renders before "Show all", masked, then cut. */
+export const markdownSource = (text: string, mask: (t: string) => string = same) => maskThenClip(text, CAPS.markdown, mask);
 
 const obj = (v: unknown): Record<string, any> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, any>) : {});
 

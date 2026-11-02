@@ -4,7 +4,8 @@ import { useMemo, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, Copy } from "lucide-react";
 import { CAPS } from "@/lib/conversation";
-import { useMask } from "@/lib/mask";
+import { useMask } from "@/hooks/use-mask";
+import { maskThenClip } from "@/lib/redact";
 import { cn } from "@/lib/utils";
 
 // shortcut: render cap keeps huge tool outputs from freezing the drawer; copy still gets everything.
@@ -73,7 +74,7 @@ export function CodeBlock({ label, value, lang, className }: { label: string; va
   const isText = typeof value === "string";
   // Work on the raw text once; mask only the part that's shown (and the copy, when it's made).
   const text = useMemo(() => (isText ? value : JSON.stringify(value, null, 2) ?? String(value)), [isText, value]);
-  const shown = useMemo(() => mask(text.length > MAX_RENDER ? text.slice(0, MAX_RENDER) : text), [text, mask]);
+  const shown = useMemo(() => maskThenClip(text, MAX_RENDER, mask), [text, mask]);
   const language = lang?.toLowerCase();
   const body = useMemo(
     () => (!isText || language === "json" ? highlightJson(shown) : language && !PLAIN.has(language) ? highlightCode(shown, language) : shown),

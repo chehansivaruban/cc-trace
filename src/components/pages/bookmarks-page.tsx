@@ -2,12 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { ArrowLeft, Bookmark, BookmarkCheck, Pencil, Search, Tag, X } from "lucide-react";
-import { useFolders } from "@/hooks/use-folders";
 import { useBookmarks, type Bookmark as Saved } from "@/lib/bookmarks";
 import type { ProjectInfo } from "@/lib/claude-logs";
-import { maskSecrets } from "@/lib/redact";
+import { useMask } from "@/hooks/use-mask";
 import type { AppPageProps } from "@/lib/route";
-import { useSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
 type Listed = { title: string; project: string };
@@ -18,8 +16,6 @@ const idOf = (file: string) => (file.split(/[\\/]/).pop() ?? file).replace(/\.js
 
 export function BookmarksPage({ navigate }: AppPageProps) {
   const { data, toggle, setTags, rename } = useBookmarks();
-  const [settings] = useSettings();
-  const folders = useFolders();
   const [listed, setListed] = useState<Map<string, Listed> | null>(null);
   const [query, setQuery] = useState("");
   const [tag, setTag] = useState<string | null>(null);
@@ -41,7 +37,7 @@ export function BookmarksPage({ navigate }: AppPageProps) {
     };
   }, []);
 
-  const mask = (t: string) => (settings.maskSensitive ? maskSecrets(t, folders?.home) : t);
+  const mask = useMask();
 
   const groups = useMemo(() => {
     const by = new Map<string, Group>();

@@ -2,6 +2,7 @@
 
 // Plain-English explanations of what Claude Code's tools do, for people who have never coded.
 // Text may contain [[term:label]] markers; the UI turns them into hover explanations from GLOSSARY.
+import { safeClip } from "./redact.ts";
 
 export const GLOSSARY = {
   lead: "The main Claude you're chatting with. It plans the work, does some itself, and hands bigger pieces to helpers, like a team lead.",
@@ -46,10 +47,9 @@ export type Explained = {
 };
 
 const base = (p: unknown) => (typeof p === "string" ? p.split(/[\\/]/).filter(Boolean).pop() ?? p : "");
-const clip = (s: unknown, n = 60) => {
-  const t = typeof s === "string" ? s.replace(/\s+/g, " ").trim() : "";
-  return t.length > n ? t.slice(0, n - 1) + "…" : t;
-};
+// Whole words only, with a generous cap: the page shortens these on screen, and masking has to see each
+// secret whole (a key cut in half no longer looks like a key).
+const clip = (s: unknown) => safeClip(typeof s === "string" ? s.replace(/\s+/g, " ").trim() : "", 300);
 const lines = (s: unknown) => (typeof s === "string" && s ? s.split("\n").length : 0);
 
 /** "mcp__claude-in-chrome__navigate" -> ["claude in chrome", "navigate"] */
@@ -63,7 +63,7 @@ const TEST_RUNNERS =
 
 function bash(input: any, who: string): Explained {
   const cmd: string = typeof input?.command === "string" ? input.command : "";
-  const desc = clip(input?.description, 70);
+  const desc = clip(input?.description);
   const sub = desc || clip(cmd);
   // Most commands start with "cd somewhere &&": classify by what follows.
   const primary = cmd.replace(/^\s*cd\s+[^&;]+(&&|;)\s*/, "");
@@ -133,18 +133,18 @@ export function explainTool(name: string, input: any, who: string): Explained {
     case "PowerShell":
       return bash(input, who);
     case "Grep":
-      return { icon: "search", title: "Searches the project", subtitle: `for “${clip(input?.pattern, 40)}”`, doing: `${who} is searching for “${clip(input?.pattern, 40)}”`,
-        what: `Searched inside every file for “${clip(input?.pattern, 80)}”, like pressing Ctrl+F across the whole project.`, why: WHY.search };
+      return { icon: "search", title: "Searches the project", subtitle: `for “${clip(input?.pattern)}”`, doing: `${who} is searching for “${clip(input?.pattern)}”`,
+        what: `Searched inside every file for “${clip(input?.pattern)}”, like pressing Ctrl+F across the whole project.`, why: WHY.search };
     case "Glob":
-      return { icon: "search", title: "Looks for files", subtitle: clip(input?.pattern, 40), doing: `${who} is looking for files`,
-        what: `Listed the files whose names match “${clip(input?.pattern, 80)}”.`, why: WHY.search };
+      return { icon: "search", title: "Looks for files", subtitle: clip(input?.pattern), doing: `${who} is looking for files`,
+        what: `Listed the files whose names match “${clip(input?.pattern)}”.`, why: WHY.search };
     case "WebSearch":
-      return { icon: "web", title: "Searches the web", subtitle: `“${clip(input?.query, 44)}”`, doing: `${who} is searching the web`,
-        what: `Searched the internet for “${clip(input?.query, 100)}”.`, why: WHY.web };
+      return { icon: "web", title: "Searches the web", subtitle: `“${clip(input?.query)}”`, doing: `${who} is searching the web`,
+        what: `Searched the internet for “${clip(input?.query)}”.`, why: WHY.web };
     case "WebFetch": {
       let host = "";
       try { host = new URL(input?.url).host; } catch { /* not a URL */ }
-      return { icon: "web", title: "Reads a web page", subtitle: host || clip(input?.url, 40), doing: `${who} is reading a web page`,
+      return { icon: "web", title: "Reads a web page", subtitle: host || clip(input?.url), doing: `${who} is reading a web page`,
         what: `Opened ${host || "a web page"} and read it.`, why: WHY.web };
     }
     case "TodoWrite":
@@ -154,11 +154,11 @@ export function explainTool(name: string, input: any, who: string): Explained {
       return { icon: "todo", title: "Updates its to-do list", subtitle: "progress checklist", doing: `${who} is updating its to-do list`,
         what: "Wrote down or ticked off steps on its checklist for this job.", why: WHY.todo };
     case "Skill":
-      return { icon: "skill", title: "Uses a skill", subtitle: clip(input?.skill ?? input?.command, 40), doing: `${who} is loading a skill`,
-        what: `Loaded the [[skill:skill]] “${clip(input?.skill ?? input?.command, 60)}”, saved instructions for this kind of job.`,
+      return { icon: "skill", title: "Uses a skill", subtitle: clip(input?.skill ?? input?.command), doing: `${who} is loading a skill`,
+        what: `Loaded the [[skill:skill]] “${clip(input?.skill ?? input?.command)}”, saved instructions for this kind of job.`,
         why: "Skills let Claude follow a proven routine instead of improvising." };
     case "ToolSearch":
-      return { icon: "tool", title: "Looks up more tools", subtitle: clip(input?.query, 40), doing: `${who} is looking up tools`,
+      return { icon: "tool", title: "Looks up more tools", subtitle: clip(input?.query), doing: `${who} is looking up tools`,
         what: "Some [[tool:tools]] are only loaded when needed, to keep Claude's [[context:memory]] small. Claude just fetched the ones it needs.",
         why: "Loading tools on demand saves [[tokens:tokens]]." };
     case "EnterPlanMode":
@@ -167,7 +167,7 @@ export function explainTool(name: string, input: any, who: string): Explained {
         what: "Claude wrote up a plan and asked you to approve it before making changes.", why: "Agreeing on a plan first avoids wasted work." };
     case "Monitor":
     case "ScheduleWakeup":
-      return { icon: "wait", title: "Waits", subtitle: clip(input?.reason ?? input?.description, 40), doing: `${who} is waiting for something to finish`,
+      return { icon: "wait", title: "Waits", subtitle: clip(input?.reason ?? input?.description), doing: `${who} is waiting for something to finish`,
         what: "Claude set itself to wait until something finishes, instead of checking over and over.", why: "Waiting quietly costs no [[tokens:tokens]]." };
     case "ListAgents":
       return { icon: "wait", title: "Checks on helpers", subtitle: "who's still working", doing: `${who} is checking on its helpers`,
@@ -182,14 +182,14 @@ export function explainTool(name: string, input: any, who: string): Explained {
       const act = /navigate|open|preview_start/.test(tool) ? "Opens a web page"
         : /click|type|fill|press|form|computer/.test(tool) ? "Uses a web page"
         : /screenshot|snapshot|read|text|find/.test(tool) ? "Looks at a web page" : "Uses the browser";
-      return { icon: "browser", title: act, subtitle: clip(input?.url ?? tool, 40), doing: `${who} is using the browser`,
+      return { icon: "browser", title: act, subtitle: clip(input?.url ?? tool), doing: `${who} is using the browser`,
         what: `Used the browser through a [[connector:connector]] (${tool.replace(/_/g, " ")}).`, why: WHY.browser };
     }
     return { icon: "plug", title: `Uses ${server || "a connector"}`, subtitle: tool.replace(/_/g, " "), doing: `${who} is using ${server || "a connector"}`,
       what: `Used the ${server} [[connector:connector]] to ${tool.replace(/_/g, " ")}.`,
       why: "Connectors let Claude reach apps and services outside your project folder." };
   }
-  return { icon: "tool", title: `Uses ${name}`, subtitle: clip(Object.values(input ?? {}).find((v) => typeof v === "string"), 40),
+  return { icon: "tool", title: `Uses ${name}`, subtitle: clip(Object.values(input ?? {}).find((v) => typeof v === "string")),
     doing: `${who} is using ${name}`, what: `Used the [[tool:tool]] “${name}”.`, why: "Open the technical details to see exactly what was sent and what came back." };
 }
 

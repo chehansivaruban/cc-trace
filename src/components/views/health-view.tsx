@@ -3,7 +3,8 @@
 // Health (E1–E3, N3): how smoothly Claude worked, what went wrong and what it did next, risky actions and hooks.
 import { useMemo, useState, type ReactNode } from "react";
 import { AlertTriangle, CornerDownRight, Info, FileSearch, Files, Repeat, RotateCcw, SearchX, ShieldAlert, Undo2, Webhook, XCircle } from "lucide-react";
-import { MapButton, Section, fmt, plural, useJump, useMasker, useTechnical } from "@/components/view-kit";
+import { MapButton, Section, fmt, plural, useJump, useTechnical } from "@/components/view-kit";
+import { useMask } from "@/hooks/use-mask";
 import { VirtualList } from "@/components/virtual-list";
 import { TermText } from "@/components/term-text";
 import { StepIcon } from "@/components/step-icon";
@@ -52,7 +53,7 @@ const HOOK_WHEN: Record<string, string> = {
 export function HealthView(props: SessionViewProps) {
   const { model, turn } = props;
   const [scope, setScope] = useState<Scope>("request");
-  const mask = useMasker(model);
+  const mask = useMask(model);
   const jump = useJump(props);
   const [tech, techToggle] = useTechnical();
 
@@ -126,7 +127,7 @@ export function HealthView(props: SessionViewProps) {
                   <span className="text-muted-foreground"> · plus {plural(report.errors.items.length - report.errors.total, "other problem")}, like a failed request to Claude</span>
                 )}
               </p>
-              <ErrorStrip turns={turns} onPick={(t, id) => jump.select(t, id)} />
+              <ErrorStrip turns={turns} onPick={(t, id) => jump.select(t, id)} mask={mask} />
               <VirtualList
                 className="mt-3 space-y-1"
                 label="Steps that didn't work"
@@ -141,7 +142,7 @@ export function HealthView(props: SessionViewProps) {
                       <StepIcon icon={step.icon} className="mt-0.5 size-3.5 shrink-0 text-red-500" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[13px] font-medium">
-                          {step.title}
+                          {mask(step.title)}
                           {step.subtitle && <span className="font-normal text-muted-foreground"> · {mask(step.subtitle)}</span>}
                         </span>
                         <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
@@ -217,7 +218,7 @@ export function HealthView(props: SessionViewProps) {
                       <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                         <span className={cn("shrink-0 rounded-full px-2 py-px text-[11px] font-medium", style.cls)}>{style.label}</span>
                         <span className="min-w-0 truncate text-[13px] font-medium">
-                          {step.title}
+                          {mask(step.title)}
                           {step.subtitle && <span className="font-normal text-muted-foreground"> · {mask(step.subtitle)}</span>}
                         </span>
                       </span>
@@ -306,7 +307,7 @@ function ScoreCard({ score, findings, scope }: { score: number; findings: number
 }
 
 /** Every step of the request(s) as a thin strip, with the ones that didn't work marked. Click a mark to open it. */
-function ErrorStrip({ turns, onPick }: { turns: Turn[]; onPick: (turn: number, id: string) => void }) {
+function ErrorStrip({ turns, onPick, mask }: { turns: Turn[]; onPick: (turn: number, id: string) => void; mask: (t: string) => string }) {
   const marks = useMemo(() => {
     const out: { x: number; turn: number; step: Step }[] = [];
     let i = 0;
@@ -333,7 +334,7 @@ function ErrorStrip({ turns, onPick }: { turns: Turn[]; onPick: (turn: number, i
             className="cursor-pointer fill-red-500/80 hover:fill-red-500"
             onClick={() => onPick(m.turn, m.step.id)}
           >
-            <title>{`${m.step.title} (click to open)`}</title>
+            <title>{`${mask(m.step.title)} (click to open)`}</title>
           </rect>
         ))}
       </svg>

@@ -6,10 +6,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { AnimatePresence, motion } from "framer-motion";
 import { FileText, Loader2, Search, X } from "lucide-react";
 import { useFocusTrap } from "@/hooks/use-focus-trap";
-import { useFolders } from "@/hooks/use-folders";
 import { parseDebugLog, type DebugEntry, type DebugLevel } from "@/lib/debug-log";
-import { maskSecrets } from "@/lib/redact";
-import { useSettings } from "@/lib/settings";
+import { useMask } from "@/hooks/use-mask";
 import { cn } from "@/lib/utils";
 import { TermText } from "./term-text";
 
@@ -33,8 +31,6 @@ const time = (ts?: number) => (ts === undefined ? "" : new Date(ts).toLocaleTime
 
 /** The debug log of one session (`file` as the API lists it), with a level filter and a text filter. */
 export function DebugLog({ file, className }: { file: string; className?: string }) {
-  const [settings] = useSettings();
-  const folders = useFolders();
   const [state, setState] = useState<State>({ status: "loading" });
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
@@ -62,7 +58,7 @@ export function DebugLog({ file, className }: { file: string; className?: string
   }, [all, filter, query]);
 
   const rows = useVirtualizer({ count: shown.length, getScrollElement: () => scroller.current, estimateSize: () => 30, overscan: 12 });
-  const mask = (t: string) => (settings.maskSensitive ? maskSecrets(t, folders?.home) : t);
+  const mask = useMask();
 
   return (
     <div className={cn("flex h-full min-h-[20rem] flex-col", className)}>

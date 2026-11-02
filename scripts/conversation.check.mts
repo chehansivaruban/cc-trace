@@ -3,7 +3,11 @@
 import assert from "node:assert/strict";
 import { nearestExplanation } from "../src/lib/analytics/explanations.ts";
 import {
+  CAPS,
   bashOutcome,
+  codeText,
+  markdownSource,
+  textBoxText,
   conversationRows,
   diffRows,
   diffWords,
@@ -20,7 +24,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { findAll, joinPieces, markdownText, rowSearchText, toolBodyText } from "../src/lib/find-text.ts";
-import { maskText, rememberHomes } from "../src/lib/mask.ts";
+import { createMasker, homeFromCwds, homeOfPath, maskThenClip, safeClip, userNamesFrom } from "../src/lib/redact.ts";
 import { buildSession, type Actor, type Step, type Turn } from "../src/lib/session.ts";
 
 const step = (id: string, kind: Step["kind"], actor: string, extra: Partial<Step> = {}): Step => ({
@@ -157,6 +161,7 @@ assert.equal(formatDuration(-1), "");
 
 // ── maskText: secrets and home folders ──
 {
+  const maskText = createMasker();
   const m = maskText("open /Users/alice/app/x.ts and C:\\Users\\bob\\app and /home/carol/src; key sk-ant-abcdefghijklmnop mail a@b.com");
   assert.ok(!/alice|bob|carol|sk-ant-abc|a@b\.com/.test(m), m);
   assert.ok(m.includes("~/app/x.ts"), m);
@@ -164,6 +169,8 @@ assert.equal(formatDuration(-1), "");
   assert.equal(maskText("/tmp/x/-Users-alice-Developer-app/s.jsonl"), "/tmp/x/-Users-~-Developer-app/s.jsonl");
   assert.equal(maskText("C--Users-bob-app and -home-carol-src"), "C--Users-~-app and -home-~-src");
   assert.equal(maskText("disk-usage-monitor"), "disk-usage-monitor");
+  // Git Bash and WSL spell C:\Users differently.
+  assert.equal(maskText("cd /c/Users/bob/app && ls /mnt/c/Users/bob/x"), "cd ~/app && ls ~/x");
   // Home folders only at a path boundary: not inside a URL.
   assert.equal(maskText("see https://example.com/home/page and https://x.io/Users/bob/1"), "see https://example.com/home/page and https://x.io/Users/bob/1");
   assert.equal(maskText('cd /home/carol && x="/Users/dan/a" (C:\\Users\\eve\\b) PATH=/Users/fay/bin:/home/gus/bin'), 'cd ~ && x="~/a" (~\\b) PATH=~/bin:~/bin');
@@ -173,15 +180,66 @@ assert.equal(formatDuration(-1), "");
   assert.ok(!/MIIE|QWERTY/.test(mk), mk);
   assert.equal(mk.split("\n").length, key.split("\n").length);
   assert.ok(!/MIIE/.test(maskText("-----BEGIN PRIVATE KEY-----\nMIIEcut")));
-  // A user name seen in a home folder is masked anywhere after that (ls -l owners, prompts), as a whole word.
-  rememberHomes(["/Users/zelda/app", "C:\\Users\\yorick\\x", "/tmp"]);
-  assert.equal(maskText("-rw-r--r-- 1 zelda staff 10 a.txt; yorick@host; zeldas"), "-rw-r--r-- 1 ••• staff 10 a.txt; •••@host; zeldas");
-  maskText("cd /home/quentin/src");
-  assert.equal(maskText("owner quentin"), "owner •••");
-  // Short names would hide ordinary words, so they're left alone.
-  rememberHomes(["/Users/bo/x"]);
-  assert.equal(maskText("bo knows"), "bo knows");
+  // A user name from a trusted home folder (the server's home, the session's folders) is masked anywhere,
+  // as a whole word, in any case.
+  assert.deepEqual(userNamesFrom(["/Users/zelda/app", "C:\\Users\\yorick\\x", "/tmp", "/mnt/c/Users/wanda/p", "/c/Users/xena/q", "/home/quentin", undefined]), ["zelda", "yorick", "wanda", "xena", "quentin"]);
+  const named = createMasker({ names: userNamesFrom(["/Users/zelda/app", "C:\\Users\\yorick\\x"]) });
+  assert.equal(named("-rw-r--r-- 1 zelda staff 10 a.txt; yorick@host; zeldas; Zelda"), "-rw-r--r-- 1 ••• staff 10 a.txt; •••@host; zeldas; •••");
+  // Names are never learned from log text: a home folder seen in text is masked as a path only.
+  assert.equal(maskText("cd /home/quentin/src"), "cd ~/src");
+  assert.equal(maskText("owner quentin"), "owner quentin");
+  // Short names and common words would hide ordinary words, so they're left alone.
+  assert.deepEqual(userNamesFrom(["/Users/bo/x", "/home/test/app", "/home/runner/work", "/Users/Admin", "/home/ubuntu", "/root"]), []);
+  const common = createMasker({ names: userNamesFrom(["/Users/bo/x", "/home/test/app"]) });
+  assert.equal(common("bo knows the test suite"), "bo knows the test suite");
+  assert.equal(common("cd /home/test/app"), "cd ~/app");
   assert.equal(maskText("plain words"), "plain words");
+  // A word that ends in "…" is ordinary text, not a cut secret.
+  assert.equal(maskText("Loading… done"), "Loading… done");
+  assert.equal(maskText("Loading…"), "Loading…");
+  // Escaped JSON and escaped quotes inside a quoted value.
+  const esc = maskText('{\\"password\\":\\"hunter2\\",\\"user\\":\\"bob\\"}');
+  assert.ok(!esc.includes("hunter2") && esc.includes('\\"user\\":\\"bob\\"'), esc);
+  const inner = maskText('password="a\\"b hunter2" next');
+  assert.ok(!inner.includes("hunter2") && inner.endsWith(" next"), inner);
+  // An unterminated quote hides the rest of its line only.
+  assert.equal(maskText('token="abc def\nnext line'), "token=•••\nnext line");
+  assert.equal(maskText("secret: 'abc\nnext line"), "secret: •••\nnext line");
+}
+
+// ── names come only from the open session's folders ──
+{
+  const t0 = Date.parse("2026-11-01T10:00:00Z");
+  const rec = (text: string, cwd: string) => ({ type: "user", timestamp: new Date(t0).toISOString(), cwd, message: { content: text } });
+  const m = buildSession([rec("ask quentin about /Users/quentin/x", "/Users/ingrid/app")], {}, t0);
+  const mask = createMasker({ home: homeFromCwds(m.meta.cwds), names: userNamesFrom(m.meta.cwds) });
+  assert.equal(mask("ingrid and quentin: /Users/quentin/x"), "••• and quentin: ~/x");
+  // A different session has its own names.
+  const other = buildSession([rec("hi", "/Users/olga/app")], {}, t0);
+  assert.equal(createMasker({ names: userNamesFrom(other.meta.cwds) })("ingrid and olga"), "ingrid and •••");
+  assert.equal(homeOfPath("C:\\Users\\olga\\app"), "C:\\Users\\olga");
+  assert.equal(homeOfPath("/tmp/x"), undefined);
+}
+
+// ── render caps mask first, then cut ──
+{
+  const mask = createMasker();
+  const key = " sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWX";
+  const long = "x".repeat(CAPS.code - 20) + key + " more";
+  assert.ok(!/sk-ant|ABCDEF/.test(codeText(long, mask)), "code panel cut");
+  assert.ok(codeText(long, mask).length <= CAPS.code);
+  assert.ok(!/sk-ant|ABCDEF/.test(textBoxText("y".repeat(CAPS.textBox - 20) + key, mask)), "text box cut");
+  assert.ok(!/sk-ant|ABCDEF/.test(markdownSource("z".repeat(CAPS.markdown - 20) + key, mask)), "markdown cut");
+  assert.ok(!/sk-ant|ABCDEF/.test(maskThenClip("w".repeat(90) + key, 100, mask)));
+}
+
+// ── safeClip: cuts at a word boundary so masking afterwards still sees whole words ──
+{
+  assert.equal(safeClip("short", 10), "short");
+  assert.equal(safeClip("one two three", 9), "one two…");
+  assert.equal(safeClip("abcdefghijk", 5), "…");
+  const cut = safeClip("x".repeat(40) + " sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWX more", 48);
+  assert.ok(!cut.includes("sk-ant"), cut);
 }
 
 // ── conversationRows on a real-shaped session ──
@@ -301,7 +359,7 @@ assert.equal(formatDuration(-1), "");
   const toolRow = { id: "b", kind: "tool" as const, step: bash, speaker: "lead", depth: 0 };
   const text = rowSearchText(toolRow, id);
   assert.deepEqual(text.split("\n"), ["Runs a command", "list files", "Claude typed a command into the terminal.", "ls /Users/alice", "notes.txt", "secret.md", "warn: x"]);
-  assert.ok(rowSearchText(toolRow, maskText).includes("ls ~"), "masked like the page");
+  assert.ok(rowSearchText(toolRow, createMasker()).includes("ls ~"), "masked like the page");
   // The exit-code line is a badge in the page, not output text.
   assert.deepEqual(toolBodyText({ ...bash, result: "Error: Exit code 2\nboom", status: "error" }, id), ["ls /Users/alice", "boom"]);
   // A message row searches the rendered markdown and its thinking, not the markdown source or UI words.

@@ -1,4 +1,5 @@
 import { explainTool, type IconKey } from "./explain.ts";
+import { safeClip } from "./redact.ts";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- log records are untyped JSON */
 export type LogRecord = Record<string, any>;
@@ -165,10 +166,11 @@ function imagesOf(content: unknown): Step["images"] {
   return images.length ? images : undefined;
 }
 
-function shortName(s: string) {
-  const t = s.replace(/\s+/g, " ").trim();
-  return t.length > 34 ? t.slice(0, 33) + "…" : t;
-}
+// Names and subtitles keep their whole text (the page shortens them on screen), so masking always sees whole
+// words. Only very long text is cut, at a word boundary and with a visible "…".
+const TEXT_MAX = 300;
+const oneLine = (s: string) => safeClip(s.replace(/\s+/g, " ").trim(), TEXT_MAX);
+const shortName = (s: string) => oneLine(String(s));
 
 function helperRole(meta: AgentMeta | undefined, input: any) {
   const type = meta?.agentType ?? input?.subagent_type;
@@ -263,7 +265,7 @@ export function buildSession(rawMain: LogRecord[], rawAgents: Record<string, Age
         if (rec.subtype === "api_error") {
           const err = rec.error?.formatted ?? rec.error?.message ?? "unknown error";
           const retry = rec.retryAttempt ? ` (try ${rec.retryAttempt}${rec.maxRetries ? ` of ${rec.maxRetries}` : ""})` : "";
-          const fields = { title: "Request failed", subtitle: String(err).slice(0, 48) + (rec.retryAttempt ? ` · try ${rec.retryAttempt}${rec.maxRetries ? ` of ${rec.maxRetries}` : ""}` : ""),
+          const fields = { title: "Request failed", subtitle: oneLine(String(err)) + (rec.retryAttempt ? ` · try ${rec.retryAttempt}${rec.maxRetries ? ` of ${rec.maxRetries}` : ""}` : ""),
             what: `Claude Code's request to Claude failed${retry}: “${err}”.`, ts };
           if (retryStep && seq === retryStep.seq + 1) Object.assign(retryStep, fields);
           else retryStep = push({ kind: "note", actor: actorId, icon: "stop", doing: "Claude Code is retrying a failed request", ...fields,
@@ -320,7 +322,7 @@ export function buildSession(rawMain: LogRecord[], rawAgents: Record<string, Age
             what: "You interrupted Claude before it finished.", why: "Claude stops right away and waits for your next message.", event: "interrupted", ts });
           continue;
         }
-        push({ kind: "prompt", actor: "you", icon: "prompt", title: "Your request", subtitle: `“${text.replace(/\s+/g, " ").slice(0, 48)}”`,
+        push({ kind: "prompt", actor: "you", icon: "prompt", title: "Your request", subtitle: `“${oneLine(text)}”`,
           doing: "You sent Claude a message", what: "You wrote:", quote: text,
           why: "Everything starts with your message. Claude reads it, decides how to handle it, and may bring in helpers.", images: imagesOf(content), ts });
         continue;
@@ -348,7 +350,7 @@ export function buildSession(rawMain: LogRecord[], rawAgents: Record<string, Age
             made.push(push({ kind: "report", actor: actor.parent ?? "lead", from: actorId, icon: "report", title: "Reports back", subtitle: `${actor.name} → ${nameOf(actor.parent ?? "lead")}`,
               doing: `${actor.name} is reporting back`, what: `${actor.name}'s [[report:report]]:`, quote: text, why: WHY_REPORT, ts }));
           } else {
-            made.push(push({ kind: "note", actor: actorId, icon: "note", title: isLead ? "Tells you" : "Notes", subtitle: `“${text.replace(/\s+/g, " ").slice(0, 44)}”`,
+            made.push(push({ kind: "note", actor: actorId, icon: "note", title: isLead ? "Tells you" : "Notes", subtitle: `“${oneLine(text)}”`,
               doing: `${actor.name} is explaining what it's doing`, what: isLead ? "Claude wrote this to you while working:" : `${actor.name} wrote this while working (only its lead sees it):`,
               quote: text, why: "Claude narrates its work in plain words between steps. These notes are often the easiest way to follow along.", ts }));
           }

@@ -201,15 +201,6 @@ export function shortDuration(ms: number): string {
   return `${(m / 60).toFixed(1)} h`;
 }
 
-/** A guess at the home folder from a working folder, for hiding it when "Hide sensitive text" is on. */
-export function guessHome(paths: string[]): string | undefined {
-  for (const p of paths) {
-    const m = /^(\/Users\/[^/]+|\/home\/[^/]+|[A-Za-z]:\\Users\\[^\\]+)/.exec(p);
-    if (m) return m[1];
-  }
-  return undefined;
-}
-
 export const pct = (n: number) => `${Math.round(n)}%`;
 
 const SPECIAL_TOOLS: Record<string, string> = {

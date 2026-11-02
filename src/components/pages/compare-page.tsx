@@ -56,7 +56,7 @@ function Picker(props: {
             {p.sessions.map((s) => (
               <option key={s.file} value={s.file}>
                 {/* The listing cuts titles at 120 characters before any masking. */}
-                {mask(s.title.length >= 120 ? `${s.title}…` : s.title).slice(0, 80)}
+                {mask(s.title).slice(0, 80)}
               </option>
             ))}
           </optgroup>

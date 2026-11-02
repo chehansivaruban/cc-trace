@@ -330,11 +330,11 @@ function ChatMessage({ step: s, model, mask, selected, onOpen }: { step: Step; m
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-1.5 text-[13px]">
-          <span className="font-semibold break-all" style={{ color: hueColor(from?.hue ?? 0) }}>
+          <span className="max-w-[16rem] truncate font-semibold" style={{ color: hueColor(from?.hue ?? 0) }}>
             {mask(from?.name ?? "Someone")}
           </span>
           <span className="text-muted-foreground">→</span>
-          <span className="font-medium break-all">{mask(to?.name ?? "someone")}</span>
+          <span className="max-w-[16rem] truncate font-medium">{mask(to?.name ?? "someone")}</span>
           <span className="text-xs text-muted-foreground">
             · {s.title === "Stopped early" ? "Stopped early" : KIND_LABEL[s.kind]} · {new Date(s.ts).toLocaleTimeString()}
           </span>

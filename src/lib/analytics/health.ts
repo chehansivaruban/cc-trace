@@ -2,6 +2,7 @@
 // No AI involved: every finding comes from counting steps.
 import type { Actor, SessionModel, Step, Turn } from "../session.ts";
 import { FILE_CHANGE_TOOLS, fileOf, pathKey } from "./files.ts";
+import { safeClip } from "../redact.ts";
 
 export type FindingKind = "repeated-tool" | "fix-loop" | "empty-result" | "excessive-reads" | "write-then-edit" | "high-error-rate";
 export type Finding = { kind: FindingKind; title: string; explain: string; steps: string[]; turn: number };
@@ -46,10 +47,8 @@ const commandOf = (s: Step) => {
   return typeof c === "string" ? c.trim() : undefined;
 };
 const base = (p: string) => p.split(/[\\/]/).filter(Boolean).pop() ?? p;
-const clip = (t: string, n = 60) => {
-  const s = t.replace(/\s+/g, " ").trim();
-  return s.length > n ? s.slice(0, n - 1) + "…" : s;
-};
+// Cut at a word boundary: the page masks this text afterwards, and a key cut in half wouldn't be recognised.
+const clip = (t: string, n = 60) => safeClip(t.replace(/\s+/g, " ").trim(), n);
 
 /** Stable JSON: the same input in any key order gives the same text. */
 function stable(v: unknown): string {

@@ -3,7 +3,7 @@
 // Edit / MultiEdit / NotebookEdit: a red/green diff with the changed words highlighted.
 import { useMemo, useState } from "react";
 import { CAPS, diffRows, maskLines, stepDiff, type EditDiff, type WordSegment } from "@/lib/conversation";
-import { useMask } from "@/lib/mask";
+import { useMask } from "@/hooks/use-mask";
 import type { Step } from "@/lib/session";
 import { cn } from "@/lib/utils";
 import { Facts, FilePath, Pill, fmt, type Json } from "./shared";

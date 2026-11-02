@@ -8,7 +8,7 @@ import { compare, compareModels, compareTools, scopeToTurn } from "../src/lib/an
 import { commandOf, emptyFilter, filterOptions, filterSteps, type StepFilter } from "../src/lib/analytics/filters.ts";
 import { exportHtml } from "../src/lib/export/html.ts";
 import { exportMarkdown } from "../src/lib/export/markdown.ts";
-import { exportJson, homeOf, makeMasker, maskShortened } from "../src/lib/export/common.ts";
+import { exportJson, homeOf, makeMasker } from "../src/lib/export/common.ts";
 import { maskSecrets } from "../src/lib/redact.ts";
 import { snippetOf } from "../src/lib/search.ts";
 
@@ -309,13 +309,30 @@ for (const text of [at48, at90, at140]) {
     assert.ok(!/sk-ant|ghp_|ABCDEFGH/.test(out), `secret cut at a clip edge leaks: ${out.slice(0, 400)}`);
   }
 }
-// Text shortened elsewhere (helper names, titles cut at 120) drops its possibly half-cut last word.
-assert.ok(!maskShortened("Rotate sk-ant-api0…").includes("sk-ant"));
-assert.ok(!maskShortened("“key ghp_ABCDEF…”").includes("ghp_"));
-assert.ok(!maskShortened("Rotate sk-ant-api0… is reporting back").includes("sk-ant"));
-assert.equal(maskShortened("Fix login…"), "Fix …");
-assert.equal(maskShortened("Fix login"), "Fix login");
-assert.ok(!maskShortened("title ending in sk-ant-api", undefined, true).includes("sk-ant"));
+// A failed request whose message has a key straddling the old 48-character subtitle cut.
+{
+  const err = "z".repeat(40) + " sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWX then more words";
+  const ae = buildSession([
+    { type: "user", timestamp: at(0), cwd: "/Users/chehan/app", message: { content: "hi" } },
+    { type: "system", subtype: "api_error", timestamp: at(1), error: { formatted: err }, retryAttempt: 2, maxRetries: 10 },
+    asst(2, [{ type: "text", text: "ok" }], "end_turn"),
+  ], {}, now);
+  for (const out of [exportHtml(ae, { mask: true }), exportMarkdown(ae, { mask: true }), exportHtml(ae, { mask: true, turn: 0 }), exportMarkdown(ae, { mask: true, turn: 0 })]) {
+    assert.ok(!/sk-ant|ABCDEFGH/.test(out), `api_error key fragment leaks: ${out.slice(0, 300)}`);
+  }
+}
+// Masking no longer drops words that end in "…": there's no pre-cut text left to guess about.
+assert.equal(makeMasker(true)("Loading… then Fix login…"), "Loading… then Fix login…");
+// Helper names keep their full text in the model, so a key in one is masked whole.
+{
+  const named = buildSession([
+    { type: "user", timestamp: at(0), message: { content: "go" } },
+    asst(1, [toolUse("hn", "Agent", { description: "Rotate the key sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWX now", prompt: "p" })]),
+  ], {}, now);
+  const helperName = Object.values(named.actors).find((a) => a.kind === "helper")!.name;
+  assert.ok(!/sk-ant|ABCDEFGH/.test(makeMasker(true)(helperName)), helperName);
+  for (const out of [exportHtml(named, { mask: true }), exportMarkdown(named, { mask: true })]) assert.ok(!/sk-ant|ABCDEFGH/.test(out));
+}
 // Search snippets: a long secret straddling the left and the right edge of the ±60 window.
 const masker = (s: string) => maskSecrets(s, "/Users/chehan");
 const left = "a ".repeat(50) + "sk-ant-api03-" + "Z".repeat(80) + " needle here";

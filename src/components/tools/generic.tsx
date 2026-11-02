@@ -2,7 +2,7 @@
 
 // Everything else: helper briefs and messages as text, connectors by name, and the raw data for the rest.
 import { mcpLabel, outputText } from "@/lib/conversation";
-import { useMask } from "@/lib/mask";
+import { useMask } from "@/hooks/use-mask";
 import type { Step } from "@/lib/session";
 import { CodeBlock } from "../code-block";
 import { Markdown } from "../markdown";

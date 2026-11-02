@@ -2,6 +2,7 @@
 // Token counts only: cc-trace never shows prices or costs.
 import { contextWindow } from "../models.ts";
 import { totalTokens, type SessionModel, type Step, type Turn, type Usage } from "../session.ts";
+import { safeClip } from "../redact.ts";
 
 export type Row = {
   key: string;
@@ -71,10 +72,8 @@ function addInto(a: Usage, b: Usage) {
 /** Who to credit for tokens no step carries: the session's only model, else "unknown". */
 const leftoverModel = (m: SessionModel) => (m.meta.models.length === 1 ? m.meta.models[0] : "unknown");
 const row = (key: string, label: string): Row => ({ key, label, usage: { ...ZERO }, steps: 0, durationMs: 0, replies: 0, toolCalls: 0 });
-const clip = (s: string, n = 90) => {
-  const t = s.replace(/\s+/g, " ").trim();
-  return t.length > n ? t.slice(0, n - 1) + "…" : t;
-};
+// Cut at a word boundary: the page masks labels afterwards, and a key cut in half wouldn't be recognised.
+const clip = (s: string, n = 90) => safeClip(s.replace(/\s+/g, " ").trim(), n);
 
 export function sessionStats(m: SessionModel): SessionStats {
   const models = new Map<string, Row>();

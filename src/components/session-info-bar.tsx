@@ -4,9 +4,9 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Check, Copy, Folder, GitBranch, MonitorSmartphone, ShieldAlert, ShieldCheck } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { LiveSession } from "@/lib/claude-logs";
-import { maskSecrets } from "@/lib/redact";
+import { useMask } from "@/hooks/use-mask";
 import type { SessionModel } from "@/lib/session";
-import { appName, cwdIsSafe, encodeProjectDir, homeOf, permissionLabel, projectOfFile, resumeCommand, shortPath } from "@/lib/sessions-list";
+import { appName, cwdIsSafe, encodeProjectDir, permissionLabel, projectOfFile, resumeCommand, shortPath } from "@/lib/sessions-list";
 import { useSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
@@ -114,13 +114,12 @@ function Chip({ icon: Icon, children, title, className }: { icon?: typeof Folder
 
 /** One line under the tabs: is it running, how freely Claude may act, branch, folder(s) and app, plus copy actions. */
 export function SessionInfoBar({ model, file }: { model: SessionModel; file: string }) {
-  const [{ maskSensitive, showTechnical }] = useSettings();
+  const [{ showTechnical }] = useSettings();
   const live = useLiveSessions();
   const id = idOf(file);
   const { meta } = model;
   const running = live ? live.some((l) => l.sessionId === id) : undefined; // undefined until the registry is read
-  const home = homeOf(meta.cwds[0]);
-  const m = (t: string) => (maskSensitive ? maskSecrets(t, home) : t);
+  const m = useMask(model);
   const mode = meta.permissionMode ? permissionLabel(meta.permissionMode) : undefined;
   const app = appName(meta.entrypoint);
   // `claude --resume` looks in the folder Claude Code filed the session under.

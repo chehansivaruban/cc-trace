@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Brain, ChevronRight } from "lucide-react";
 import type { Actor, Step, Turn } from "@/lib/session";
+import { useMask } from "@/hooks/use-mask";
 import { useZoom } from "@/hooks/use-zoom";
+import { safeClip } from "@/lib/redact";
 import { cn } from "@/lib/utils";
 import { hueColor } from "./step-icon";
 import { Term } from "./term-text";
@@ -163,7 +165,10 @@ function Row(props: {
   onOpenActor: (actor: string) => void;
 }) {
   const { turn: t, actors } = props;
+  const mask = useMask();
+  // Cut at a word boundary first (the card shows two lines), then masked: masking still sees whole words.
   const reply = t.steps.findLast((s: Step) => s.kind === "reply")?.quote;
+  const shortReply = typeof reply === "string" && reply ? mask(safeClip(reply, 400)) : undefined;
   const helpers = t.actors.filter((id) => actors[id]?.kind === "helper");
   const mem = memoryOf(t);
   const tag = props.remembered ? "remembered" : props.summarised ? "summary only" : null;
@@ -198,8 +203,8 @@ function Row(props: {
           )}
           <span className="ml-auto">{ago(t.ts)}</span>
         </span>
-        <span className="mt-1 line-clamp-2 text-[13.5px] leading-snug font-medium">{t.text}</span>
-        {reply && <span className="mt-1.5 line-clamp-2 text-xs leading-snug text-muted-foreground">Claude: {reply}</span>}
+        <span className="mt-1 line-clamp-2 text-[13.5px] leading-snug font-medium">{mask(safeClip(t.text, 400))}</span>
+        {shortReply && <span className="mt-1.5 line-clamp-2 text-xs leading-snug text-muted-foreground">Claude: {shortReply}</span>}
         <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
           {mem ? (
             <span>
@@ -227,9 +232,9 @@ function Row(props: {
                 onClick={() => props.onOpenActor(id)}
                 className="max-w-[160px] truncate rounded-full px-2.5 py-0.5 text-[11px] font-semibold text-white"
                 style={{ background: hueColor(actors[id].hue) }}
-                title={actors[id].name}
+                title={mask(actors[id].name)}
               >
-                {actors[id].name}
+                {mask(actors[id].name)}
               </button>
             ))}
             {helpers.length > MAX_HELPER_CHIPS && <span className="px-1 text-[11px] text-muted-foreground">+{helpers.length - MAX_HELPER_CHIPS} more</span>}

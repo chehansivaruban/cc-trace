@@ -12,7 +12,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { exportFileName, exportJson, homeOf, makeMasker } from "@/lib/export/common";
+import { useFolders } from "@/hooks/use-folders";
+import { exportFileName, exportJson, sessionMasker } from "@/lib/export/common";
 import { exportHtml } from "@/lib/export/html";
 import { exportMarkdown } from "@/lib/export/markdown";
 import { SESSION_START, type SessionModel, type Turn } from "@/lib/session";
@@ -39,6 +40,7 @@ const item = "gap-2 rounded-lg px-2.5 py-2 text-[13px]";
 /** "Export" menu (H1): this request or the whole session as an offline web page, Markdown or raw JSON. */
 export function ExportMenu({ model, turn, className }: { model: SessionModel; turn?: Turn; className?: string }) {
   const [settings] = useSettings();
+  const home = useFolders()?.home;
   // Starts from the "Hide sensitive text" setting; can be changed for one export.
   const [maskPick, setMask] = useState<boolean | null>(null);
   const mask = maskPick ?? settings.maskSensitive;
@@ -48,10 +50,10 @@ export function ExportMenu({ model, turn, className }: { model: SessionModel; tu
   const save = (format: Format, which?: number) => {
     setError(null);
     try {
-      const opts = { mask, turn: which };
+      const opts = { mask, turn: which, home };
       const text = format === "html" ? exportHtml(model, opts) : format === "md" ? exportMarkdown(model, opts) : exportJson(model, opts);
       const first = model.turns.find((t) => t.text !== SESSION_START)?.text ?? "";
-      const title = makeMasker(mask, homeOf(model))(model.meta.customTitle ?? model.meta.aiTitle ?? first);
+      const title = sessionMasker(model, opts)(model.meta.customTitle ?? model.meta.aiTitle ?? first);
       download(exportFileName(title, which, format), text, TYPES[format]);
     } catch (err) {
       setError(err instanceof Error && err.message ? err.message : "The export couldn't be made. Please try again.");

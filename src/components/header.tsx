@@ -11,10 +11,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { ProjectInfo, SessionInfo } from "@/lib/claude-logs";
 import type { AppPage } from "@/lib/route";
-import { maskSecrets } from "@/lib/redact";
+import { useMask } from "@/hooks/use-mask";
 import type { Live } from "@/lib/session";
-import { homeOf, shortPath } from "@/lib/sessions-list";
-import { updateSettings, useSettings } from "@/lib/settings";
+import { shortPath } from "@/lib/sessions-list";
+import { updateSettings } from "@/lib/settings";
 import { useDarkMode } from "./settings-provider";
 import { cn } from "@/lib/utils";
 import { SessionBrowser } from "./session-browser";
@@ -33,9 +33,8 @@ export function Header(props: {
   connected: boolean;
 }) {
   const { projects, project, session, live, connected } = props;
-  const [{ maskSensitive }] = useSettings();
   const [open, setOpen] = useState(false);
-  const m = (t: string) => (maskSensitive ? maskSecrets(t, homeOf(project?.path)) : t);
+  const m = useMask();
 
   useEffect(() => {
     if (!open) return;

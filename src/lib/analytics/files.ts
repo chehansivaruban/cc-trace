@@ -45,15 +45,6 @@ export function fileOf(step: Step): string | undefined {
   return typeof p === "string" && p.trim() ? p : undefined;
 }
 
-/** The home folder, guessed from the folders Claude worked in (for hiding it with maskSecrets). */
-export function guessHome(cwds: string[]): string | undefined {
-  for (const c of cwds) {
-    const m = /^(\/Users\/[^/]+|\/home\/[^/]+|[a-zA-Z]:\\Users\\[^\\]+|[a-zA-Z]:\/Users\/[^/]+)/.exec(c);
-    if (m) return m[1];
-  }
-  return undefined;
-}
-
 export type FileTouched = { path: string; reads: number; writes: number; edits: number; changes: { step: Step; turn: number }[] };
 
 /**

@@ -5,15 +5,15 @@ import { ArrowLeft, ChevronRight, Folder, MonitorSmartphone } from "lucide-react
 import { useLiveSessions } from "@/components/session-info-bar";
 import { TermText } from "@/components/term-text";
 import type { ProjectInfo, SessionInfo } from "@/lib/claude-logs";
-import { maskSecrets } from "@/lib/redact";
+import { useMask } from "@/hooks/use-mask";
 import type { AppPageProps } from "@/lib/route";
-import { ago, appName, formatTokens, homeOf, modelName, shortPath } from "@/lib/sessions-list";
+import { ago, appName, formatTokens, modelName, shortPath } from "@/lib/sessions-list";
 import { useSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
 /** Every Claude Code session running on this computer right now, across projects. */
 export function LivePage({ navigate }: AppPageProps) {
-  const [{ maskSensitive, showTechnical }] = useSettings();
+  const [{ showTechnical }] = useSettings();
   const [technical, setTechnical] = useState(showTechnical);
   const live = useLiveSessions(5_000);
   const [sessions, setSessions] = useState<Map<string, SessionInfo>>(new Map());
@@ -42,7 +42,7 @@ export function LivePage({ navigate }: AppPageProps) {
     };
   }, [ids, recount]);
 
-  const m = (t: string, home?: string) => (maskSensitive ? maskSecrets(t, home) : t);
+  const m = useMask();
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 pb-12 sm:px-6">
@@ -76,7 +76,6 @@ export function LivePage({ navigate }: AppPageProps) {
         ) : (
           live.map((l) => {
             const s = sessions.get(l.sessionId);
-            const home = homeOf(l.cwd);
             const busy = l.status === "busy";
             const title = s && s.title !== "Untitled session" ? s.title : (l.name ?? "New session");
             const open = () => l.file && navigate({ page: "session", file: l.file, turn: undefined, view: "map", step: undefined });
@@ -93,16 +92,16 @@ export function LivePage({ navigate }: AppPageProps) {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                    <span className="min-w-0 truncate text-sm font-medium">{m(title, home)}</span>
+                    <span className="min-w-0 truncate text-sm font-medium">{m(title)}</span>
                     <span className={cn("shrink-0 text-[11px] font-medium", busy ? "text-sky-600 dark:text-sky-400" : "text-emerald-600 dark:text-emerald-400")}>
                       {busy ? "Working" : l.status === "idle" ? "Waiting for you" : "Open"}
                     </span>
                   </span>
                   <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-muted-foreground">
                     {l.cwd && (
-                      <span className="flex min-w-0 items-center gap-1" title={m(l.cwd, home)}>
+                      <span className="flex min-w-0 items-center gap-1" title={m(l.cwd)}>
                         <Folder className="size-3 shrink-0" />
-                        <span className="truncate">{m(shortPath(l.cwd), home)}</span>
+                        <span className="truncate">{m(shortPath(l.cwd))}</span>
                       </span>
                     )}
                     {appName(l.entrypoint) && (

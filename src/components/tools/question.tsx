@@ -3,7 +3,7 @@
 // AskUserQuestion: the questions Claude asked you, the options it offered and what you picked.
 import { Check } from "lucide-react";
 import { questionData } from "@/lib/conversation";
-import { useMask } from "@/lib/mask";
+import { useMask } from "@/hooks/use-mask";
 import type { Step } from "@/lib/session";
 import { cn } from "@/lib/utils";
 import { Pill } from "./shared";

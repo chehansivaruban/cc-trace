@@ -6,10 +6,10 @@ import { BarChart } from "@/components/charts/bars";
 import { CHART_VARS, OTHER, fmt } from "@/components/charts/kit";
 import { foldSlices } from "@/components/charts/slots";
 import { Donut, useStableColors } from "@/components/charts/donut";
-import { AsTable, Section, Segmented, SortTable, StatTile, TechToggle, guessHome, pct, sameLabel, tokenColumns, toolLabel, type Column } from "@/components/stats-parts";
+import { AsTable, Section, Segmented, SortTable, StatTile, TechToggle,  pct, sameLabel, tokenColumns, toolLabel, type Column } from "@/components/stats-parts";
 import { Term, TermText } from "@/components/term-text";
 import { cacheHit, type Overview, type Row } from "@/lib/analytics/stats";
-import { maskSecrets } from "@/lib/redact";
+import { useMask } from "@/hooks/use-mask";
 import type { AppPageProps } from "@/lib/route";
 import { useSettings } from "@/lib/settings";
 import { totalTokens } from "@/lib/session";
@@ -69,8 +69,7 @@ export function DashboardPage({ navigate }: AppPageProps) {
   const stableColor = useStableColors(slices.shown.map((s) => s.key));
   const colorOf = (key: string) => (slices.folded.some((s) => s.key === key) ? OTHER : stableColor(key));
 
-  const home = guessHome(data?.byProject.map((p) => p.label) ?? []);
-  const mask = (s: string) => (settings.maskSensitive ? maskSecrets(s, home) : s);
+  const mask = useMask();
   const open = (file?: string) => file && navigate({ page: "session", file, view: "map", turn: undefined, step: undefined, project: undefined });
 
   const total = data ? totalTokens(data.totals) : 0;

@@ -1,23 +1,12 @@
 "use client";
 
 // Small pieces shared by the Health and Files views.
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { ChevronRight, Map as MapIcon } from "lucide-react";
-import { guessHome } from "@/lib/analytics/files";
-import { maskSecrets } from "@/lib/redact";
 import { useRoute } from "@/lib/route";
-import type { SessionModel } from "@/lib/session";
 import { useSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 import type { SessionViewProps } from "./views/registry";
-
-/** Log text as it should appear on screen: secrets and the home folder hidden when "Hide sensitive text" is on. */
-export function useMasker(model: SessionModel) {
-  const [settings] = useSettings();
-  const home = useMemo(() => guessHome(model.meta.cwds), [model.meta.cwds]);
-  const on = settings.maskSensitive;
-  return useCallback((text: string) => (on ? maskSecrets(text, home) : text), [on, home]);
-}
 
 /** Selecting a step (any request) shows its explanation; `toMap` opens it on the map instead. */
 export function useJump({ model, onPickTurn, onSelect }: Pick<SessionViewProps, "model" | "onPickTurn" | "onSelect">) {

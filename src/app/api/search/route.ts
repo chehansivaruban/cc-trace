@@ -3,8 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import readline from "node:readline";
 import { PROJECTS_ROOT, listProjects, resolveSessionFile, subagentsDir } from "@/lib/claude-logs";
-import { maskShortened } from "@/lib/export/common";
-import { maskSecrets } from "@/lib/redact";
+import { createMasker, userNamesFrom } from "@/lib/redact";
 import { snippetOf } from "@/lib/search";
 import { promptText } from "@/lib/session";
 
@@ -79,7 +78,7 @@ export async function GET(req: Request) {
   const limit = Number.isFinite(limitRaw) ? Math.min(1000, Math.max(1, Math.floor(limitRaw))) : 200;
   const home = os.homedir();
   const masking = params.get("mask") === "1";
-  const mask = masking ? (s: string) => maskSecrets(s, home) : (s: string) => s;
+  const mask = masking ? createMasker({ home, names: userNamesFrom([home]) }) : (s: string) => s;
   const needle = q.toLowerCase();
   // JSON keeps these characters as they are, so a raw line without the text can't contain it either.
   const prefilter = !/["\\\u0000-\u001f]/.test(q);
@@ -133,8 +132,8 @@ export async function GET(req: Request) {
           const abs = resolveSessionFile(s.file);
           if (!abs) continue;
           scanned++;
-          // The listing cuts titles at 120 characters, before any masking.
-          const title = masking ? maskShortened(s.title, home, s.title.length >= 120) : s.title;
+          // Listing titles are cut at a word boundary, so masking still sees whole words.
+          const title = mask(s.title);
           let inFile = 0;
           // Requests: count your messages the way buildSession does, so jump links open the right one.
           const prompts: number[] = [];

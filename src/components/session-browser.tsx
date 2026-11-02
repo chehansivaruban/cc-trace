@@ -4,14 +4,13 @@ import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { FileUp, GitBranch, Radio, Search, X } from "lucide-react";
 import type { ProjectInfo, SessionInfo } from "@/lib/claude-logs";
-import { maskSecrets } from "@/lib/redact";
+import { useMask } from "@/hooks/use-mask";
 import {
   ago,
   filterSessions,
   formatDuration,
   formatTokens,
   groupByDate,
-  homeOf,
   isWindowsPath,
   modelName,
   projectOfFile,
@@ -19,7 +18,6 @@ import {
   sortSessions,
   type SessionSort,
 } from "@/lib/sessions-list";
-import { useSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 import { openLogFile } from "./drop-file";
 import { CopyActions } from "./session-info-bar";
@@ -56,7 +54,6 @@ export function SessionBrowser(props: {
   onClose?: () => void;
 }) {
   const { projects, current } = props;
-  const [{ maskSensitive }] = useSettings();
   const [q, setQ] = useState("");
   const [project, setProject] = useState(""); // a project dir, "" for all
   const [liveOnly, setLiveOnly] = useState(false);
@@ -65,8 +62,7 @@ export function SessionBrowser(props: {
   const [now] = useState(() => Date.now());
   const scroller = useRef<HTMLDivElement>(null);
 
-  const home = homeOf(projects[0]?.path);
-  const m = (t: string) => (maskSensitive ? maskSecrets(t, home) : t);
+  const m = useMask();
   const tree = useMemo(() => projectTree(projects), [projects]);
 
   const { rows, totals } = useMemo(() => {

@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Brain, ChevronRight, X } from "lucide-react";
 import { formatDuration } from "@/lib/conversation";
 import { ERROR_NOTE } from "@/lib/explain";
-import { useMask } from "@/lib/mask";
+import { useMask } from "@/hooks/use-mask";
 import { useSettings } from "@/lib/settings";
 import { SESSION_START, totalTokens, type Actor, type Step, type Turn, type Usage } from "@/lib/session";
 import { cn } from "@/lib/utils";
@@ -84,10 +84,11 @@ function H({ children }: { children: ReactNode }) {
   return <h3 className="mt-5 mb-1.5 text-[13px] font-semibold">{children}</h3>;
 }
 function Chip({ actor, onClick }: { actor?: Actor; onClick?: () => void }) {
+  const mask = useMask();
   if (!actor) return null;
   return (
     <button onClick={onClick} className="inline-flex max-w-[150px] items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold text-white" style={{ background: hueColor(actor.hue) }}>
-      <span className="truncate">{actor.name}</span>
+      <span className="truncate">{mask(actor.name)}</span>
     </button>
   );
 }
@@ -149,6 +150,7 @@ function TurnSummary(props: {
   onHelp: () => void;
 }) {
   const { turn, actors, onSelect, onHelp } = props;
+  const mask = useMask();
   const s = turn.steps;
   const helpers = turn.actors.filter((id) => actors[id]?.kind === "helper");
   const messages = s.filter((x) => x.kind === "brief" || x.kind === "message" || x.kind === "report").length;
@@ -183,7 +185,7 @@ function TurnSummary(props: {
     ) : null,
     messages ? <>The agents passed <b>{messages}</b> message{messages === 1 ? "" : "s"} between them.</> : null,
     read.length ? <>Read <b>{read.length}</b> <Term k="file">file{read.length === 1 ? "" : "s"}</Term>.</> : null,
-    changed.length ? <>Changed or created <b>{changed.length}</b> file{changed.length === 1 ? "" : "s"}: {changed.slice(0, 6).join(", ")}{changed.length > 6 ? ` and ${changed.length - 6} more` : ""}.</> : null,
+    changed.length ? <>Changed or created <b>{changed.length}</b> file{changed.length === 1 ? "" : "s"}: {mask(changed.slice(0, 6).join(", "))}{changed.length > 6 ? ` and ${changed.length - 6} more` : ""}.</> : null,
     tests.length ? <>Ran the <Term k="tests">tests</Term> {tests.length} time{tests.length === 1 ? "" : "s"}{failedTests ? `; ${failedTests} run${failedTests === 1 ? "" : "s"} found problems` : ", all passing"}.</> : null,
     errors ? <>{errors} step{errors === 1 ? "" : "s"} didn&apos;t work the first time. That&apos;s normal: Claude reads the error and tries again.</> : null,
     turn.end > turn.ts ? <>Took about {duration(turn.end - turn.ts)}.</> : null,
@@ -222,7 +224,7 @@ function TurnSummary(props: {
           return (
             <button key={id} onClick={() => onSelect({ type: "actor", id })} className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-[13px] hover:bg-foreground/[0.06]">
               <span className="size-2.5 shrink-0 rounded-[3px]" style={{ background: hueColor(a.hue) }} />
-              <span className="min-w-0 flex-1 truncate font-medium">{a.name}</span>
+              <span className="min-w-0 flex-1 truncate font-medium">{mask(a.name)}</span>
               <span className="shrink-0 text-xs text-muted-foreground">{n} step{n === 1 ? "" : "s"}</span>
               <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
             </button>
@@ -270,7 +272,7 @@ function StepCard(props: {
         <span className="flex size-8 shrink-0 items-center justify-center rounded-lg" style={{ background: hueColor(hue, 0.16), color: hueColor(hue) }}>
           <StepIcon icon={s.icon} className="size-4" />
         </span>
-        {s.title}
+        <span className="line-clamp-2 min-w-0 break-words">{mask(s.title)}</span>
       </h2>
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         {from ? (
@@ -356,14 +358,15 @@ function ActorCard({ actor: a, turn, actors, onSelect }: { actor: Actor; turn: T
   const parent = a.parent ? actors[a.parent] : undefined;
   const kids = Object.values(actors).filter((x) => x.parent === a.id && x.kind === "helper");
   const state = { working: "Working right now", done: "Finished and reported back", failed: "Stopped before finishing", idle: "" }[a.state];
+  const mask = useMask();
   return (
     <>
       <Kicker>Who&apos;s who</Kicker>
       <h2 className="mt-1.5 flex items-center gap-2.5 text-lg font-semibold tracking-tight">
         <span className="size-3 shrink-0 rounded" style={{ background: hueColor(a.hue) }} />
-        {a.name}
+        <span className="line-clamp-2 min-w-0 break-words">{mask(a.name)}</span>
       </h2>
-      <p className="text-xs text-muted-foreground">{a.role}</p>
+      <p className="text-xs text-muted-foreground">{mask(a.role)}</p>
       <p className="mt-3 text-[13px] leading-relaxed">
         <TermText text={ABOUT[a.kind]} />
       </p>

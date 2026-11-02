@@ -2,11 +2,11 @@
 
 // Claude's replies are markdown. Rendered safely: no raw HTML, no remote images (nothing is ever fetched),
 // links open in a new tab, code blocks get the dark code panel.
-import { isValidElement, memo, useState, type ReactNode } from "react";
+import { isValidElement, memo, useMemo, useState, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { CAPS } from "@/lib/conversation";
-import { maskText, useMask } from "@/lib/mask";
+import { CAPS, markdownSource } from "@/lib/conversation";
+import { useMask } from "@/hooks/use-mask";
 import { cn } from "@/lib/utils";
 import { CodeBlock } from "./code-block";
 
@@ -69,15 +69,14 @@ const Rendered = memo(function Rendered({ text }: { text: string }) {
 });
 
 /**
- * Markdown text from the logs. `masked` forces "Hide sensitive text" on (true) or off (false);
- * left out, it follows the setting. Very long text is cut before it's parsed, with "Show all".
+ * Markdown text from the logs, masked when "Hide sensitive text" is on. Very long text is masked, then cut
+ * before it's parsed, with "Show all".
  */
-export function Markdown({ text, masked, className }: { text: string; masked?: boolean; className?: string }) {
+export function Markdown({ text, className }: { text: string; className?: string }) {
   const mask = useMask();
   const [all, setAll] = useState(false);
   const long = text.length > CAPS.markdown;
-  const cut = long && !all ? text.slice(0, CAPS.markdown) : text;
-  const shown = masked === undefined ? mask(cut) : masked ? maskText(cut) : cut;
+  const shown = useMemo(() => (all ? mask(text) : markdownSource(text, mask)), [all, mask, text]);
   return (
     <div className={cn("min-w-0 text-[13px] leading-relaxed break-words", className)}>
       <Rendered text={shown} />

@@ -8,6 +8,7 @@
 import {
   CAPS,
   codeText,
+  markdownSource,
   maskLines,
   outputText,
   questionData,
@@ -153,9 +154,9 @@ export function findAll(hay: string, needle: string, max = 5000): number[] {
 // ── data side: each row's blocks ──
 
 const plainTerms = (t: string) => t.replace(/\[\[(\w+):([^\]]+)\]\]/g, "$2");
-const md = (text: string, mask: Mask) => markdownText(mask(text.length > CAPS.markdown ? text.slice(0, CAPS.markdown) : text));
+const md = (text: string, mask: Mask) => markdownText(markdownSource(text, mask));
 const code = (value: unknown, mask: Mask) => {
-  const t = mask(codeText(value));
+  const t = codeText(value, mask);
   return t ? [t] : [];
 };
 const str = (v: unknown) => (typeof v === "string" ? v : "");
@@ -220,7 +221,7 @@ export function toolBodyText(step: Step, mask: Mask): string[] {
     }
     case "WebFetch": {
       const w = webFetchData(step);
-      return [...(w.url ? [mask(w.url)] : []), ...(w.prompt ? [mask(textBoxText(`What Claude wanted to know: ${w.prompt}`))] : []), ...(w.text ? md(w.text, mask) : [])];
+      return [...(w.url ? [mask(w.url)] : []), ...(w.prompt ? [textBoxText(`What Claude wanted to know: ${w.prompt}`, mask)] : []), ...(w.text ? md(w.text, mask) : [])];
     }
     case "AskUserQuestion": {
       const q = questionData(step);

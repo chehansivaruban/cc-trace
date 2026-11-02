@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } fr
 import { ArrowLeft, Loader2, Search } from "lucide-react";
 import type { SearchDone, SearchHit } from "@/app/api/search/route";
 import type { ProjectInfo } from "@/lib/claude-logs";
-import { maskSecrets } from "@/lib/redact";
+import { useMask } from "@/hooks/use-mask";
 import type { AppPageProps } from "@/lib/route";
 import { useSettings } from "@/lib/settings";
 
@@ -37,7 +37,7 @@ export function SearchPage({ route, navigate }: AppPageProps) {
   const hydrated = useHydrated();
   const q = route.q ?? "";
   const [draft, setDraft] = useState(q);
-  const mask = (text: string) => (settings.maskSensitive ? maskSecrets(text) : text);
+  const mask = useMask();
   const [state, setState] = useState<State>({ hits: [], busy: false });
   // Project folders as Claude Code recorded them (the folder names alone are lossy).
   const [paths, setPaths] = useState<Record<string, string>>({});
@@ -149,7 +149,7 @@ export function SearchPage({ route, navigate }: AppPageProps) {
                 onClick={() => navigate({ page: "session", file: first.file, turn: undefined, view: "map", step: undefined, q: undefined })}
                 className="block w-full rounded-t-xl px-4 pt-3 pb-2 text-left hover:bg-foreground/[0.04]"
               >
-                <span className="line-clamp-1 text-[13px] font-semibold">{first.title}</span>
+                <span className="line-clamp-1 text-[13px] font-semibold">{mask(first.title)}</span>
                 <span className="block truncate text-xs text-muted-foreground">
                   {mask(shortPath(paths[projectOf(first.file)] ?? projectOf(first.file)))} · {hits.length} match{hits.length === 1 ? "" : "es"}
                 </span>

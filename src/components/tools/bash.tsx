@@ -3,7 +3,7 @@
 // Bash / PowerShell: the command, what it printed and how it ended. (Claude's own note about it is in the
 // step's plain-English text.)
 import { bashOutcome } from "@/lib/conversation";
-import { useMask } from "@/lib/mask";
+import { useMask } from "@/hooks/use-mask";
 import type { Step } from "@/lib/session";
 import { CodeBlock } from "../code-block";
 import { Pill, asText, type Json } from "./shared";

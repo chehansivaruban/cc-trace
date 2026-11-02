@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { safeClip } from "./redact.ts";
 import { promptText } from "./session.ts";
 import { encodeProjectDir, withTimeout, worktreeParent } from "./sessions-list.ts";
 
@@ -135,10 +136,14 @@ export const scanHead = (text: string) => scanText(text, false);
 /** Scans the last bytes of a log; its first line is a fragment and is skipped. */
 export const scanTail = (text: string) => scanText(text, true);
 
+// Titles go to the browser for every session: cut long ones at a word boundary (so masking still sees whole
+// words) with a visible "…". The page shortens them further on screen.
+const TITLE_MAX = 300;
+
 /** /rename title, else Claude's auto title, else the first prompt (the tail holds the latest titles). */
 export function pickTitle(head: LogScan, tail: LogScan): string {
   const t = tail.customTitle ?? head.customTitle ?? tail.aiTitle ?? head.aiTitle ?? head.firstPrompt ?? tail.firstPrompt;
-  return t?.replace(/\s+/g, " ").trim().slice(0, 120) || "Untitled session";
+  return safeClip(t?.replace(/\s+/g, " ").trim() ?? "", TITLE_MAX) || "Untitled session";
 }
 
 /** Running totals over a whole log, fed in pieces as it is read. Replies are counted once by message id. */
@@ -363,7 +368,7 @@ function toInfo(f: Found, live: Set<string>): SessionInfo {
     title: pickTitle({ ...head, customTitle: c.customTitle ?? head.customTitle, aiTitle: c.aiTitle ?? head.aiTitle }, tail),
     customTitle: tail.customTitle ?? c.customTitle ?? head.customTitle,
     aiTitle: tail.aiTitle ?? c.aiTitle ?? head.aiTitle,
-    firstPrompt: head.firstPrompt?.slice(0, 300),
+    firstPrompt: head.firstPrompt === undefined ? undefined : safeClip(head.firstPrompt, TITLE_MAX),
     cwd: homeCwd(f),
     model: tail.model ?? c.model ?? head.model,
     requests: c.requests,

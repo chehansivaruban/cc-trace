@@ -1,7 +1,7 @@
 // Shared by the HTML and Markdown exports (H1): one masked, clipped, plain-text outline of a session or a
 // request, so masking happens in exactly one place. Exports are built in the browser; nothing is written
 // by the server.
-import { maskSecrets } from "../redact.ts";
+import { createMasker, homeFromCwds, userNamesFrom, type Masker } from "../redact.ts";
 import { SESSION_START, totalTokens, type SessionModel, type Step, type Turn } from "../session.ts";
 import { scopeToTurn } from "../analytics/compare.ts";
 import { formatCount, sessionStory, storyOf } from "../analytics/story.ts";
@@ -9,27 +9,18 @@ import { formatCount, sessionStory, storyOf } from "../analytics/story.ts";
 export type ExportOptions = { turn?: number; mask: boolean; home?: string };
 
 /** The home folder, guessed from the folders Claude worked in, so masking can turn it into "~". */
-export function homeOf(m: SessionModel): string | undefined {
-  for (const cwd of m.meta?.cwds ?? []) {
-    const h = /^(\/Users\/[^/]+|\/home\/[^/]+|\/root(?=\/|$)|[A-Za-z]:\\Users\\[^\\]+|[A-Za-z]:\/Users\/[^/]+)/.exec(cwd)?.[1];
-    if (h) return h;
-  }
-  return undefined;
-}
+export const homeOf = (m: SessionModel): string | undefined => homeFromCwds(m.meta?.cwds);
 
-export type Masker = (s: string) => string;
+export type { Masker };
 
-const CUT_WORD = /\S*…/g;
-/**
- * Masks text that may already have been shortened somewhere else (helper names, session titles, step
- * subtitles). A word cut short by "…" could be half a secret the patterns no longer recognise, so every
- * such word is dropped before masking. `cut` says the text was cut without a "…" (e.g. at a fixed length).
- */
-export function maskShortened(s: string, home?: string, cut = false): string {
-  const t = cut && !/…[”"]?$/.test(s) ? (/[”"]$/.test(s) ? `${s.slice(0, -1)}…${s.slice(-1)}` : `${s}…`) : s;
-  return maskSecrets(t.replace(CUT_WORD, "…"), home);
+/** The export's masker: secrets, home folders, and the user names in the session's folders (or the given home). */
+export const makeMasker = (mask: boolean, home?: string, names: readonly string[] = userNamesFrom([home])): Masker =>
+  mask ? createMasker({ home, names }) : (s) => s;
+
+export function sessionMasker(m: SessionModel, opts: ExportOptions): Masker {
+  const home = opts.home ?? homeOf(m);
+  return makeMasker(opts.mask, home, userNamesFrom([home, ...(m.meta?.cwds ?? [])]));
 }
-export const makeMasker = (mask: boolean, home?: string): Masker => (mask ? (s) => maskShortened(s, home) : (s) => s);
 
 const SECRET_KEY = /password|passwd|secret|token|api[_-]?key/i;
 const HIDDEN = "•••";
@@ -47,8 +38,8 @@ export function maskDeep(v: unknown, mask: Masker, depth = 0): unknown {
   if (o.type === "image") return "[image left out]";
   const out: Record<string, unknown> = {};
   for (const [k, x] of Object.entries(o)) {
-    // Images can't be checked; step subtitles are text cut short before masking (rebuildable from the quote).
-    if (k === "images" || k === "subtitle") continue;
+    // Images can't be checked for secrets.
+    if (k === "images") continue;
     out[k] = typeof x === "string" && SECRET_KEY.test(k) ? HIDDEN : maskDeep(x, mask, depth + 1);
   }
   return out;
@@ -73,6 +64,8 @@ export function valueText(v: unknown, mask: Masker, masking: boolean, max = 4000
 }
 
 const shorten = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
+/** Subtitles hold whole text in the model; the export shortens them after masking, keeping “quotes” closed. */
+const shortSubtitle = (s: string) => (s.startsWith("“") && s.endsWith("”") && s.length > 80 ? `“${shorten(s.slice(1, -1), 78)}”` : shorten(s, 80));
 
 export const stripTerms = (s: string) => s.replace(/\[\[(\w+):([^\]]+)\]\]/g, "$2");
 
@@ -121,11 +114,7 @@ function outlineStep(s: Step, m: SessionModel, mask: Masker, masking: boolean): 
     to: to ? mask(to.name) : undefined,
     hue: Number(doer?.hue) || 0,
     title: mask(s.title ?? ""),
-    // Messages' subtitles are their text cut at ~48 characters before any masking: rebuild from the masked text.
-    subtitle:
-      masking && typeof s.quote === "string" && s.subtitle?.startsWith("“")
-        ? `“${shorten(mask(s.quote).replace(/\s+/g, " ").trim(), 48)}”`
-        : mask(s.subtitle ?? ""),
+    subtitle: shortSubtitle(mask(s.subtitle ?? "")),
     what: mask(stripTerms(s.what ?? "")),
     quote: typeof s.quote === "string" && s.quote ? clipText(mask(s.quote), 20_000) : undefined,
     error: s.status === "error",
@@ -162,7 +151,7 @@ function outlineTurn(t: Turn, m: SessionModel, mask: Masker, masking: boolean): 
 
 /** Everything an export shows, already masked and clipped. */
 export function outline(m: SessionModel, opts: ExportOptions): Outline {
-  const mask = makeMasker(opts.mask, opts.home ?? homeOf(m));
+  const mask = sessionMasker(m, opts);
   const one = opts.turn !== undefined;
   const turns = one ? m.turns.filter((t) => t.index === opts.turn) : m.turns;
   const first = m.turns.find((t) => t.text !== SESSION_START)?.text ?? "";
@@ -197,7 +186,7 @@ export function outline(m: SessionModel, opts: ExportOptions): Outline {
 
 /** The session model as JSON (masked when asked), for people who want the raw data. */
 export function exportJson(m: SessionModel, opts: ExportOptions): string {
-  const mask = makeMasker(opts.mask, opts.home ?? homeOf(m));
+  const mask = sessionMasker(m, opts);
   const scoped = opts.turn !== undefined ? scopeToTurn(m, m.turns.findIndex((t) => t.index === opts.turn)) : m;
   const body = { exportedBy: "cc-trace", masked: opts.mask, scope: opts.turn !== undefined ? `request ${opts.turn + 1}` : "session", session: scoped };
   try {

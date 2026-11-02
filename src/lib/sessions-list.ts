@@ -129,11 +129,6 @@ export function permissionLabel(mode: string): { label: string; text: string; ri
 /** The last two folders of a path, either separator. */
 export const shortPath = (p: string) => p.split(/[\\/]/).filter(Boolean).slice(-2).join("/") || p;
 
-/** The user's home folder as it appears at the start of a recorded path, for masking. */
-export function homeOf(p?: string): string | undefined {
-  return p ? /^(?:\/Users\/[^/]+|\/home\/[^/]+|[A-Za-z]:\\Users\\[^\\]+)/.exec(p)?.[0] : undefined;
-}
-
 export function formatTokens(n: number): string {
   if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`;
   if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;

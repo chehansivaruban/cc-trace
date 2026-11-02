@@ -3,10 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { FileText, Loader2, Upload, X } from "lucide-react";
-import { maskSecrets } from "@/lib/redact";
+import { useMask } from "@/hooks/use-mask";
 import { AGENT_LOG, AGENT_META, dropProblem, parseLogText } from "@/lib/sessions-list";
 import type { AgentLog, AgentMeta, LogRecord } from "@/lib/session";
-import { useSettings } from "@/lib/settings";
 
 // Viewing a log someone sent you: the file is read in this browser tab only. Nothing is uploaded or saved.
 
@@ -194,12 +193,12 @@ export function DropFile({ onLoad }: { onLoad: LoadLog }) {
 
 /** Shown above a dropped file instead of the session info bar. */
 export function DroppedBanner({ name, onClose }: { name: string; onClose: () => void }) {
-  const [{ maskSensitive }] = useSettings();
+  const mask = useMask();
   return (
     <div className="flex shrink-0 items-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-[12px]" role="status">
       <FileText className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
       <span className="min-w-0 flex-1 truncate">
-        <span className="font-medium">Viewing a file, not live:</span> {maskSensitive ? maskSecrets(name) : name}
+        <span className="font-medium">Viewing a file, not live:</span> {mask(name)}
         <span className="hidden text-muted-foreground sm:inline"> · read in this browser only, nothing saved</span>
       </span>
       <button onClick={onClose} className="shrink-0 rounded-lg px-2 py-1 text-muted-foreground transition-colors hover:bg-foreground/[0.07] hover:text-foreground">

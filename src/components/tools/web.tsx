@@ -2,7 +2,7 @@
 
 // WebFetch / WebSearch: which page or search, and what Claude got back. Links open in a new tab.
 import { CAPS, shortUrl, webFetchData, webSearchData } from "@/lib/conversation";
-import { useMask } from "@/lib/mask";
+import { useMask } from "@/hooks/use-mask";
 import type { Step } from "@/lib/session";
 import { Markdown } from "../markdown";
 import { Facts, Pill, TextBox, asText, fmt, plural } from "./shared";
@@ -40,7 +40,7 @@ export function WebView({ step }: { step: Step }) {
                   {i + 1}
                 </span>
                 <span className="min-w-0">
-                  <Link href={l.url}>{l.title}</Link>
+                  <Link href={l.url}>{mask(l.title)}</Link>
                   <span data-find-block className="block truncate text-xs text-muted-foreground">
                     {mask(shortUrl(l.url))}
                   </span>

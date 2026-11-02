@@ -16,7 +16,7 @@ import { nearestExplanation } from "@/lib/analytics/explanations";
 import { conversationRows, formatDuration, modelLabel, toolTime, type ConvRow } from "@/lib/conversation";
 import { ERROR_NOTE } from "@/lib/explain";
 import { rowSearchText } from "@/lib/find-text";
-import { rememberHomes, useMask } from "@/lib/mask";
+import { useMask } from "@/hooks/use-mask";
 import { SESSION_START, totalTokens, type Actor, type Step, type Usage } from "@/lib/session";
 import { useSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
@@ -36,7 +36,6 @@ export function ConversationView(props: SessionViewProps) {
 function Conversation({ model, turn, selected, onSelect }: SessionViewProps) {
   const [settings] = useSettings();
   // The session's folders tell the masker whose home folder this is, so the user name is hidden everywhere.
-  useMemo(() => rememberHomes(model.meta.cwds), [model.meta.cwds]);
   const mask = useMask();
   const [techPick, setTech] = useState<boolean | null>(null);
   const tech = techPick ?? settings.showTechnical;
@@ -441,8 +440,8 @@ function TextRow({ row, actors, hue, tech, onDetails }: { row: ConvRow; actors: 
     <div className="max-w-full">
       <div data-find-skip className="mb-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground">
         <span className="size-2 shrink-0 rounded-[3px]" style={{ background: hueColor(hue) }} />
-        <span className="font-semibold text-foreground">{name}</span>
-        <span>{label}</span>
+        <span className="max-w-[16rem] truncate font-semibold text-foreground">{name}</span>
+        <span className="max-w-[20rem] truncate">{label}</span>
         <span>· {time(s.ts)}</span>
         {s.status === "error" && <span className="text-red-600 dark:text-red-400">· stopped early</span>}
         <span className="ml-auto flex items-center gap-1">

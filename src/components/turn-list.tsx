@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useMask } from "@/hooks/use-mask";
+import { safeClip } from "@/lib/redact";
 import type { Actor, Turn } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +17,7 @@ function ago(ms: number) {
 /** Every message you sent in this session; each one is a "request" with its own map. */
 export function TurnList(props: { turns: Turn[]; actors: Record<string, Actor>; selectedIndex?: number; liveIndex?: number; onPick: (i: number) => void }) {
   const active = useRef<HTMLButtonElement>(null);
+  const mask = useMask();
   useEffect(() => {
     active.current?.scrollIntoView({ block: "nearest" });
   }, [props.selectedIndex]);
@@ -45,7 +48,7 @@ export function TurnList(props: { turns: Turn[]; actors: Record<string, Actor>; 
                 )}
                 <span className="ml-auto">{ago(t.ts)}</span>
               </div>
-              <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug">{t.text}</p>
+              <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug">{mask(safeClip(t.text, 400))}</p>
               <p className="mt-1 text-[11px] text-muted-foreground">
                 {t.steps.length} steps{helpers ? ` · ${helpers} helper${helpers === 1 ? "" : "s"}` : ""}
               </p>

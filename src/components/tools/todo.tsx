@@ -3,7 +3,7 @@
 // TodoWrite and friends: Claude's checklist for the job, with each item's state.
 import { Circle, CircleCheck, CircleDot } from "lucide-react";
 import { todoItems } from "@/lib/conversation";
-import { useMask } from "@/lib/mask";
+import { useMask } from "@/hooks/use-mask";
 import type { Step } from "@/lib/session";
 import { cn } from "@/lib/utils";
 import { Pill, asText, type Json } from "./shared";

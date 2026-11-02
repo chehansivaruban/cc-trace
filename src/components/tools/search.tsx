@@ -2,7 +2,7 @@
 
 // Grep / Glob: what Claude looked for, where, and what turned up.
 import { CAPS, searchData } from "@/lib/conversation";
-import { useMask } from "@/lib/mask";
+import { useMask } from "@/hooks/use-mask";
 import type { Step } from "@/lib/session";
 import { CodeBlock } from "../code-block";
 import { Facts, Pill, fmt, plural } from "./shared";

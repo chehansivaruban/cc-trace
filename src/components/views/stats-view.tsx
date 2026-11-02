@@ -6,11 +6,11 @@ import { BarChart, type Bar } from "@/components/charts/bars";
 import { CHART_VARS, fmt } from "@/components/charts/kit";
 import { LineChart } from "@/components/charts/line";
 import { hueColor } from "@/components/step-icon";
-import { AsTable, Meter, Section, Segmented, SortTable, StatTile, TechToggle, guessHome, pct, shortDuration, sameLabel, tokenColumns, toolLabel, type Column } from "@/components/stats-parts";
+import { AsTable, Meter, Section, Segmented, SortTable, StatTile, TechToggle,  pct, shortDuration, sameLabel, tokenColumns, toolLabel, type Column } from "@/components/stats-parts";
 import { Term, TermText } from "@/components/term-text";
 import { burnSeries, cacheHit, contextGauge, sessionStats, type BurnPoint, type Row, type ToolRow } from "@/lib/analytics/stats";
 import { tipsFor } from "@/lib/analytics/tips";
-import { maskSecrets } from "@/lib/redact";
+import { useMask } from "@/hooks/use-mask";
 import { useRoute } from "@/lib/route";
 import { useSettings } from "@/lib/settings";
 import { totalTokens, type Usage } from "@/lib/session";
@@ -25,8 +25,7 @@ export function StatsView({ model, turn, file }: SessionViewProps) {
   const [, navigate] = useRoute();
   const [tech, setTech] = useState(settings.showTechnical);
   const [scope, setScope] = useState<"session" | "request">("session");
-  const home = guessHome(model.meta.cwds);
-  const mask = (s: string) => (settings.maskSensitive ? maskSecrets(s, home) : s);
+  const mask = useMask(model);
 
   const stats = useMemo(() => sessionStats(model), [model]);
   const burn = useMemo(() => burnSeries(model, scope === "request" ? turn.index : undefined), [model, scope, turn.index]);

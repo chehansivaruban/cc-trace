@@ -18,10 +18,12 @@ import { LivePage } from "@/components/pages/live-page";
 import { SearchPage } from "@/components/pages/search-page";
 import { SettingsDialog } from "@/components/pages/settings-dialog";
 import { SESSION_VIEWS, type SessionViewProps } from "@/components/views/registry";
+import { MaskScope } from "@/hooks/use-mask";
 import { useSessionStream } from "@/hooks/use-session-stream";
 import type { ProjectInfo, SessionInfo } from "@/lib/claude-logs";
 import { parseRoute, useRoute, type AppPage, type AppPageProps, type Navigate, type Route, type SessionView } from "@/lib/route";
 import { SESSION_START, buildSession, type AgentLog, type LogRecord } from "@/lib/session";
+import { safeClip } from "@/lib/redact";
 import { cn } from "@/lib/utils";
 
 const sheet = { type: "spring", bounce: 0, duration: 0.4 } as const;
@@ -113,7 +115,7 @@ export default function Home() {
   // The picker only scans the start of each log; a huge first message leaves it untitled.
   const firstAsk = model.turns.find((t) => t.text !== SESSION_START)?.text;
   const session: SessionInfo | undefined =
-    listed && listed.title === "Untitled session" && firstAsk ? { ...listed, title: firstAsk.slice(0, 120) } : listed;
+    listed && listed.title === "Untitled session" && firstAsk ? { ...listed, title: safeClip(firstAsk.replace(/\s+/g, " ").trim(), 300) } : listed;
   const lastTurn = model.turns.length - 1;
   const turnIndex = sessionRoute?.turn !== undefined && sessionRoute.turn <= lastTurn ? sessionRoute.turn : lastTurn;
   const turn = model.turns[turnIndex];
@@ -151,124 +153,127 @@ export default function Home() {
   );
 
   return (
-    <main className="relative flex h-dvh w-screen flex-col overflow-hidden bg-background">
-      <Header
-        projects={projects ?? []}
-        project={project}
-        session={session}
-        fileName={dropped?.name}
-        onSession={pickSession}
-        onRefresh={refresh}
-        onHelp={() => setHelp(true)}
-        onOpenPage={(page) => navigate({ page })}
-        onSettings={() => setSettingsOpen(true)}
-        live={model.live}
-        connected={connected}
-      />
+    // Masking learns the user's name from this session's folders (and the home folder), never from log text.
+    <MaskScope cwds={model.meta.cwds}>
+      <main className="relative flex h-dvh w-screen flex-col overflow-hidden bg-background">
+        <Header
+          projects={projects ?? []}
+          project={project}
+          session={session}
+          fileName={dropped?.name}
+          onSession={pickSession}
+          onRefresh={refresh}
+          onHelp={() => setHelp(true)}
+          onOpenPage={(page) => navigate({ page })}
+          onSettings={() => setSettingsOpen(true)}
+          live={model.live}
+          connected={connected}
+        />
 
-      {route.page !== "session" ? (
-        <div className="min-h-0 flex-1 overflow-auto pt-[84px]">
-          <AppPageView page={route.page} route={route} navigate={pageNavigate} />
-        </div>
-      ) : (
-        <div className="flex min-h-0 flex-1 pt-[84px]">
-          <div className="hidden w-[272px] shrink-0 border-r border-foreground/10 xl:block">{turnList}</div>
-
-          <div className="flex min-w-0 flex-1 flex-col">
-            {turn && dropped && <DroppedBanner name={dropped.name} onClose={() => setDropped(null)} />}
-            {turn && !dropped && file && <SessionInfoBar model={model} file={file} />}
-            {turn && (
-              <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-foreground/10 px-3 pt-2" role="tablist">
-                {SESSION_VIEWS.map((v) => (
-                  <button
-                    key={v.id}
-                    role="tab"
-                    aria-selected={view === v.id}
-                    onClick={() => go({ view: v.id })}
-                    className={cn(
-                      "-mb-px shrink-0 border-b-2 px-3 pb-2 text-[13px] whitespace-nowrap transition-colors",
-                      view === v.id ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    {v.id === "map"
-                      ? `Request ${turnIndex + 1}, step by step`
-                      : v.id === "flow"
-                        ? `Whole session · ${model.turns.length} request${model.turns.length === 1 ? "" : "s"}`
-                        : v.label}
-                  </button>
-                ))}
-              </div>
-            )}
-            <div className="relative min-h-0 flex-1">
-              {turn && <Welcome onHelp={() => setHelp(true)} />}
-              {turn && (file || dropped) ? (
-                <ActiveView
-                  key={`${dropped ? "dropped:" + dropped.name : file}:${view}`}
-                  view={view}
-                  model={model}
-                  turn={turn}
-                  file={dropped ? `dropped:${dropped.name}` : file!}
-                  selected={selected}
-                  onSelect={setSelected}
-                  onPickTurn={pickTurn}
-                  onShowSession={() => go({ view: "flow" })}
-                  onShowRequests={() => setRequestsOpen(true)}
-                />
-              ) : (
-                <Empty
-                  projects={projects}
-                  loading={!!file && !connected}
-                  missing={missing}
-                  onNewest={() => pickSession(projects?.[0]?.sessions[0])}
-                />
-              )}
-            </div>
+        {route.page !== "session" ? (
+          <div className="min-h-0 flex-1 overflow-auto pt-[84px]">
+            <AppPageView page={route.page} route={route} navigate={pageNavigate} />
           </div>
+        ) : (
+          <div className="flex min-h-0 flex-1 pt-[84px]">
+            <div className="hidden w-[272px] shrink-0 border-r border-foreground/10 xl:block">{turnList}</div>
 
-          <div className="hidden w-[380px] shrink-0 border-l border-foreground/10 lg:block">{details()}</div>
-        </div>
-      )}
+            <div className="flex min-w-0 flex-1 flex-col">
+              {turn && dropped && <DroppedBanner name={dropped.name} onClose={() => setDropped(null)} />}
+              {turn && !dropped && file && <SessionInfoBar model={model} file={file} />}
+              {turn && (
+                <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-foreground/10 px-3 pt-2" role="tablist">
+                  {SESSION_VIEWS.map((v) => (
+                    <button
+                      key={v.id}
+                      role="tab"
+                      aria-selected={view === v.id}
+                      onClick={() => go({ view: v.id })}
+                      className={cn(
+                        "-mb-px shrink-0 border-b-2 px-3 pb-2 text-[13px] whitespace-nowrap transition-colors",
+                        view === v.id ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {v.id === "map"
+                        ? `Request ${turnIndex + 1}, step by step`
+                        : v.id === "flow"
+                          ? `Whole session · ${model.turns.length} request${model.turns.length === 1 ? "" : "s"}`
+                          : v.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="relative min-h-0 flex-1">
+                {turn && <Welcome onHelp={() => setHelp(true)} />}
+                {turn && (file || dropped) ? (
+                  <ActiveView
+                    key={`${dropped ? "dropped:" + dropped.name : file}:${view}`}
+                    view={view}
+                    model={model}
+                    turn={turn}
+                    file={dropped ? `dropped:${dropped.name}` : file!}
+                    selected={selected}
+                    onSelect={setSelected}
+                    onPickTurn={pickTurn}
+                    onShowSession={() => go({ view: "flow" })}
+                    onShowRequests={() => setRequestsOpen(true)}
+                  />
+                ) : (
+                  <Empty
+                    projects={projects}
+                    loading={!!file && !connected}
+                    missing={missing}
+                    onNewest={() => pickSession(projects?.[0]?.sessions[0])}
+                  />
+                )}
+              </div>
+            </div>
 
-      {/* Smaller screens: the request list and the explanations slide in as drawers. */}
-      <AnimatePresence>
-        {requestsOpen && route.page === "session" && (
-          <motion.div key="requests" className="fixed inset-0 z-40 bg-black/30 xl:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setRequestsOpen(false)}>
-            <motion.div
-              className="glass-strong h-full w-[300px] max-w-[85vw]"
-              initial={{ x: "-100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "-100%" }}
-              transition={sheet}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {turnList}
+            <div className="hidden w-[380px] shrink-0 border-l border-foreground/10 lg:block">{details()}</div>
+          </div>
+        )}
+
+        {/* Smaller screens: the request list and the explanations slide in as drawers. */}
+        <AnimatePresence>
+          {requestsOpen && route.page === "session" && (
+            <motion.div key="requests" className="fixed inset-0 z-40 bg-black/30 xl:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setRequestsOpen(false)}>
+              <motion.div
+                className="glass-strong h-full w-[300px] max-w-[85vw]"
+                initial={{ x: "-100%" }}
+                animate={{ x: 0 }}
+                exit={{ x: "-100%" }}
+                transition={sheet}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {turnList}
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-        {selected && route.page === "session" && (
-          <motion.div
-            key="details"
-            className="glass-strong fixed inset-x-0 bottom-0 z-40 h-[62dvh] rounded-t-2xl shadow-2xl lg:hidden"
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={sheet}
-          >
-            {details(() => setSelected(null))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+          {selected && route.page === "session" && (
+            <motion.div
+              key="details"
+              className="glass-strong fixed inset-x-0 bottom-0 z-40 h-[62dvh] rounded-t-2xl shadow-2xl lg:hidden"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={sheet}
+            >
+              {details(() => setSelected(null))}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      <DropFile
-        onLoad={(records, name, agents) => {
-          setActorPick(null);
-          setDropped({ name, records, agents });
-          if (route.page !== "session") go({});
-        }}
-      />
-      <HelpDialog open={help} onClose={() => setHelp(false)} />
-      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-    </main>
+        <DropFile
+          onLoad={(records, name, agents) => {
+            setActorPick(null);
+            setDropped({ name, records, agents });
+            if (route.page !== "session") go({});
+          }}
+        />
+        <HelpDialog open={help} onClose={() => setHelp(false)} />
+        <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      </main>
+    </MaskScope>
   );
 }
 

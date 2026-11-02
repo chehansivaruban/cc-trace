@@ -4,7 +4,7 @@
 // `data-find-skip` so find-in-request only searches what came from the log (see src/lib/find-text.ts).
 import { useState, type ReactNode } from "react";
 import { CAPS, textBoxText } from "@/lib/conversation";
-import { useMask } from "@/lib/mask";
+import { useMask } from "@/hooks/use-mask";
 import { cn } from "@/lib/utils";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- tool inputs and results are untyped JSON */
@@ -68,7 +68,7 @@ export function TextBox({ text, mono, className }: { text: string; mono?: boolea
   const mask = useMask();
   const [open, setOpen] = useState(false);
   const long = text.length > CAPS.textBox;
-  const shown = mask(open ? text : textBoxText(text));
+  const shown = open ? mask(text) : textBoxText(text, mask);
   return (
     <div className={cn("rounded-xl bg-foreground/[0.05] px-3 py-2.5 text-[13px] leading-relaxed", className)}>
       <div className={cn("break-words whitespace-pre-wrap", mono && "font-mono text-[12px]")}>{shown}</div>

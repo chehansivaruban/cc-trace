@@ -6,7 +6,7 @@ import { FolderOpen, Keyboard, Map as MapIcon, X } from "lucide-react";
 import { toggleShortcuts } from "@/hooks/use-shortcuts";
 import { useFocusTrap } from "@/hooks/use-focus-trap";
 import { useFolders } from "@/hooks/use-folders";
-import { maskSecrets } from "@/lib/redact";
+import { useMask } from "@/hooks/use-mask";
 import { LEGACY_THEME_KEY, useSettings, type Settings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 import { startTour } from "../tour";
@@ -70,7 +70,7 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
     setNotice(null);
     onClose();
   };
-  const mask = (t: string) => (settings.maskSensitive ? maskSecrets(t, folders?.home) : t);
+  const mask = useMask();
 
   return (
     <AnimatePresence>

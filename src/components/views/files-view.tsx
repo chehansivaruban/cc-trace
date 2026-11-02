@@ -6,7 +6,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronLeft, FilePen, FilePlus, FileText, Search } from "lucide-react";
 import { ToolRenderer } from "@/components/tools";
 import { TermText } from "@/components/term-text";
-import { MapButton, plural, useJump, useMasker, useTechnical } from "@/components/view-kit";
+import { MapButton, plural, useJump, useTechnical } from "@/components/view-kit";
+import { useMask } from "@/hooks/use-mask";
 import { filesTouched, isInside, pathKey, type FileTouched } from "@/lib/analytics/files";
 import { cn } from "@/lib/utils";
 import type { SessionViewProps } from "./registry";
@@ -24,7 +25,7 @@ function shownPath(p: string, cwds: string[]) {
 
 export function FilesView(props: SessionViewProps) {
   const { model, selected } = props;
-  const mask = useMasker(model);
+  const mask = useMask(model);
   const [tech, techToggle] = useTechnical();
   const files = useMemo(() => filesTouched(model), [model]);
   const changed = useMemo(() => files.filter((f) => f.changes.length), [files]);
@@ -192,7 +193,7 @@ function FileDetail({ entry: file, model, mask, tech, onBack, ...props }: { entr
                 <div className="flex items-start gap-2">
                   <button onClick={() => jump.select(turn, step.id)} className="min-w-0 flex-1 text-left">
                     <span className="block text-[13px] font-semibold hover:underline">
-                      {i + 1}. {step.title}
+                      {i + 1}. {mask(step.title)}
                     </span>
                     <span className="block text-xs text-muted-foreground">
                       Request {turn + 1} · {who} · {new Date(step.ts).toLocaleTimeString()}

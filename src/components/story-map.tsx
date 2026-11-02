@@ -3,6 +3,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Check, ListOrdered, Loader2, Mail, Pause, Play, Radio, SkipBack, SkipForward, X } from "lucide-react";
+import { useMask } from "@/hooks/use-mask";
 import { useZoom } from "@/hooks/use-zoom";
 import { riskOf } from "@/lib/analytics/risk";
 import { MESSAGE_KINDS, type Actor, type Live, type Step, type Turn } from "@/lib/session";
@@ -329,8 +330,11 @@ const STATE = {
 
 function Lane(props: { actor?: Actor; parent?: Actor; top: number; height: number; selected: boolean; onClick: () => void }) {
   const { actor, parent } = props;
+  const mask = useMask();
   if (!actor) return null;
   const state = STATE[actor.state];
+  const name = mask(actor.name);
+  const role = mask(actor.role);
   // Zoomed out, rows get short: drop the second and third lines rather than shrink the text.
   const lines = props.height >= 64 ? 3 : props.height >= 40 ? 2 : 1;
   return (
@@ -341,17 +345,17 @@ function Lane(props: { actor?: Actor; parent?: Actor; top: number; height: numbe
         props.selected && "bg-foreground/[0.06]",
       )}
       style={{ top: props.top, height: props.height }}
-      title={`${actor.name} — ${actor.role}`}
-      aria-label={`About ${actor.name}`}
+      title={`${name} — ${role}`}
+      aria-label={`About ${name}`}
     >
       <span className={cn("flex items-center gap-2 font-semibold", lines === 1 ? "text-[11px]" : "text-[13px]")}>
         <span className="size-2.5 shrink-0 rounded-[3px]" style={{ background: hueColor(actor.hue) }} />
-        <span className="truncate">{actor.name}</span>
+        <span className="truncate">{name}</span>
         {lines < 3 && actor.state === "working" && <Loader2 className="size-3 shrink-0 animate-spin text-sky-400" />}
       </span>
       {lines === 3 && (
         <span className="truncate text-[11px] text-muted-foreground">
-          {actor.kind === "helper" && parent && parent.kind === "helper" ? `helper of ${parent.name}` : actor.role}
+          {actor.kind === "helper" && parent && parent.kind === "helper" ? `helper of ${mask(parent.name)}` : role}
         </span>
       )}
       {lines >= 2 && state.label && (
@@ -435,6 +439,9 @@ const StepNode = memo(function StepNode(props: {
   const message = !!s.from || s.kind === "prompt";
   const { tool, input } = s;
   const risk = useMemo(() => riskOf({ tool, input } as Step), [tool, input]);
+  const mask = useMask();
+  const title = mask(s.title);
+  const subtitle = mask(s.subtitle);
   return (
     <button
       onClick={props.onClick}
@@ -455,15 +462,15 @@ const StepNode = memo(function StepNode(props: {
         borderColor: props.selected ? hueColor(hue) : undefined,
         boxShadow: props.current ? `0 0 0 3px ${hueColor(hue, 0.35)}` : undefined,
       }}
-      aria-label={`${s.title}: ${s.subtitle}`}
-      title={s.subtitle ? `${s.title} · ${s.subtitle}` : s.title}
+      aria-label={`${title}: ${subtitle}`}
+      title={subtitle ? `${title} · ${subtitle}` : title}
     >
       <span className="flex size-7 shrink-0 items-center justify-center rounded-lg" style={{ background: hueColor(hue, 0.16), color: hueColor(hue) }}>
         <StepIcon icon={s.icon} className="size-3.5" />
       </span>
       <span className="min-w-0 flex-1 pr-2">
-        <span className="block truncate text-[12.5px] leading-tight font-semibold">{s.title}</span>
-        <span className="mt-0.5 block truncate text-[11px] leading-tight text-muted-foreground">{s.subtitle || "—"}</span>
+        <span className="block truncate text-[12.5px] leading-tight font-semibold">{title}</span>
+        <span className="mt-0.5 block truncate text-[11px] leading-tight text-muted-foreground">{subtitle || "—"}</span>
       </span>
       <span className="absolute top-1.5 right-1.5">
         <Status status={s.status} stale={props.stale} />

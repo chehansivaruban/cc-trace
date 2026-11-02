@@ -76,7 +76,10 @@ try {
   assert.equal(pickTitle(head, {}), "Early AI title", "a title in the head counts when the tail has none");
   assert.equal(pickTitle({ ...head, aiTitle: undefined }, {}), "fix the login bug");
   assert.equal(pickTitle({}, {}), "Untitled session");
-  assert.equal(pickTitle({ firstPrompt: "x".repeat(300) }, {}).length, 120);
+  // Long titles are cut at a word boundary with a visible "…", so masking later still sees whole words.
+  assert.equal(pickTitle({ firstPrompt: "word ".repeat(100) }, {}), `${"word ".repeat(60).trim()}…`);
+  const longKey = pickTitle({ firstPrompt: "a".repeat(290) + " sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWX tail" }, {});
+  assert.ok(!longKey.includes("sk-ant") && longKey.endsWith("…"), longKey);
   assert.deepEqual(scanTail(""), {});
   console.log("✓ head and tail scans pick the title");
 
