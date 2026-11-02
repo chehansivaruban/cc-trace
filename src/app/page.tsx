@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ComponentType } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2 } from "lucide-react";
+import { ListFilter, Loader2 } from "lucide-react";
+import { AttentionBadge, AttentionWatcher } from "@/components/attention";
 import { DetailsPanel } from "@/components/details-panel";
 import { DropFile, DroppedBanner } from "@/components/drop-file";
+import { FilterBar } from "@/components/filter-bar";
 import { Header } from "@/components/header";
 import { HelpDialog } from "@/components/help-dialog";
 import { SessionInfoBar } from "@/components/session-info-bar";
@@ -18,16 +20,22 @@ import { LivePage } from "@/components/pages/live-page";
 import { SearchPage } from "@/components/pages/search-page";
 import { SettingsDialog } from "@/components/pages/settings-dialog";
 import { SESSION_VIEWS, type SessionViewProps } from "@/components/views/registry";
+import { useEscape } from "@/hooks/use-escape";
 import { MaskScope } from "@/hooks/use-mask";
+import { useShortcuts } from "@/hooks/use-shortcuts";
 import { useSessionStream } from "@/hooks/use-session-stream";
 import type { ProjectInfo, SessionInfo } from "@/lib/claude-logs";
-import { parseRoute, useRoute, type AppPage, type AppPageProps, type Navigate, type Route, type SessionView } from "@/lib/route";
+import { emptyFilter, isFilterEmpty, type StepFilter } from "@/lib/analytics/filters";
+import { useBookmarks } from "@/lib/bookmarks";
+import { SHEET } from "@/lib/motion";
+import { SESSION_VIEW_IDS, parseRoute, useRoute, type AppPage, type AppPageProps, type Navigate, type Route, type SessionView } from "@/lib/route";
 import { SESSION_START, buildSession, type AgentLog, type LogRecord } from "@/lib/session";
 import { DROPPED_PREFIX } from "@/lib/paths";
 import { safeClip } from "@/lib/redact";
 import { cn } from "@/lib/utils";
 
-const sheet = { type: "spring", bounce: 0, duration: 0.4 } as const;
+// Views that read one request step by step, and so share the step filter.
+const FILTERED_VIEWS: SessionView[] = ["map", "conversation"];
 
 const APP_PAGES: Record<Exclude<AppPage, "session">, ComponentType<AppPageProps>> = {
   dashboard: DashboardPage,
@@ -54,6 +62,10 @@ export default function Home() {
   // A log opened from disk (drag and drop): read in the browser only, shown instead of the URL's session.
   const [dropped, setDropped] = useState<{ name: string; records: LogRecord[]; agents: Record<string, AgentLog> } | null>(null);
   const [recheckedFile, setRecheckedFile] = useState<string | null>(null);
+  // The step filter is shared by the Map and the Conversation, and kept while you switch between them.
+  const [filter, setFilter] = useState<StepFilter>(emptyFilter);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const marks = useBookmarks();
 
   const refresh = useCallback(async () => {
     const res = await fetch("/api/sessions");
@@ -102,8 +114,11 @@ export default function Home() {
   }, [listedAnywhere, file, recheckedFile, refresh]);
   const missing = !listedAnywhere && recheckedFile === file;
 
-  // Opening another session (a new file in the URL) closes a dropped file.
-  useEffect(() => setDropped(null), [file]);
+  // Opening another session (a new file in the URL) closes a dropped file and starts with no filter.
+  useEffect(() => {
+    setDropped(null);
+    setFilter(emptyFilter());
+  }, [file]);
   const { logs, connected } = useSessionStream(dropped || missing ? null : file);
   // A dropped file is never live: "now" far in the future marks it finished.
   const model = useMemo(
@@ -121,6 +136,10 @@ export default function Home() {
   const turnIndex = sessionRoute?.turn !== undefined && sessionRoute.turn <= lastTurn ? sessionRoute.turn : lastTurn;
   const turn = model.turns[turnIndex];
   const selected: Selection = sessionRoute?.step ? { type: "step", id: sessionRoute.step } : actorPick;
+  const selectedStep = selected?.type === "step" ? turn?.steps.find((s) => s.id === selected.id) : undefined;
+  const viewFile = dropped ? DROPPED_PREFIX + dropped.name : file;
+  // A name you gave the session (Bookmarks) wins over its title.
+  const title = (file && !dropped && marks.nameOf(file)) || session?.title;
 
   // Session-level changes: from an app page they return to the last open session. Reads the live URL, not
   // this render's `route`, so two calls in one handler (pick a request, then select an agent) both land.
@@ -145,66 +164,139 @@ export default function Home() {
   };
   const pageNavigate: Navigate = (patch, replace) =>
     patch.page === "session" && !patch.file ? go(patch, replace) : navigate(patch, replace);
+  const openPage = (page: AppPage) => (page === "session" ? go({}) : navigate({ page }));
+
+  // Escape closes the top-most layer only: dialogs first (they register later), then these drawers.
+  useEscape(requestsOpen && route.page === "session", () => setRequestsOpen(false));
+  useEscape(!!selected && route.page === "session", () => setSelected(null));
+
+  const onSession = route.page === "session" && !!turn;
+  const siblings = project?.sessions ?? [];
+  const sibling = (d: 1 | -1) => {
+    const i = siblings.findIndex((s) => s.file === file);
+    const next = i < 0 ? undefined : siblings[i + d];
+    if (next) pickSession(next);
+  };
+  const shortcuts: Record<string, () => void> = {
+    "/": () => navigate({ page: "search" }),
+    "g d": () => navigate({ page: "dashboard" }),
+    "g l": () => navigate({ page: "live" }),
+  };
+  if (onSession) {
+    SESSION_VIEW_IDS.forEach((v, i) => (shortcuts[String(i + 1)] = () => go({ view: v })));
+    const next = () => pickTurn(Math.min(lastTurn, turnIndex + 1));
+    const prev = () => pickTurn(Math.max(0, turnIndex - 1));
+    Object.assign(shortcuts, {
+      j: next,
+      k: prev,
+      "g g": () => pickTurn(0),
+      G: () => pickTurn(lastTurn),
+      "[": () => sibling(-1),
+      "]": () => sibling(1),
+      b: () => viewFile && marks.toggle({ file: viewFile, step: selectedStep?.id, turn: selectedStep ? turnIndex : undefined, label: selectedStep?.title ?? title ?? "Session" }),
+    });
+    // The arrows move between requests only where they don't scroll a list (the Map and the whole-session view).
+    if (view === "map" || view === "flow") Object.assign(shortcuts, { ArrowDown: next, ArrowUp: prev });
+  }
+  useShortcuts(shortcuts);
+
+  // On narrow screens the tab bar scrolls: keep the open view's tab in sight (1–7 can open any of them).
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const hasTurn = !!turn;
+  useEffect(() => {
+    const bar = tabsRef.current;
+    const tab = bar?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!bar || !tab) return;
+    const t = tab.getBoundingClientRect();
+    const b = bar.getBoundingClientRect();
+    if (t.left < b.left || t.right > b.right) bar.scrollLeft += t.left - b.left - 12;
+  }, [view, hasTurn]);
 
   const turnList = (
     <TurnList turns={model.turns} actors={model.actors} selectedIndex={turnIndex} liveIndex={model.live.active ? lastTurn : undefined} onPick={pickTurn} />
   );
   const details = (onClose?: () => void) => (
-    <DetailsPanel turn={turn} turns={model.turns} onPickTurn={pickTurn} onShowSession={() => go({ view: "flow" })} actors={model.actors} selected={selected} onSelect={setSelected} onHelp={() => setHelp(true)} onClose={onClose} />
+    <DetailsPanel file={viewFile ?? undefined} turn={turn} turns={model.turns} onPickTurn={pickTurn} onShowSession={() => go({ view: "flow" })} actors={model.actors} selected={selected} onSelect={setSelected} onHelp={() => setHelp(true)} onClose={onClose} />
   );
 
   return (
     // Masking learns the user's name from this session's folders (and the home folder), never from log text.
     <MaskScope cwds={model.meta.cwds}>
-      <main className="relative flex h-dvh w-screen flex-col overflow-hidden bg-background">
+      {/* A size container: the header and the space under it adapt to the room left at the chosen text size. */}
+      <main className="@container relative flex h-dvh w-screen flex-col overflow-hidden bg-background">
+        {!dropped && <AttentionWatcher model={model} />}
         <Header
           projects={projects ?? []}
           project={project}
           session={session}
+          title={title}
           fileName={dropped?.name}
+          page={route.page}
           onSession={pickSession}
           onRefresh={refresh}
           onHelp={() => setHelp(true)}
-          onOpenPage={(page) => navigate({ page })}
+          onOpenPage={openPage}
           onSettings={() => setSettingsOpen(true)}
           live={model.live}
           connected={connected}
+          badge={!dropped && <AttentionBadge model={model} compact />}
         />
 
         {route.page !== "session" ? (
-          <div className="min-h-0 flex-1 overflow-auto pt-[5.25rem]">
+          <div className="min-h-0 flex-1 overflow-auto pt-[7.75rem] @min-[44rem]:pt-[5.25rem]">
             <AppPageView page={route.page} route={route} navigate={pageNavigate} />
           </div>
         ) : (
-          <div className="flex min-h-0 flex-1 pt-[5.25rem]">
-            <div className="hidden w-[17rem] shrink-0 border-r border-foreground/10 xl:block">{turnList}</div>
+          <div className="flex min-h-0 flex-1 pt-[7.75rem] @min-[44rem]:pt-[5.25rem]">
+            <div data-tour="requests" className="hidden w-[17rem] shrink-0 border-r border-foreground/10 xl:block">{turnList}</div>
 
             <div className="flex min-w-0 flex-1 flex-col">
               {turn && dropped && <DroppedBanner name={dropped.name} onClose={() => setDropped(null)} />}
-              {turn && !dropped && file && <SessionInfoBar model={model} file={file} />}
+              {turn && !dropped && file && <SessionInfoBar model={model} file={file} title={title ?? "Session"} turn={turn} />}
               {turn && (
-                <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-foreground/10 px-3 pt-2" role="tablist">
-                  {SESSION_VIEWS.map((v) => (
+                <div className="flex shrink-0 items-end border-b border-foreground/10">
+                  <div ref={tabsRef} data-tour="tabs" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-3 pt-2 [scrollbar-width:none]" role="tablist">
+                    {SESSION_VIEWS.map((v) => (
+                      <button
+                        key={v.id}
+                        role="tab"
+                        aria-selected={view === v.id}
+                        onClick={() => go({ view: v.id })}
+                        className={cn(
+                          "-mb-px shrink-0 border-b-2 px-3 pb-2 text-[0.8125rem] whitespace-nowrap transition-colors",
+                          view === v.id ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {v.id === "map"
+                          ? `Request ${turnIndex + 1}, step by step`
+                          : v.id === "flow"
+                            ? `Whole session · ${model.turns.length} request${model.turns.length === 1 ? "" : "s"}`
+                            : v.label}
+                      </button>
+                    ))}
+                  </div>
+                  {FILTERED_VIEWS.includes(view) && (
                     <button
-                      key={v.id}
-                      role="tab"
-                      aria-selected={view === v.id}
-                      onClick={() => go({ view: v.id })}
+                      onClick={() => setFilterOpen(!filterOpen)}
+                      aria-expanded={filterOpen}
                       className={cn(
-                        "-mb-px shrink-0 border-b-2 px-3 pb-2 text-[0.8125rem] whitespace-nowrap transition-colors",
-                        view === v.id ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+                        "mr-2 mb-1 flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs transition-[background-color,color,transform] duration-150 ease-out hover:bg-foreground/[0.07] active:scale-[0.97]",
+                        isFilterEmpty(filter) ? "text-muted-foreground hover:text-foreground" : "bg-foreground/[0.07] font-medium text-foreground",
                       )}
                     >
-                      {v.id === "map"
-                        ? `Request ${turnIndex + 1}, step by step`
-                        : v.id === "flow"
-                          ? `Whole session · ${model.turns.length} request${model.turns.length === 1 ? "" : "s"}`
-                          : v.label}
+                      <ListFilter className="size-3.5" />
+                      <span className="hidden @min-[36rem]:inline">{isFilterEmpty(filter) ? "Filter steps" : "Filtered"}</span>
+                      {!isFilterEmpty(filter) && <span className="size-1.5 rounded-full bg-sky-500 @min-[36rem]:hidden" />}
                     </button>
-                  ))}
+                  )}
                 </div>
               )}
-              <div className="relative min-h-0 flex-1">
+              {turn && FILTERED_VIEWS.includes(view) && (filterOpen || !isFilterEmpty(filter)) && (
+                <div className="shrink-0 border-b border-foreground/10 px-4 py-2.5">
+                  <FilterBar steps={turn.steps} value={filter} onChange={setFilter} actors={model.actors} />
+                </div>
+              )}
+              <div data-tour="map" className="relative min-h-0 flex-1">
                 {turn && <Welcome onHelp={() => setHelp(true)} />}
                 {turn && (file || dropped) ? (
                   <ActiveView
@@ -218,11 +310,12 @@ export default function Home() {
                     onPickTurn={pickTurn}
                     onShowSession={() => go({ view: "flow" })}
                     onShowRequests={() => setRequestsOpen(true)}
+                    filter={FILTERED_VIEWS.includes(view) ? filter : undefined}
                   />
                 ) : (
                   <Empty
                     projects={projects}
-                    loading={!!file && !connected}
+                    loading={!!file && (!connected || (listed?.requests ?? 0) > 0)} // a big log takes a while to replay
                     missing={missing}
                     onNewest={() => pickSession(projects?.[0]?.sessions[0])}
                   />
@@ -230,7 +323,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="hidden w-[23.75rem] shrink-0 border-l border-foreground/10 lg:block">{details()}</div>
+            <div data-tour="explanations" className="hidden w-[23.75rem] shrink-0 border-l border-foreground/10 lg:block">{details()}</div>
           </div>
         )}
 
@@ -243,7 +336,7 @@ export default function Home() {
                 initial={{ x: "-100%" }}
                 animate={{ x: 0 }}
                 exit={{ x: "-100%" }}
-                transition={sheet}
+                transition={SHEET}
                 onClick={(e) => e.stopPropagation()}
               >
                 {turnList}
@@ -257,7 +350,7 @@ export default function Home() {
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
-              transition={sheet}
+              transition={SHEET}
             >
               {details(() => setSelected(null))}
             </motion.div>

@@ -1,14 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bookmark, ChevronDown, CircleHelp, FileText, GitCompare, History, LayoutDashboard, Menu, Moon, Radio, Search, Settings, Sun, Workflow } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Bookmark, ChevronDown, CircleHelp, FileText, GitCompare, History, LayoutDashboard, Moon, Radio, Search, Settings, Sun, Waypoints, Workflow } from "lucide-react";
 import type { ProjectInfo, SessionInfo } from "@/lib/claude-logs";
 import type { AppPage } from "@/lib/route";
 import { useEscape } from "@/hooks/use-escape";
@@ -16,15 +10,24 @@ import { useMask } from "@/hooks/use-mask";
 import type { Live } from "@/lib/session";
 import { shortPath } from "@/lib/sessions-list";
 import { updateSettings } from "@/lib/settings";
+import { EASE_OUT } from "@/lib/motion";
 import { useDarkMode } from "./settings-provider";
 import { cn } from "@/lib/utils";
 import { SessionBrowser } from "./session-browser";
 
+/**
+ * The bar at the top: the session picker, what Claude is doing, and the app's pages. <main> is a size
+ * container, so the bar adapts to the room it has in rem: at a larger text size it collapses sooner. When it is
+ * narrower than 44rem the pages move to a second row of icons.
+ */
 export function Header(props: {
   projects: ProjectInfo[];
   project?: ProjectInfo;
   session?: SessionInfo;
+  /** The name to show for the session: a name you gave it, else its title. */
+  title?: string;
   fileName?: string; // a dropped log file being viewed instead of a session
+  page: AppPage;
   onSession: (s: SessionInfo) => void;
   onRefresh: () => void;
   onHelp: () => void;
@@ -32,6 +35,8 @@ export function Header(props: {
   onSettings: () => void;
   live: Live;
   connected: boolean;
+  /** "Claude needs you", next to the status. */
+  badge?: ReactNode;
 }) {
   const { projects, project, session, live, connected } = props;
   const [open, setOpen] = useState(false);
@@ -43,58 +48,77 @@ export function Header(props: {
     if (!open) props.onRefresh();
     setOpen(!open);
   };
+  const nav = <PageNav page={props.page} onOpenPage={props.onOpenPage} onSettings={props.onSettings} />;
+  const help = (
+    <IconButton onClick={props.onHelp} label="How Claude Code works" className="flex-1 @min-[44rem]:flex-none @min-[110rem]:w-auto @min-[110rem]:px-2.5">
+      <CircleHelp className="size-4 shrink-0" />
+      <span className="hidden text-sm @min-[110rem]:inline">How it works</span>
+    </IconButton>
+  );
 
   return (
     <>
       <motion.header
-        initial={{ y: -24, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ type: "spring", bounce: 0, duration: 0.5 }}
-        className="glass fixed inset-x-3 top-3 z-30 flex h-[3.75rem] items-center gap-1 rounded-2xl px-3 shadow-xl shadow-black/20"
+        initial={{ opacity: 0, transform: "translateY(-8px)" }}
+        animate={{ opacity: 1, transform: "translateY(0px)" }}
+        transition={{ duration: 0.25, ease: EASE_OUT }}
+        className="glass fixed inset-x-3 top-3 z-30 rounded-2xl shadow-xl shadow-black/20"
       >
-        <div className="mr-2 flex items-center gap-2 pl-1">
-          <div className="flex size-7 items-center justify-center rounded-lg bg-foreground text-background">
-            <Workflow className="size-4" />
-          </div>
-          <span className="hidden text-sm font-medium tracking-tight whitespace-nowrap lg:inline">cc-trace</span>
-        </div>
-
-        <div className="h-5 w-px bg-foreground/10" />
-
-        <button
-          onClick={toggle}
-          aria-expanded={open}
-          aria-haspopup="dialog"
-          className={cn(
-            "flex h-11 min-w-0 max-w-[23.75rem] flex-1 items-center sm:flex-initial gap-2 rounded-xl px-2.5 text-left outline-none transition-colors hover:bg-foreground/[0.07] focus-visible:ring-2 focus-visible:ring-foreground/20 active:scale-[0.98]",
-            open && "bg-foreground/[0.07]",
-          )}
-        >
-          {props.fileName ? <FileText className="size-4 shrink-0 text-amber-500" /> : <History className="size-4 shrink-0 text-muted-foreground" />}
-          <span className="flex min-w-0 flex-col leading-tight">
-            <span className="truncate text-sm">
-              {props.fileName ? m(props.fileName) : session ? m(session.title) : projects.length ? "Choose a session" : "No sessions yet"}
-            </span>
-            {!props.fileName && project && (
-              <span className="hidden truncate text-[0.6875rem] text-muted-foreground sm:block">
-                {m(shortPath(project.path))}
-                {session?.live && " · live"}
-              </span>
-            )}
-          </span>
-          <ChevronDown className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
-        </button>
-
-        <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
-          {!props.fileName && <StatusPill live={live} connected={connected} active={!!session} />}
+        <div className="flex h-[3.75rem] items-center gap-1 px-2 @min-[30rem]:px-3">
           <button
-            onClick={props.onHelp}
-            className="flex h-9 items-center gap-1.5 rounded-xl px-2.5 text-sm text-muted-foreground transition-colors hover:bg-foreground/[0.07] hover:text-foreground"
+            onClick={() => props.onOpenPage("session")}
+            className="mr-1 flex shrink-0 items-center gap-2 rounded-lg pl-1 transition-transform duration-150 ease-out active:scale-[0.97] @min-[30rem]:mr-2"
+            aria-label="cc-trace: back to the session"
+            title="Back to the session"
           >
-            <CircleHelp className="size-4" />
-            <span className="hidden md:inline">How it works</span>
+            <span className="flex size-7 items-center justify-center rounded-lg bg-foreground text-background">
+              <Workflow className="size-4" />
+            </span>
+            <span className="hidden text-sm font-medium tracking-tight whitespace-nowrap @min-[100rem]:inline">cc-trace</span>
           </button>
-          <AppMenu onOpenPage={props.onOpenPage} onSettings={props.onSettings} />
+
+          <div className="hidden h-5 w-px shrink-0 bg-foreground/10 @min-[30rem]:block" />
+
+          <div data-tour="pickers" className="flex min-w-0 flex-1 @min-[44rem]:max-w-[23.75rem]">
+            <button
+              onClick={toggle}
+              aria-expanded={open}
+              aria-haspopup="dialog"
+              className={cn(
+                "flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl px-2 text-left outline-none transition-[background-color,transform] duration-150 ease-out hover:bg-foreground/[0.07] focus-visible:ring-2 focus-visible:ring-foreground/20 active:scale-[0.97] @min-[30rem]:px-2.5",
+                open && "bg-foreground/[0.07]",
+              )}
+            >
+              {props.fileName ? <FileText className="size-4 shrink-0 text-amber-500" /> : <History className="size-4 shrink-0 text-muted-foreground" />}
+              <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                <span className="truncate text-sm">
+                  {props.fileName ? m(props.fileName) : session ? m(props.title ?? session.title) : projects.length ? "Choose a session" : "No sessions yet"}
+                </span>
+                {!props.fileName && project && (
+                  <span className="hidden truncate text-[0.6875rem] text-muted-foreground @min-[36rem]:block">
+                    {m(shortPath(project.path))}
+                    {session?.live && " · live"}
+                  </span>
+                )}
+              </span>
+              <ChevronDown className={cn("size-3.5 shrink-0 text-muted-foreground", open && "rotate-180")} />
+            </button>
+          </div>
+
+          <div className="ml-auto flex shrink-0 items-center gap-1 @min-[44rem]:gap-1.5">
+            {props.badge}
+            {!props.fileName && <StatusPill live={live} connected={connected} active={!!session} />}
+            <div className="hidden items-center gap-0.5 @min-[44rem]:flex">
+              {nav}
+              {help}
+              <ThemeToggle />
+            </div>
+          </div>
+        </div>
+        {/* Narrow: the pages, help and theme get their own row of icons, so the picker keeps its room. */}
+        <div className="flex h-10 items-center justify-between gap-0.5 border-t border-foreground/10 px-1.5 @min-[44rem]:hidden">
+          {nav}
+          {help}
           <ThemeToggle />
         </div>
       </motion.header>
@@ -102,16 +126,16 @@ export function Header(props: {
       <AnimatePresence>
         {open && (
           <>
-            <motion.div key="scrim" className="fixed inset-0 z-[45]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setOpen(false)} />
+            <motion.div key="scrim" className="fixed inset-0 z-[45]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} onClick={() => setOpen(false)} />
             <motion.div
               key="browser"
               role="dialog"
               aria-label="Sessions"
-              initial={{ opacity: 0, y: -8, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -6, scale: 0.98 }}
-              transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-              className="glass-strong fixed inset-x-3 top-[5rem] bottom-3 z-[45] origin-top-left overflow-hidden rounded-2xl shadow-2xl shadow-black/40 sm:right-auto sm:bottom-auto sm:h-[min(40rem,calc(100dvh-6.25rem))] sm:w-[37.5rem]"
+              initial={{ opacity: 0, transform: "translateY(-4px) scale(0.98)" }}
+              animate={{ opacity: 1, transform: "translateY(0px) scale(1)" }}
+              exit={{ opacity: 0, transform: "translateY(-4px) scale(0.98)", transition: { duration: 0.12 } }}
+              transition={{ duration: 0.2, ease: EASE_OUT }}
+              className="glass-strong fixed inset-x-3 top-[7.5rem] bottom-3 z-[45] origin-top-left overflow-hidden rounded-2xl shadow-2xl shadow-black/40 @min-[44rem]:top-[5rem] sm:right-auto sm:bottom-auto sm:h-[min(40rem,calc(100dvh-6.25rem))] sm:w-[min(37.5rem,calc(100vw-1.5rem))]"
             >
               <SessionBrowser
                 projects={projects}
@@ -135,6 +159,7 @@ export function Header(props: {
 }
 
 const PAGE_LINKS = [
+  { page: "session", label: "Session", icon: Waypoints },
   { page: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { page: "live", label: "Live now", icon: Radio },
   { page: "search", label: "Search", icon: Search },
@@ -142,30 +167,38 @@ const PAGE_LINKS = [
   { page: "bookmarks", label: "Bookmarks", icon: Bookmark },
 ] as const;
 
-// shortcut: a plain menu so the app pages are reachable; the integration task gives them proper navigation.
-function AppMenu({ onOpenPage, onSettings }: { onOpenPage: (page: AppPage) => void; onSettings: () => void }) {
-  const item = "flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[0.8125rem]";
+function IconButton(props: { onClick: () => void; label: string; current?: boolean; className?: string; children: ReactNode }) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-foreground/[0.07] hover:text-foreground data-popup-open:bg-foreground/[0.07]"
-        aria-label="More pages"
-      >
-        <Menu className="size-4" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="glass-strong w-[12.5rem] rounded-xl p-1.5 shadow-2xl shadow-black/40 ring-0" align="end" sideOffset={10}>
-        {PAGE_LINKS.map(({ page, label, icon: Icon }) => (
-          <DropdownMenuItem key={page} onClick={() => onOpenPage(page)} className={item}>
-            <Icon className="size-4 text-muted-foreground" />
-            {label}
-          </DropdownMenuItem>
-        ))}
-        <DropdownMenuItem onClick={onSettings} className={item}>
-          <Settings className="size-4 text-muted-foreground" />
-          Settings
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <button
+      onClick={props.onClick}
+      aria-label={props.label}
+      aria-current={props.current ? "page" : undefined}
+      title={props.label}
+      className={cn(
+        "flex h-9 min-w-0 shrink items-center justify-center gap-1.5 rounded-xl px-0 text-muted-foreground transition-[background-color,color,transform] duration-150 ease-out hover:bg-foreground/[0.07] hover:text-foreground active:scale-[0.97] w-9",
+        props.current && "bg-foreground/[0.08] text-foreground",
+        props.className,
+      )}
+    >
+      {props.children}
+    </button>
+  );
+}
+
+/** The app's pages as icon buttons; with room to spare (wide screen, smaller text) each gets its label. */
+function PageNav({ page, onOpenPage, onSettings }: { page: AppPage; onOpenPage: (page: AppPage) => void; onSettings: () => void }) {
+  return (
+    <nav aria-label="Pages" className="contents">
+      {PAGE_LINKS.map(({ page: p, label, icon: Icon }) => (
+        <IconButton key={p} onClick={() => onOpenPage(p)} label={label} current={page === p} className="flex-1 @min-[44rem]:flex-none @min-[86rem]:w-auto @min-[86rem]:px-2.5">
+          <Icon className="size-4 shrink-0" />
+          <span className="hidden text-[0.8125rem] whitespace-nowrap @min-[86rem]:inline">{label}</span>
+        </IconButton>
+      ))}
+      <IconButton onClick={onSettings} label="Settings" className="flex-1 @min-[44rem]:flex-none">
+        <Settings className="size-4 shrink-0" />
+      </IconButton>
+    </nav>
   );
 }
 
@@ -180,15 +213,14 @@ function StatusPill({ live, connected, active }: { live: Live; connected: boolea
   const pulsing = active && connected && live.active;
 
   return (
-    <motion.div
-      layout
-      transition={{ type: "spring", bounce: 0, duration: 0.4 }}
+    <div
       className={cn(
-        "flex items-center gap-2 overflow-hidden rounded-full border border-foreground/10 px-2.5 py-1.5 sm:px-3 text-xs font-medium transition-shadow duration-500",
+        "flex h-9 shrink-0 items-center gap-2 overflow-hidden rounded-full px-2.5 text-xs font-medium transition-shadow duration-500 @min-[64rem]:h-auto @min-[64rem]:border @min-[64rem]:border-foreground/10 @min-[64rem]:px-3 @min-[64rem]:py-1.5",
         view.glow,
       )}
       role="status"
       title={view.label}
+      aria-label={view.label}
     >
       <span className="relative flex size-2">
         {pulsing && <span className={cn("absolute inset-0 animate-ping rounded-full opacity-60", view.dot)} />}
@@ -197,16 +229,16 @@ function StatusPill({ live, connected, active }: { live: Live; connected: boolea
       <AnimatePresence mode="popLayout" initial={false}>
         <motion.span
           key={view.label}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
-          transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-          className="hidden max-w-[11.25rem] truncate whitespace-nowrap sm:inline"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="hidden max-w-[11.25rem] truncate whitespace-nowrap @min-[64rem]:inline"
         >
           {view.label}
         </motion.span>
       </AnimatePresence>
-    </motion.div>
+    </div>
   );
 }
 
@@ -215,12 +247,8 @@ function ThemeToggle() {
   const toggle = () => updateSettings({ theme: dark ? "light" : "dark" });
 
   return (
-    <button
-      onClick={toggle}
-      className="flex size-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-foreground/[0.07] hover:text-foreground active:scale-90"
-      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-    >
+    <IconButton onClick={toggle} label={dark ? "Switch to light mode" : "Switch to dark mode"} className="flex-1 @min-[44rem]:flex-none">
       {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
-    </button>
+    </IconButton>
   );
 }

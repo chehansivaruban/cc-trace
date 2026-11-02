@@ -2,9 +2,10 @@
 
 import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { FileUp, GitBranch, Radio, Search, X } from "lucide-react";
+import { BookmarkCheck, FileUp, GitBranch, Radio, Search, X } from "lucide-react";
 import type { ProjectInfo, SessionInfo } from "@/lib/claude-logs";
 import { useMask } from "@/hooks/use-mask";
+import { useBookmarks } from "@/lib/bookmarks";
 import {
   ago,
   filterSessions,
@@ -57,6 +58,8 @@ export function SessionBrowser(props: {
   const [q, setQ] = useState("");
   const [project, setProject] = useState(""); // a project dir, "" for all
   const [liveOnly, setLiveOnly] = useState(false);
+  const [saved, setSaved] = useState(""); // "" all, "*" bookmarked, else a tag
+  const marks = useBookmarks();
   const [sort, setSort] = useState<SessionSort>("recent");
   const [active, setActive] = useState(-1); // keyboard-highlighted row
   const [now] = useState(() => Date.now());
@@ -67,7 +70,12 @@ export function SessionBrowser(props: {
 
   const { rows, totals } = useMemo(() => {
     const byDir = new Map(projects.map((p) => [p.dir, p]));
-    const all = projects.flatMap((p) => p.sessions);
+    // Names you gave sessions replace their titles, so search finds them too.
+    const bookmarked = new Set(marks.data.items.map((b) => b.file));
+    const all = projects
+      .flatMap((p) => p.sessions)
+      .filter((s) => !saved || (saved === "*" ? bookmarked.has(s.file) : marks.tags(s.file).includes(saved)))
+      .map((s) => (marks.data.names[s.file] ? { ...s, title: marks.data.names[s.file] } : s));
     const node = tree.find((n) => n.project.dir === project);
     const dirs = !project ? undefined : node ? [node.project.dir, ...node.worktrees.map((w) => w.dir)] : [project];
     const list = sortSessions(filterSessions(all, { q, projects: dirs, liveOnly }), sort);
@@ -80,7 +88,8 @@ export function SessionBrowser(props: {
       rows,
       totals: { sessions: list.length, tokens: list.reduce((n, s) => n + s.tokens, 0), live: list.filter((s) => s.live).length, counting: list.some((s) => s.counting) },
     };
-  }, [projects, tree, project, q, liveOnly, sort, now]);
+  }, [projects, tree, project, q, liveOnly, sort, now, saved, marks]);
+  const allTags = useMemo(() => [...new Set(Object.values(marks.data.tags).flat())].sort(), [marks.data.tags]);
 
   const virtual = useVirtualizer({
     count: rows.length,
@@ -164,6 +173,17 @@ export function SessionBrowser(props: {
             <span className={cn("size-1.5 rounded-full", liveOnly ? "bg-emerald-500" : "bg-foreground/30")} />
             Running now
           </button>
+          {(marks.data.items.length > 0 || allTags.length > 0) && (
+            <select value={saved} onChange={(e) => setSaved(e.target.value)} className={cn(select, saved && "border-amber-500/40 text-amber-700 dark:text-amber-300")} aria-label="Show bookmarked or tagged sessions">
+              <option value="">Any session</option>
+              <option value="*">Bookmarked</option>
+              {allTags.map((t) => (
+                <option key={t} value={t}>
+                  Tagged “{m(t)}”
+                </option>
+              ))}
+            </select>
+          )}
         </div>
         <p className="px-1 text-[0.6875rem] text-muted-foreground" aria-live="polite">
           {totals.sessions} session{totals.sessions === 1 ? "" : "s"} · {formatTokens(totals.tokens)} tokens{totals.counting ? " so far" : ""}
@@ -194,6 +214,7 @@ export function SessionBrowser(props: {
                       now={now}
                       mask={m}
                       current={r.s.file === current?.file}
+                      bookmarked={marks.data.items.some((b) => b.file === r.s.file)}
                       active={v.index === active}
                       onPick={() => props.onPick(r.s)}
                     />
@@ -236,6 +257,7 @@ function SessionRow(props: {
   mask: (t: string) => string;
   current: boolean;
   active: boolean;
+  bookmarked?: boolean;
   onPick: () => void;
 }) {
   const { s, mask: m } = props;
@@ -267,6 +289,7 @@ function SessionRow(props: {
               Live
             </span>
           )}
+          {props.bookmarked && <BookmarkCheck className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" aria-label="Bookmarked" />}
           <span className="line-clamp-1 text-[0.8125rem] font-medium">{m(s.title)}</span>
         </div>
         <div className="mt-0.5 line-clamp-2 text-[0.6875rem] leading-snug text-muted-foreground">

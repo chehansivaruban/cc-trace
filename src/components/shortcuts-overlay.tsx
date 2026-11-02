@@ -1,7 +1,6 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
 import { Keyboard, X } from "lucide-react";
 import { useEscape } from "@/hooks/use-escape";
 import { useFocusTrap } from "@/hooks/use-focus-trap";
@@ -74,51 +73,43 @@ export function ShortcutsOverlay() {
   }, [open]);
 
   return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={() => setOpen(false)}
-        >
-          <motion.div
-            ref={panel}
-            tabIndex={-1}
-            role="dialog"
-            aria-modal
-            aria-labelledby="shortcuts-title"
-            initial={{ y: 16, scale: 0.98 }}
-            animate={{ y: 0, scale: 1 }}
-            exit={{ y: 8, opacity: 0 }}
-            transition={{ type: "spring", bounce: 0, duration: 0.35 }}
-            onClick={(e) => e.stopPropagation()}
-            className="glass-strong max-h-[85vh] w-full max-w-[32.5rem] overflow-y-auto rounded-2xl p-5 shadow-2xl outline-none sm:p-6"
+    // Opened from the keyboard many times a day: it appears and goes at once, with no animation.
+    open && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+            onClick={() => setOpen(false)}
           >
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <span className="hidden size-9 shrink-0 items-center justify-center rounded-xl bg-foreground/[0.06] text-muted-foreground sm:flex">
-                  <Keyboard className="size-4" />
-                </span>
-                <div>
-                  <h2 id="shortcuts-title" className="text-base font-semibold tracking-tight">
-                    Keyboard shortcuts
-                  </h2>
-                  <p className="text-[0.8125rem] text-muted-foreground">Get around cc-trace without the mouse.</p>
+            <div
+              ref={panel}
+              tabIndex={-1}
+              role="dialog"
+              aria-modal
+              aria-labelledby="shortcuts-title"
+              onClick={(e) => e.stopPropagation()}
+              className="glass-strong max-h-[85vh] w-full max-w-[32.5rem] overflow-y-auto rounded-2xl p-5 shadow-2xl outline-none sm:p-6"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="hidden size-9 shrink-0 items-center justify-center rounded-xl bg-foreground/[0.06] text-muted-foreground sm:flex">
+                    <Keyboard className="size-4" />
+                  </span>
+                  <div>
+                    <h2 id="shortcuts-title" className="text-base font-semibold tracking-tight">
+                      Keyboard shortcuts
+                    </h2>
+                    <p className="text-[0.8125rem] text-muted-foreground">Get around cc-trace without the mouse.</p>
+                  </div>
                 </div>
+                <button onClick={() => setOpen(false)} className="rounded-full p-1.5 text-muted-foreground hover:bg-foreground/10" aria-label="Close">
+                  <X className="size-4" />
+                </button>
               </div>
-              <button onClick={() => setOpen(false)} className="rounded-full p-1.5 text-muted-foreground hover:bg-foreground/10" aria-label="Close">
-                <X className="size-4" />
-              </button>
+              <div className="mt-4">
+                <ShortcutList />
+              </div>
+              <p className="mt-4 text-xs text-muted-foreground">Shortcuts pause while you type in a box.</p>
             </div>
-            <div className="mt-4">
-              <ShortcutList />
-            </div>
-            <p className="mt-4 text-xs text-muted-foreground">Shortcuts pause while you type in a box.</p>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+          </div>
+    )
   );
 }

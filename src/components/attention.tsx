@@ -68,18 +68,25 @@ export function AttentionWatcher({ model }: { model: SessionModel }) {
   return null;
 }
 
-/** A small amber "needs you" pill for a session, or nothing. */
-export function AttentionBadge({ model, className }: { model: SessionModel; className?: string }) {
+/**
+ * A small amber "needs you" pill for a session, or nothing. With `compact`, the words show only when the header
+ * has room (the bell stays, and screen readers still hear the words).
+ */
+export function AttentionBadge({ model, className, compact }: { model: SessionModel; className?: string; compact?: boolean }) {
   const attention = useAttention(model);
   if (!attention) return null;
   return (
     <span
       role="status"
       title={ATTENTION_TEXT[attention.reason]}
-      className={cn("inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-amber-700 dark:text-amber-300", className)}
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-amber-700 dark:text-amber-300",
+        compact && "px-2 @min-[80rem]:px-2.5",
+        className,
+      )}
     >
-      <BellRing className="size-3.5" />
-      {ATTENTION_TEXT[attention.reason]}
+      <BellRing className="size-3.5 shrink-0" />
+      <span className={cn(compact && "sr-only @min-[80rem]:not-sr-only")}>{ATTENTION_TEXT[attention.reason]}</span>
     </span>
   );
 }

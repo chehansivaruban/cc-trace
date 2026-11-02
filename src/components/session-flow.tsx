@@ -64,7 +64,7 @@ export function SessionFlow(props: {
   const { zoom, zoomRef, setZoom } = useZoom(scroller);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey || (e.target as HTMLElement).closest("input, textarea, select, [role=menu], [role=dialog]")) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || e.isComposing || (e.target as HTMLElement | null)?.closest?.("input, textarea, select, [role=menu], [role=dialog]")) return;
       if (e.key === "+" || e.key === "=") setZoom(zoomRef.current * 1.25);
       else if (e.key === "-") setZoom(zoomRef.current / 1.25);
       else if (e.key === "0") setZoom(1);

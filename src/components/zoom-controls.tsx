@@ -4,13 +4,13 @@ import { Maximize, Minus, Plus } from "lucide-react";
 import { ZOOM_MAX, ZOOM_MIN } from "@/hooks/use-zoom";
 
 const btn =
-  "flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-[background-color,color,transform] duration-150 hover:bg-foreground/[0.07] hover:text-foreground active:scale-[0.95] disabled:opacity-35";
+  "flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-[background-color,color,transform] duration-150 hover:bg-foreground/[0.07] hover:text-foreground active:scale-[0.97] disabled:opacity-35";
 
 /** Floating zoom controls, map-style: − 100% + and Fit. */
-export function ZoomControls(props: { zoom: number; onZoom: (z: number) => void; onFit?: () => void; fitLabel?: string }) {
+export function ZoomControls(props: { zoom: number; onZoom: (z: number) => void; onFit?: () => void; fitLabel?: string; tour?: boolean }) {
   const { zoom, onZoom } = props;
   return (
-    <div className="glass flex items-center gap-0.5 rounded-xl p-1 shadow-lg" role="group" aria-label="Zoom">
+    <div data-tour={props.tour ? "zoom" : undefined} className="glass flex items-center gap-0.5 rounded-xl p-1 shadow-lg" role="group" aria-label="Zoom">
       <button className={btn} onClick={() => onZoom(zoom / 1.25)} disabled={zoom <= ZOOM_MIN} title="Zoom out (−)" aria-label="Zoom out">
         <Minus className="size-4" />
       </button>

@@ -2,13 +2,15 @@
 
 import { useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Brain, Inbox, Keyboard, MessagesSquare, Send, ShieldCheck, Users, Wrench, X } from "lucide-react";
+import { POP } from "@/lib/motion";
+import { Brain, Inbox, Keyboard, LayoutGrid, MessagesSquare, Send, ShieldCheck, Users, Wrench, X } from "lucide-react";
 import { useEscape } from "@/hooks/use-escape";
 import { useFocusTrap } from "@/hooks/use-focus-trap";
+import { ShortcutList } from "./shortcuts-overlay";
 import { hueColor } from "./step-icon";
 import { TermText } from "./term-text";
 
-const SECTIONS = [
+const SECTIONS: { icon: typeof Users; title: string; text: string; shortcuts?: boolean }[] = [
   {
     icon: Users,
     title: "A lead and its helpers",
@@ -40,14 +42,20 @@ const SECTIONS = [
     text: "Each row is one agent: you, Claude, then each helper. Time runs left to right. Press Replay to watch a request unfold step by step, use ← and → to step through, or tick “Only messages between agents” to see just the conversation between them.",
   },
   {
+    icon: LayoutGrid,
+    title: "Other ways to look at a session",
+    text: "The tabs above the map show the same session in other ways. Conversation reads it like a chat. Agents shows who did the work and what they told each other. Stats counts the [[tokens:tokens]] and time. Health points out loops, errors and risky commands. Files lists every file Claude touched. Whole session shows how each request led to the next. The buttons at the top open the Dashboard, what's running now, Search across every session, Compare two sessions, your Bookmarks and Settings.",
+  },
+  {
     icon: Keyboard,
     title: "Getting around",
-    text: "Zoom with the − and + buttons in the corner, by pinching on a trackpad, or by holding ⌘ (Mac) or Ctrl (Windows) while you scroll. The ⤢ button fits a whole request on screen. Drag any empty space to move around. Keyboard: ← and → step through, space plays or pauses, + and − zoom, 0 fits to screen.",
+    text: "Zoom the map with the − and + buttons in the corner, by pinching on a trackpad, or by holding ⌘ (Mac) or Ctrl (Windows) while you scroll. The ⤢ button fits a whole request on screen. Drag any empty space to move around. Everything also works from the keyboard:",
+    shortcuts: true,
   },
   {
     icon: ShieldCheck,
-    title: "Does cc-trace cost anything?",
-    text: "No. cc-trace only reads the logs Claude Code already saves on your computer. It never talks to Claude or the internet, so it uses no [[tokens:tokens]] and saves no extra copies of your history. The token numbers you see are what Claude itself used.",
+    title: "Does cc-trace cost anything? Is it private?",
+    text: "It's free to use and private. cc-trace only reads the logs Claude Code already saves on your computer. It never talks to Claude or the internet, so it uses no [[tokens:tokens]], and it never changes or copies your history. Your settings, bookmarks and the names you give sessions stay in this browser. Before sharing a screenshot or an export, turn on “Hide sensitive text” in Settings: it hides passwords, keys and your user name."
   },
 ];
 
@@ -64,6 +72,7 @@ export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => vo
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
           onClick={onClose}
         >
           <motion.div
@@ -72,10 +81,10 @@ export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => vo
             role="dialog"
             aria-modal
             aria-labelledby="help-title"
-            initial={{ y: 16, scale: 0.98 }}
-            animate={{ y: 0, scale: 1 }}
-            exit={{ y: 8, opacity: 0 }}
-            transition={{ type: "spring", bounce: 0, duration: 0.35 }}
+            initial={{ opacity: 0, transform: "scale(0.98)" }}
+            animate={{ opacity: 1, transform: "scale(1)" }}
+            exit={{ opacity: 0, transform: "scale(0.98)", transition: { duration: 0.12 } }}
+            transition={POP}
             onClick={(e) => e.stopPropagation()}
             className="glass-strong max-h-[85vh] w-full max-w-[40rem] overflow-y-auto rounded-2xl p-6 shadow-2xl outline-none"
           >
@@ -89,16 +98,21 @@ export function HelpDialog({ open, onClose }: { open: boolean; onClose: () => vo
               </button>
             </div>
             <div className="mt-5 space-y-5">
-              {SECTIONS.map(({ icon: Icon, title, text }, i) => (
+              {SECTIONS.map(({ icon: Icon, title, text, shortcuts }, i) => (
                 <section key={title} className="flex gap-3.5">
                   <span className="flex size-9 shrink-0 items-center justify-center rounded-xl" style={{ background: hueColor(30 + i * 55, 0.16), color: hueColor(30 + i * 55) }}>
                     <Icon className="size-4" />
                   </span>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <h3 className="text-[0.875rem] font-semibold">{title}</h3>
                     <p className="mt-1 text-[0.8125rem] leading-relaxed text-foreground/85">
                       <TermText text={text} />
                     </p>
+                    {shortcuts && (
+                      <div className="mt-2">
+                        <ShortcutList />
+                      </div>
+                    )}
                   </div>
                 </section>
               ))}

@@ -2,6 +2,7 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { POP } from "@/lib/motion";
 import { FolderOpen, Keyboard, Map as MapIcon, X } from "lucide-react";
 import { toggleShortcuts } from "@/hooks/use-shortcuts";
 import { useEscape } from "@/hooks/use-escape";
@@ -76,6 +77,7 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
           onClick={close}
         >
           <motion.div
@@ -84,10 +86,10 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
             role="dialog"
             aria-modal
             aria-labelledby="settings-title"
-            initial={{ y: 16, scale: 0.98 }}
-            animate={{ y: 0, scale: 1 }}
-            exit={{ y: 8, opacity: 0 }}
-            transition={{ type: "spring", bounce: 0, duration: 0.35 }}
+            initial={{ opacity: 0, transform: "scale(0.98)" }}
+            animate={{ opacity: 1, transform: "scale(1)" }}
+            exit={{ opacity: 0, transform: "scale(0.98)", transition: { duration: 0.12 } }}
+            transition={POP}
             onClick={(e) => e.stopPropagation()}
             className="glass-strong max-h-[88dvh] w-full outline-none max-w-[35rem] overflow-y-auto rounded-2xl p-5 shadow-2xl sm:p-6"
           >

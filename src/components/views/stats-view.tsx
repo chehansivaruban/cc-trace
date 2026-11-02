@@ -179,14 +179,14 @@ export function StatsView({ model, turn, file }: SessionViewProps) {
           <TechToggle on={tech} onChange={setTech} />
         </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <div className="mt-5 grid grid-cols-[repeat(auto-fill,minmax(min(100%,10rem),1fr))] gap-2.5">
           <StatTile label="Requests" value={fmt(model.turns.length)} sub={`${fmt(replies)} replies from Claude`} />
           <StatTile label="Tokens processed" value={fmt(total)} sub={`${fmt(stats.totals.written)} written`} />
           <StatTile label={<TermText text="[[cacheHit:Re-read from cache]]" />} value={pct(stats.cacheHitPct)} sub={`${fmt(stats.totals.cached)} tokens`} />
           <StatTile label="Helpers" value={fmt(helpers.length)} sub={topHelper ? `busiest: ${share(topHelper.usage)} of tokens` : "Claude worked alone"} />
         </div>
         {tech && (
-          <div className="mt-2.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+          <div className="mt-2.5 grid grid-cols-[repeat(auto-fill,minmax(min(100%,10rem),1fr))] gap-2.5">
             <StatTile label="New (input)" value={fmt(stats.totals.input)} sub="input_tokens" />
             <StatTile label="Cache write, 5 min" value={fmt(stats.totals.cacheWrite5m)} sub="ephemeral_5m_input_tokens" />
             <StatTile label="Cache write, 1 hour" value={fmt(stats.totals.cacheWrite1h)} sub="ephemeral_1h_input_tokens" />

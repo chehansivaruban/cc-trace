@@ -4,6 +4,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { ChevronDown, Search, X } from "lucide-react";
 import { CATEGORIES, filterOptions, filterSteps, isFilterEmpty, type StepFilter } from "@/lib/analytics/filters";
 import type { Actor, Step } from "@/lib/session";
+import { useMask } from "@/hooks/use-mask";
 import { cn } from "@/lib/utils";
 import { hueColor } from "./step-icon";
 
@@ -52,7 +53,7 @@ export function FilterBar({
   value,
   onChange,
   actors,
-  mask = (s) => s,
+  mask: maskProp,
   className,
 }: {
   steps: Step[];
@@ -62,6 +63,8 @@ export function FilterBar({
   mask?: (s: string) => string;
   className?: string;
 }) {
+  const ctxMask = useMask();
+  const mask = maskProp ?? ctxMask; // names are masked like everywhere else unless the caller decides
   const [more, setMore] = useState(false);
   const [allTools, setAllTools] = useState(false);
   const opts = useMemo(() => filterOptions(steps), [steps]);

@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Check, Copy, Folder, GitBranch, MonitorSmartphone, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Check, Copy, Folder, GitBranch, MonitorSmartphone, ScrollText, ShieldAlert, ShieldCheck } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { LiveSession } from "@/lib/claude-logs";
 import { useMask } from "@/hooks/use-mask";
-import type { SessionModel } from "@/lib/session";
+import type { SessionModel, Turn } from "@/lib/session";
+import { BookmarkButton } from "./bookmark-button";
+import { DebugLogDialog } from "./debug-log";
+import { ExportMenu } from "./export-menu";
 import { appName, cwdIsSafe, encodeProjectDir, permissionLabel, projectOfFile, resumeCommand, shortPath } from "@/lib/sessions-list";
 import { useSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
@@ -62,7 +65,7 @@ export function CopyActions({ id, cwd, className, label = true }: { id: string; 
         aria-label="Copy commands for this session"
       >
         {done && done !== "failed" ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
-        {label && <span>{done === "failed" ? "Couldn't copy" : done ? "Copied" : "Copy"}</span>}
+        {label && <span className="hidden @min-[64rem]:inline">{done === "failed" ? "Couldn't copy" : done ? "Copied" : "Copy"}</span>}
       </DropdownMenuTrigger>
       <DropdownMenuContent className="glass-strong w-[17.5rem] rounded-xl p-1.5 shadow-2xl shadow-black/40 ring-0" align="end" sideOffset={6}>
         {items.map((it) => (
@@ -112,9 +115,13 @@ function Chip({ icon: Icon, children, title, className }: { icon?: typeof Folder
   );
 }
 
-/** One line under the tabs: is it running, how freely Claude may act, branch, folder(s) and app, plus copy actions. */
-export function SessionInfoBar({ model, file }: { model: SessionModel; file: string }) {
+/**
+ * One line above the tabs: is it running, how freely Claude may act, branch, folder(s) and app. On the right:
+ * bookmark the session, Claude Code's own debug log, export, and copy commands.
+ */
+export function SessionInfoBar({ model, file, title, turn }: { model: SessionModel; file: string; title: string; turn?: Turn }) {
   const [{ showTechnical }] = useSettings();
+  const [debugOpen, setDebugOpen] = useState(false);
   const live = useLiveSessions();
   const id = idOf(file);
   const { meta } = model;
@@ -166,9 +173,25 @@ export function SessionInfoBar({ model, file }: { model: SessionModel; file: str
   ].filter(Boolean);
 
   return (
-    <div className="flex h-9 shrink-0 items-center gap-2.5 overflow-x-auto border-b border-foreground/10 px-4 text-[0.75rem] text-muted-foreground [scrollbar-width:none]">
-      {chips.flatMap((c, i) => (i ? [<span key={`sep${i}`} className="shrink-0 text-foreground/20">·</span>, c] : [c]))}
-      <CopyActions id={id} cwd={resumeCwd} className="ml-auto" />
+    <div className="flex h-10 shrink-0 items-center gap-2 border-b border-foreground/10 pr-2 pl-4 text-[0.75rem] text-muted-foreground">
+      <div className="flex min-w-0 flex-1 items-center gap-2.5 overflow-x-auto [scrollbar-width:none]">
+        {chips.flatMap((c, i) => (i ? [<span key={`sep${i}`} className="shrink-0 text-foreground/20">·</span>, c] : [c]))}
+      </div>
+      <div className="flex shrink-0 items-center gap-0.5">
+        <BookmarkButton file={file} label={title} className="h-7" />
+        <button
+          onClick={() => setDebugOpen(true)}
+          className="flex h-7 items-center gap-1.5 rounded-lg px-2 text-muted-foreground transition-[background-color,color,transform] duration-150 ease-out hover:bg-foreground/[0.07] hover:text-foreground active:scale-[0.97]"
+          aria-label="Claude Code's own log for this session"
+          title="Claude Code's own log for this session"
+        >
+          <ScrollText className="size-3.5" />
+          <span className="hidden @min-[64rem]:inline">Debug log</span>
+        </button>
+        <ExportMenu model={model} turn={turn} compact />
+        <CopyActions id={id} cwd={resumeCwd} />
+      </div>
+      <DebugLogDialog file={file} open={debugOpen} onClose={() => setDebugOpen(false)} />
     </div>
   );
 }

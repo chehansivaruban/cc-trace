@@ -2,6 +2,7 @@
 // the tab bar and the active view from this list.
 import type { ComponentType } from "react";
 import type { Selection } from "@/components/story-map";
+import type { StepFilter } from "@/lib/analytics/filters";
 import type { SessionView } from "@/lib/route";
 import type { SessionModel, Turn } from "@/lib/session";
 import { AgentsView } from "./agents-view";
@@ -24,6 +25,8 @@ export type SessionViewProps = {
   onShowSession: () => void; // switch to the "Whole session" view
   /** Small screens: open the request list drawer. Optional; only the Map uses it today. */
   onShowRequests?: () => void;
+  /** Map and Conversation: show only the steps that pass (page.tsx keeps it while you switch between them). */
+  filter?: StepFilter;
 };
 
 export const SESSION_VIEWS: { id: SessionView; label: string; component: ComponentType<SessionViewProps> }[] = [

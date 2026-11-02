@@ -5,6 +5,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { Check, ListOrdered, Loader2, Mail, Pause, Play, Radio, SkipBack, SkipForward, X } from "lucide-react";
 import { useMask } from "@/hooks/use-mask";
 import { useZoom } from "@/hooks/use-zoom";
+import { filterSteps, isFilterEmpty, type StepFilter } from "@/lib/analytics/filters";
 import { riskOf } from "@/lib/analytics/risk";
 import { MESSAGE_KINDS, type Actor, type Live, type Step, type Turn } from "@/lib/session";
 import { cn } from "@/lib/utils";
@@ -37,13 +38,15 @@ export function StoryMap(props: {
   selected: Selection;
   onSelect: (s: Selection) => void;
   onShowRequests: () => void;
+  /** Steps that don't pass are left off the map, like "Only messages between agents" does. */
+  filter?: StepFilter;
 }) {
-  const { turn, actors, isLatest, live, stale, selected, onSelect } = props;
+  const { turn, actors, isLatest, live, stale, selected, onSelect, filter } = props;
   const [messagesOnly, setMessagesOnly] = useState(false);
-  const steps = useMemo(
-    () => (messagesOnly ? turn.steps.filter((s) => MESSAGE_KINDS.includes(s.kind) || s.kind === "stop") : turn.steps),
-    [turn.steps, messagesOnly],
-  );
+  const steps = useMemo(() => {
+    const base = filter && !isFilterEmpty(filter) ? filterSteps(turn.steps, filter) : turn.steps;
+    return messagesOnly ? base.filter((s) => MESSAGE_KINDS.includes(s.kind) || s.kind === "stop") : base;
+  }, [turn.steps, messagesOnly, filter]);
   const lanes = turn.actors;
   const row = useMemo(() => Object.fromEntries(lanes.map((id, i) => [id, i])), [lanes]);
 
@@ -57,7 +60,7 @@ export function StoryMap(props: {
   useEffect(() => {
     setCursor(null);
     setPlaying(false);
-  }, [messagesOnly]);
+  }, [messagesOnly, filter]);
 
   useEffect(() => {
     if (!playing) return;
@@ -150,8 +153,8 @@ export function StoryMap(props: {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement;
-      if (t.closest("input, textarea, select, [role=menu], [role=dialog]")) return;
+      const t = e.target as HTMLElement | null;
+      if (e.isComposing || t?.closest?.("input, textarea, select, [role=menu], [role=dialog]")) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return; // leave browser shortcuts (⌘+ etc.) alone
       if (e.key === "ArrowRight") step(1);
       else if (e.key === "ArrowLeft") step(-1);
@@ -197,7 +200,7 @@ export function StoryMap(props: {
         </div>
 
         <div className="basis-full" />
-        <div className="flex items-center gap-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-1">
           <IconButton label="Previous step (←)" onClick={() => step(-1)} disabled={!steps.length}>
             <SkipBack className="size-4" />
           </IconButton>
@@ -223,7 +226,7 @@ export function StoryMap(props: {
               setCursor(+e.target.value);
               show(+e.target.value);
             }}
-            className="mx-1 w-28 accent-foreground sm:w-40"
+            className="mx-1 w-24 min-w-0 accent-foreground sm:w-40"
             aria-label="Scrub through the steps"
           />
           <button
@@ -256,7 +259,9 @@ export function StoryMap(props: {
       <div className="relative min-h-0 flex-1">
         <div ref={scroller} className="h-full cursor-grab overflow-auto data-[panning]:cursor-grabbing data-[panning]:select-none">
           {!steps.length ? (
-            <p className="p-8 text-sm text-muted-foreground">Nothing has happened in this request yet.</p>
+            <p className="p-8 text-sm text-muted-foreground">
+              {turn.steps.length ? "No steps match the filter or the “Only messages” switch." : "Nothing has happened in this request yet."}
+            </p>
           ) : (
             <div className="flex" style={{ width: LABEL_W + contentW * zoom, height: contentH * zoom }}>
               {/* Agent names stay full size and pinned to the left at every zoom level. */}
@@ -298,7 +303,7 @@ export function StoryMap(props: {
           <div className="pointer-events-none absolute right-3 bottom-3 z-30 flex flex-col items-end gap-2">
             <Legend />
             <div className="pointer-events-auto">
-              <ZoomControls zoom={zoom} onZoom={(z) => setZoom(z)} onFit={fit} fitLabel="Fit to screen (0)" />
+              <ZoomControls tour zoom={zoom} onZoom={(z) => setZoom(z)} onFit={fit} fitLabel="Fit to screen (0)" />
             </div>
           </div>
         )}
@@ -314,7 +319,7 @@ function IconButton(props: { label: string; onClick: () => void; disabled?: bool
       disabled={props.disabled}
       title={props.label}
       aria-label={props.label}
-      className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-[background-color,color,transform] duration-150 hover:bg-foreground/[0.07] hover:text-foreground active:scale-[0.95] disabled:opacity-40"
+      className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-[background-color,color,transform] duration-150 hover:bg-foreground/[0.07] hover:text-foreground active:scale-[0.97] disabled:opacity-40"
     >
       {props.children}
     </button>
@@ -447,7 +452,7 @@ const StepNode = memo(function StepNode(props: {
       onClick={props.onClick}
       tabIndex={props.future ? -1 : 0}
       className={cn(
-        "absolute z-10 flex items-center gap-2.5 rounded-xl border bg-card px-2.5 text-left shadow-sm outline-none transition-[opacity,transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-foreground/40 active:scale-[0.98]",
+        "absolute z-10 flex items-center gap-2.5 rounded-xl border bg-card px-2.5 text-left shadow-sm outline-none transition-[opacity,transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:ring-foreground/40 active:scale-[0.97]",
         props.future && "pointer-events-none opacity-[0.13]",
         s.status === "error" && "border-red-400/50",
         s.kind === "memory" && "border-dashed",

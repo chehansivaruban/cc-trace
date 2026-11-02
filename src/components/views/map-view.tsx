@@ -2,7 +2,7 @@
 import { StoryMap } from "@/components/story-map";
 import type { SessionViewProps } from "./registry";
 
-export function MapView({ model, turn, file, selected, onSelect, onShowRequests }: SessionViewProps) {
+export function MapView({ model, turn, file, selected, onSelect, onShowRequests, filter }: SessionViewProps) {
   const index = model.turns.indexOf(turn);
   return (
     <StoryMap
@@ -15,6 +15,7 @@ export function MapView({ model, turn, file, selected, onSelect, onShowRequests 
       selected={selected}
       onSelect={onSelect}
       onShowRequests={onShowRequests ?? (() => {})}
+      filter={filter}
     />
   );
 }

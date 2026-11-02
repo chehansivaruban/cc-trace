@@ -13,6 +13,7 @@ import { StepIcon, hueColor } from "./step-icon";
 import type { Selection } from "./story-map";
 import { Term, TermText } from "./term-text";
 import { ToolRenderer } from "./tools";
+import { BookmarkButton } from "./bookmark-button";
 import { fmt } from "@/components/view-kit";
 
 const EDITS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
@@ -35,6 +36,8 @@ export function DetailsPanel(props: {
   onSelect: (s: Selection) => void;
   onHelp: () => void;
   onClose?: () => void;
+  /** The session log, so a step can be bookmarked. */
+  file?: string;
 }) {
   const { turn, actors, selected } = props;
   const step = selected?.type === "step" ? turn?.steps.find((s) => s.id === selected.id) : undefined;
@@ -63,7 +66,7 @@ export function DetailsPanel(props: {
           className="min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-8"
         >
           {step && turn ? (
-            <StepCard step={step} index={turn.steps.indexOf(step)} total={turn.steps.length} actors={actors} onSelect={props.onSelect} turns={props.turns} onPickTurn={props.onPickTurn} onShowSession={props.onShowSession} />
+            <StepCard step={step} file={props.file} turnIndex={turn.index} index={turn.steps.indexOf(step)} total={turn.steps.length} actors={actors} onSelect={props.onSelect} turns={props.turns} onPickTurn={props.onPickTurn} onShowSession={props.onShowSession} />
           ) : actor && turn ? (
             <ActorCard actor={actor} turn={turn} actors={actors} onSelect={props.onSelect} />
           ) : turn ? (
@@ -245,6 +248,8 @@ function TurnSummary(props: {
 
 function StepCard(props: {
   step: Step;
+  file?: string;
+  turnIndex: number;
   index: number;
   total: number;
   actors: Record<string, Actor>;
@@ -264,10 +269,13 @@ function StepCard(props: {
   const hue = (from ?? lane)?.hue ?? 0;
   return (
     <>
-      <Kicker>
-        Step {index + 1} of {total}
-        {from ? " · a message" : ""}
-      </Kicker>
+      <div className={cn("flex items-center justify-between gap-2", props.file && "-my-1.5")}>
+        <Kicker>
+          Step {index + 1} of {total}
+          {from ? " · a message" : ""}
+        </Kicker>
+        {props.file && <BookmarkButton file={props.file} step={s.id} turn={props.turnIndex} label={s.title} showLabel className="shrink-0" />}
+      </div>
       <h2 className="mt-1.5 flex items-center gap-2.5 text-lg font-semibold tracking-tight">
         <span className="flex size-8 shrink-0 items-center justify-center rounded-lg" style={{ background: hueColor(hue, 0.16), color: hueColor(hue) }}>
           <StepIcon icon={s.icon} className="size-4" />

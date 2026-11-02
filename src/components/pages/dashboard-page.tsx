@@ -204,7 +204,7 @@ export function DashboardPage({ navigate }: AppPageProps) {
       ) : data ? (
         // While a new period loads, the old numbers stay put, dimmed.
         <div className={cn("transition-opacity", loading && "opacity-50")}>
-          <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+          <div className="mt-5 grid grid-cols-[repeat(auto-fill,minmax(min(100%,10rem),1fr))] gap-2.5">
             <StatTile label="Tokens processed" value={fmt(total)} sub={`${fmt(data.totals.written)} written`} />
             <StatTile label="Sessions" value={fmt(data.sessions.length)} sub={`in ${data.byProject.length} project${data.byProject.length === 1 ? "" : "s"}`} />
             <StatTile label={<TermText text="[[cacheHit:Re-read from cache]]" />} value={pct(cacheHit(data.totals))} sub={`${fmt(data.totals.cached)} tokens`} />

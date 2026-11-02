@@ -2,7 +2,6 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { ChevronRight, CircleCheck, CircleDashed, CircleDot } from "lucide-react";
-import { ExportMenu } from "@/components/export-menu";
 import { FilterBar } from "@/components/filter-bar";
 import { StepIcon, hueColor } from "@/components/step-icon";
 import { TermText } from "@/components/term-text";
@@ -96,7 +95,6 @@ export function AgentsView({ model, turn, selected, onSelect, onPickTurn }: Sess
             >
               {tech ? "Hide" : "Show"} technical details
             </button>
-            <ExportMenu model={model} turn={turn} />
           </div>
         </div>
 

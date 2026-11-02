@@ -13,6 +13,7 @@ import { TermText } from "@/components/term-text";
 import { ToolRenderer } from "@/components/tools";
 import { ImageList } from "@/components/tools/image";
 import { nearestExplanation } from "@/lib/analytics/explanations";
+import { filterSteps, isFilterEmpty } from "@/lib/analytics/filters";
 import { conversationRows, formatDuration, modelLabel, toolTime, type ConvRow } from "@/lib/conversation";
 import { ERROR_NOTE } from "@/lib/explain";
 import { rowSearchText } from "@/lib/find-text";
@@ -33,14 +34,21 @@ export function ConversationView(props: SessionViewProps) {
   return <Conversation key={props.turn.index} {...props} />;
 }
 
-function Conversation({ model, turn, selected, onSelect }: SessionViewProps) {
+function Conversation({ model, turn, selected, onSelect, filter }: SessionViewProps) {
   const [settings] = useSettings();
   // The session's folders tell the masker whose home folder this is, so the user name is hidden everywhere.
   const mask = useMask();
   const [techPick, setTech] = useState<boolean | null>(null);
   const tech = techPick ?? settings.showTechnical;
   const open = turn.index === model.turns.length - 1 && model.live.active;
-  const rows = useMemo(() => conversationRows(turn, model.actors, { open }), [turn, model.actors, open]);
+  const allRows = useMemo(() => conversationRows(turn, model.actors, { open }), [turn, model.actors, open]);
+  // The step filter (shared with the Map) leaves out rows that don't pass, the same way the Map does.
+  const filtered = !!filter && !isFilterEmpty(filter);
+  const rows = useMemo(() => {
+    if (!filter || isFilterEmpty(filter)) return allRows;
+    const keep = new Set(filterSteps(turn.steps, filter));
+    return allRows.filter((r) => keep.has(r.step));
+  }, [allRows, filter, turn.steps]);
   const index = useMemo(() => new Map(rows.map((r, i) => [r.id, i])), [rows]);
   const virtual = rows.length > VIRTUAL_AT;
   // Find searches each row's text from the data (folded tool details too), worked out only while finding.
@@ -215,7 +223,7 @@ function Conversation({ model, turn, selected, onSelect }: SessionViewProps) {
         }}
       >
         <div className="mx-auto w-full max-w-3xl px-3 py-4 sm:px-5">
-          {!rows.length && <p className="py-8 text-sm text-muted-foreground">Nothing has happened in this request yet.</p>}
+          {!rows.length && <p className="py-8 text-sm text-muted-foreground">{filtered ? "No steps match the filter." : "Nothing has happened in this request yet."}</p>}
           <div ref={listRef} style={virtual ? { height: virtualizer.getTotalSize(), position: "relative" } : undefined}>
             {virtual
               ? virtualizer.getVirtualItems().map((v) => (

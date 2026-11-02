@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AnimatePresence, motion } from "framer-motion";
+import { POP } from "@/lib/motion";
 import { FileText, Loader2, Search, X } from "lucide-react";
 import { useEscape } from "@/hooks/use-escape";
 import { useFocusTrap } from "@/hooks/use-focus-trap";
@@ -169,6 +170,7 @@ export function DebugLogDialog({ file, open, onClose }: { file: string; open: bo
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
           onClick={onClose}
         >
           <motion.div
@@ -177,10 +179,10 @@ export function DebugLogDialog({ file, open, onClose }: { file: string; open: bo
             role="dialog"
             aria-modal
             aria-labelledby="debug-title"
-            initial={{ y: 16, scale: 0.98 }}
-            animate={{ y: 0, scale: 1 }}
-            exit={{ y: 8, opacity: 0 }}
-            transition={{ type: "spring", bounce: 0, duration: 0.35 }}
+            initial={{ opacity: 0, transform: "scale(0.98)" }}
+            animate={{ opacity: 1, transform: "scale(1)" }}
+            exit={{ opacity: 0, transform: "scale(0.98)", transition: { duration: 0.12 } }}
+            transition={POP}
             onClick={(e) => e.stopPropagation()}
             className="glass-strong flex h-[80dvh] outline-none w-full max-w-[53.75rem] flex-col rounded-2xl p-5 shadow-2xl sm:p-6"
           >

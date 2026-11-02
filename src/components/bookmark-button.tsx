@@ -30,7 +30,7 @@ export function BookmarkButton(props: { file: string; step?: string; turn?: numb
       aria-label={on ? `Remove the bookmark on this ${what}` : `Bookmark this ${what}`}
       title={on ? "Bookmarked (b)" : "Bookmark (b)"}
       className={cn(
-        "flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs transition-[background-color,color,transform] duration-150 hover:bg-foreground/[0.07] active:scale-[0.95]",
+        "flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs transition-[background-color,color,transform] duration-150 hover:bg-foreground/[0.07] active:scale-[0.97]",
         on ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground hover:text-foreground",
         props.className,
       )}

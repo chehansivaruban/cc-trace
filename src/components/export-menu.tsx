@@ -38,7 +38,7 @@ function download(name: string, text: string, type: string) {
 const item = "gap-2 rounded-lg px-2.5 py-2 text-[0.8125rem]";
 
 /** "Export" menu (H1): this request or the whole session as an offline web page, Markdown or raw JSON. */
-export function ExportMenu({ model, turn, className }: { model: SessionModel; turn?: Turn; className?: string }) {
+export function ExportMenu({ model, turn, className, compact }: { model: SessionModel; turn?: Turn; className?: string; compact?: boolean }) {
   const [settings] = useSettings();
   const home = useFolders()?.home;
   // Starts from the "Hide sensitive text" setting; can be changed for one export.
@@ -70,12 +70,15 @@ export function ExportMenu({ model, turn, className }: { model: SessionModel; tu
       <DropdownMenu>
         <DropdownMenuTrigger
           className={cn(
-            "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-foreground/15 px-2.5 text-xs font-medium transition-colors hover:bg-foreground/[0.06] data-popup-open:bg-foreground/[0.06]",
+            compact
+              ? "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg px-2 text-muted-foreground transition-[background-color,color,transform] duration-150 ease-out hover:bg-foreground/[0.07] hover:text-foreground active:scale-[0.97] data-popup-open:bg-foreground/[0.07]"
+              : "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-foreground/15 px-2.5 text-xs font-medium transition-[background-color,transform] duration-150 ease-out hover:bg-foreground/[0.06] active:scale-[0.97] data-popup-open:bg-foreground/[0.06]",
             className,
           )}
+          aria-label="Export this session or request"
         >
           <Download className="size-3.5" />
-          Export
+          <span className={cn(compact && "hidden @min-[64rem]:inline")}>Export</span>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="glass-strong w-[16.875rem] rounded-xl p-1.5 shadow-2xl shadow-black/40 ring-0" align="end" sideOffset={8}>
           <p className="px-2.5 pt-1.5 pb-2 text-xs leading-relaxed text-muted-foreground">Save a copy you can open without cc-trace or share. It&apos;s made in your browser.</p>

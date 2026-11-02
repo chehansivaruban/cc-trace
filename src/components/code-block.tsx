@@ -101,7 +101,7 @@ export function CodeBlock({ label, value, lang, className }: { label: string; va
         </span>
         <button
           onClick={copy}
-          className="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[0.6875rem] text-neutral-400 transition-colors hover:bg-white/10 hover:text-neutral-100 active:scale-95"
+          className="flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[0.6875rem] text-neutral-400 transition-[background-color,color,transform] duration-150 ease-out hover:bg-white/10 hover:text-neutral-100 active:scale-[0.97]"
           aria-label={`Copy ${label}`}
         >
           <AnimatePresence mode="popLayout" initial={false}>
