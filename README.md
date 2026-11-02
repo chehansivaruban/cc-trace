@@ -5,7 +5,7 @@ See what [Claude Code](https://docs.claude.com/en/docs/claude-code) is actually 
 cc-trace turns a Claude Code session into an interactive map: one row for you, one for Claude, and one for every helper agent Claude brings in. Each step is a box that explains itself ("Reads a file", "Runs the tests", "Brief to Reviewer") and every message between agents is an arrow you can follow. Watch it live while Claude works, or press **Replay** to watch any request unfold step by step.
 
 - **Costs nothing.** cc-trace never talks to Claude or any AI service. Running it uses zero tokens and has no effect on Claude Code.
-- **Read-only.** It only reads the logs Claude Code already writes to `~/.claude`, never changes them and keeps no copies of your history.
+- **Read-only.** It only reads the logs Claude Code already writes to `~/.claude`, never changes them and never saves your conversations anywhere else.
 - **Local-only.** The server listens on `127.0.0.1` and refuses non-localhost requests. No telemetry, no network calls.
 - **Live.** New steps appear as Claude works, including helpers that start later.
 
@@ -92,8 +92,8 @@ Press `?` in the app to see them.
 | `g` then `d` | Go to the dashboard |
 | `g` then `l` | Go to Live now |
 | `1` to `7` | Switch view: Map, Conversation, Agents, Stats, Health, Files, Whole session |
-| `j` or `↓` | Next request (`↓` on the map and the whole-session view) |
-| `k` or `↑` | Previous request (`↑` on the map and the whole-session view) |
+| `j` or `↓` | Next request (`↓` on the map) |
+| `k` or `↑` | Previous request (`↑` on the map) |
 | `g` then `g` | First request |
 | `G` | Newest request |
 | `[` or `]` | Previous or next session |
@@ -149,9 +149,9 @@ npm publish     # runs the check and a production build first
 ## Privacy
 
 - **No tokens, no money, no network.** cc-trace never calls Claude, any AI service or any other host. Nothing you see costs anything, and token numbers are read from the logs, never estimated.
-- **Read-only.** It never changes, moves or deletes anything in your Claude folder and never installs hooks. It keeps no copies of your history: logs are read when you open them and held in memory only.
+- **Read-only.** It never changes, moves or deletes anything in your Claude folder and never installs hooks. It doesn't copy your history: logs are read when you open them and held in memory only. The one exception is a bookmark: it keeps a short label (the step or session title, at most 160 characters, with secrets like passwords and keys hidden) in this browser, so the Bookmarks page can show it.
 - **Stays in this browser.** Your settings, bookmarks, tags and session names are saved in this browser's storage, nowhere else. A log you drag onto the page is read in the browser and never sent to the server.
-- **Hide sensitive text.** Session logs contain everything you and Claude typed, including any secrets that appeared in prompts or tool output. Turn on **Settings → Hide sensitive text** before taking screenshots or exporting: it hides passwords, API keys, tokens, your home folder and your user name on screen and in exports (each export can also switch it on or off).
+- **Hide sensitive text.** Session logs contain everything you and Claude typed, including any secrets that appeared in prompts or tool output. Turn on **Settings → Hide sensitive text** before taking screenshots or exporting: it hides passwords, API keys, tokens and private keys, your home folder (also in Claude Code's dash-spelled folder names) and your user name, on screen and in exports (each export can also switch it on or off). It works by recognising these patterns, so give a screenshot a last look before you share it.
 - Don't expose cc-trace's port to a network.
 
 ## License
