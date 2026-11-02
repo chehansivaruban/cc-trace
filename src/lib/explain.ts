@@ -12,7 +12,7 @@ export const GLOSSARY = {
   report: "The helper's final message back. The lead never watches a helper work: this report is all it learns.",
   tool: "An action Claude can take on your computer, like reading a file, running a command or searching the web. Each box on the map is one tool use.",
   tokens:
-    "Tokens are how Claude measures text, about ¾ of a word each. Usage limits and API costs are counted in tokens. cc-trace itself uses none.",
+    "Tokens are how Claude measures text, about ¾ of a word each. Usage limits are counted in tokens. cc-trace itself uses none.",
   cached:
     "Before every reply Claude re-reads the whole conversation so far. Most of that is cached (remembered from last time), which is much cheaper and faster than new text.",
   context:
@@ -23,7 +23,51 @@ export const GLOSSARY = {
   git: "Git keeps a history of every saved version of your project, so changes can be reviewed or undone. A commit is one saved checkpoint.",
   connector: "An add-on (also called an MCP server) that lets Claude use another app or service, like a browser, a database or your calendar.",
   skill: "A saved set of instructions Claude can load for a particular kind of job, like a recipe card.",
-  model: "Which version of Claude did the work. Bigger models are more capable; smaller ones are faster and cheaper.",
+  model: "Which version of Claude did the work. Bigger models are more capable; smaller ones are faster and use up your limits more slowly.",
+  // Finding and opening sessions
+  session:
+    "One conversation with Claude Code, from when you open it until you close it or start fresh. Claude Code saves each one as a log file on your computer.",
+  live: "Claude Code has this session open right now, so new steps appear here as they happen.",
+  resume:
+    "Opening an old session again in Claude Code so you can carry on where you left off. Claude re-reads the whole conversation first.",
+  fork: "Starting a new session that begins with a copy of an old conversation. The original stays as it was.",
+  sessionId: "The unique name Claude Code gives each session. It's also the log file's name.",
+  worktree:
+    "A second working copy of the same project, often used so Claude can work on something without touching your main copy. cc-trace lists it under the main project.",
+  branch: "A named line of work in a project that uses git (a tool that keeps the history of changes). “main” is usually the main one.",
+  permissionMode:
+    "How freely Claude may act: ask before every change, edit files without asking, only plan, or skip all safety prompts.",
+  logFile: "The file Claude Code writes as you work: every message, step and result, one line each. cc-trace only reads it.",
+  // Reading a request
+  thinking:
+    "Before some replies Claude reasons privately, like scribbling notes before answering. Claude Code only sometimes saves these notes in the log; newer versions usually hide them.",
+  diff: "A before-and-after view of a change: removed lines in red, added lines in green.",
+  exitCode: "The number a command reports when it ends. 0 means it worked; anything else means something went wrong.",
+  task: "A to-do item Claude or a helper wrote down to keep track of the work, with its status: waiting, being worked on, or done.",
+  team: "A group of helpers that work side by side on one job and can message each other directly, with the lead coordinating.",
+  // Understanding a session
+  cacheHit:
+    "The share of what Claude read that came from its cache (remembered from the reply before) instead of being new. Higher is better: cached text is quicker to process and counts for less against usage limits.",
+  window:
+    "The most text Claude can keep in its working memory at once. It depends on the model: usually 200,000 tokens, or 1,000,000 for models with the large memory.",
+  compact:
+    "/compact is a command you can type in Claude Code. Claude replaces the conversation so far with a short summary, freeing memory while keeping the gist.",
+  clear: "/clear is a command you can type in Claude Code. It starts a fresh conversation with an empty memory: best when you move on to something unrelated.",
+  written: "Tokens Claude wrote itself: its answers, its notes, the commands it ran and the text of files it created or changed.",
+  hook: "A hook is a small script you (or an add-on you installed) set up to run automatically at certain moments, like when a session starts or after Claude changes a file.",
+  healthScore:
+    "A rough guide from 0 to 100, worked out on your computer by counting things like repeated steps, loops and errors. 100 means nothing stood out. It isn't a grade of you or your request.",
+  fixLoop: "When Claude runs the same thing, it fails, Claude tries a fix, and it fails again, over and over. A hint from you often breaks the loop.",
+  phase: "A stretch of a request where Claude was mostly doing one kind of thing: looking around, changing files, testing, checking its work or answering you.",
+  bypassPermissions: "A mode where Claude Code never stops to ask before running commands or changing files. Handy for experiments, risky for real projects.",
+  permission:
+    "Before Claude runs a command or changes a file, Claude Code can stop and ask you to allow it. Your permission mode decides how often it asks.",
+  debuglog:
+    "A detailed diary Claude Code writes about its own inner workings: settings it loaded, requests it made, errors it hit. It's only saved when Claude Code is started with “claude --debug”.",
+  // Sharing and keeping
+  story: "A short summary cc-trace writes from the log itself (no AI): what you asked, what Claude did, who helped and how it ended.",
+  export: "A copy of what you're looking at, saved as a file you can open without cc-trace or share with someone. It's made in your browser.",
+  bookmark: "A shortcut you saved to a session or a step. Bookmarks, tags and names you give sessions stay in this browser only.",
 } as const;
 
 export type TermKey = keyof typeof GLOSSARY;
