@@ -19,6 +19,7 @@ import {
   parseLogText,
   permissionLabel,
   resumeCommand,
+  resumeShell,
   sameSessionFile,
   siblingSession,
   sortSessions,
@@ -190,15 +191,20 @@ try {
   // ── Copy commands ──
   assert.equal(resumeCommand("/Users/me/my app", "abc"), "cd '/Users/me/my app' && claude --resume abc");
   assert.equal(resumeCommand("/Users/me/it's", "abc", true), "cd '/Users/me/it'\\''s' && claude --resume abc --fork-session");
-  assert.equal(resumeCommand("C:\\Users\\me\\my app", "abc"), 'cd "C:\\Users\\me\\my app" && claude --resume abc');
-  assert.equal(resumeCommand("\\\\server\\share\\app", "abc"), 'cd "\\\\server\\share\\app" && claude --resume abc');
+  // Windows: "; " works in Windows PowerShell 5.1 and PowerShell 7 ("&&" is a parse error in 5.1).
+  assert.equal(resumeCommand("C:\\Users\\me\\my app", "abc"), 'cd "C:\\Users\\me\\my app"; claude --resume abc');
+  assert.equal(resumeCommand("\\\\server\\share\\app", "abc"), 'cd "\\\\server\\share\\app"; claude --resume abc');
+  assert.equal(resumeShell("C:\\Users\\me\\app"), "PowerShell");
+  assert.equal(resumeShell("/Users/me/app"), undefined);
+  assert.equal(resumeShell(undefined), undefined);
   assert.equal(resumeCommand(undefined, "abc"), "claude --resume abc");
   // A cwd comes from the log, so it may be crafted: anything a shell could expand inside the quotes drops the cd part.
-  for (const bad of ['C:\\x" && calc && echo "', "C:\\a`b", "C:\\$(calc)", "C:\\%PATH%", "C:\\a\nb", "C:\\a\rb"]) {
+  // PowerShell 7 also treats curly quotes as quotes.
+  for (const bad of ['C:\\x" && calc && echo "', "C:\\a`b", "C:\\$(calc)", "C:\\%PATH%", "C:\\a\nb", "C:\\a\rb", "C:\\x\u201c; calc; \u201d", "C:\\x\u201d", "C:\\x\u201e", "C:\\x\u2018", "C:\\x\u2019", "C:\\x\u201a", "C:\\x\u201b"]) {
     assert.equal(resumeCommand(bad, "abc"), "claude --resume abc", JSON.stringify(bad));
     assert.equal(cwdIsSafe(bad), false, JSON.stringify(bad));
   }
-  for (const bad of ["/Users/me/a\nrm -rf ~", "/Users/me/a\rb"]) {
+  for (const bad of ["/Users/me/a\nrm -rf ~", "/Users/me/a\rb", "/Users/me/a\u0000b", "/Users/me/a\tb", "/Users/me/a\u001bb", "/Users/me/a\u007fb"]) {
     assert.equal(resumeCommand(bad, "abc", true), "claude --resume abc --fork-session", JSON.stringify(bad));
     assert.equal(cwdIsSafe(bad), false);
   }

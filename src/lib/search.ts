@@ -1,4 +1,19 @@
 // Search snippets for /api/search, kept apart from the route so the self-check can test them.
+import { createMasker, userNamesFrom, type Masker } from "./redact.ts";
+
+/**
+ * Maskers for search results, one per session folder (cached): each hides the server's user name and the
+ * name in that session's own folder, so logs copied from another computer (or read in Docker) are masked too.
+ */
+export function cwdMaskers(home: string): (cwd?: string) => Masker {
+  const cache = new Map<string, Masker>();
+  return (cwd) => {
+    const key = cwd ?? "";
+    let m = cache.get(key);
+    if (!m) cache.set(key, (m = createMasker({ home, names: userNamesFrom([home, cwd]) })));
+    return m;
+  };
+}
 
 /**
  * The text around the first case-insensitive match of `query` (plain substring), `around` characters each

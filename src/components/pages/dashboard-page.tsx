@@ -15,7 +15,7 @@ import { useSettings } from "@/lib/settings";
 import { totalTokens } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
-type OverviewResponse = Overview & { partial: boolean; scanned: number; total: number; generatedAt: number };
+type OverviewResponse = Overview & { partial: boolean; scanned: number; tooBig?: number; total: number; generatedAt: number };
 type Range = 7 | 30 | 90;
 type ToolCount = Overview["tools"][number];
 type Sess = Overview["sessions"][number];
@@ -190,10 +190,15 @@ export function DashboardPage({ navigate }: AppPageProps) {
       </div>
 
       {error && <p className="mt-4 rounded-xl bg-red-500/10 px-3.5 py-2.5 text-[0.8125rem] text-red-600 dark:text-red-300">Couldn&apos;t read the logs: {error}</p>}
-      {data?.partial && (
+      {data?.partial && data.scanned < data.total && (
         <p className="mt-4 rounded-xl border border-foreground/10 px-3.5 py-2.5 text-xs leading-relaxed text-muted-foreground">
           Showing {fmt(data.scanned)} of {fmt(data.total)} sessions: reading took longer than 20 seconds, so cc-trace stopped there. Press Refresh to read the rest (sessions
           already read are remembered).
+        </p>
+      )}
+      {!!data?.tooBig && (
+        <p className="mt-4 rounded-xl border border-foreground/10 px-3.5 py-2.5 text-xs leading-relaxed text-muted-foreground">
+          Some very large sessions weren&apos;t counted ({fmt(data.tooBig)}): their logs are over 300 MB, too big to add up here.
         </p>
       )}
 

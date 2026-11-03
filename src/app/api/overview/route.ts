@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { PROJECTS_ROOT, listProjects, subagentsDir } from "@/lib/claude-logs";
-import { mergeOverview, sessionDigest, type SessionDigest } from "@/lib/analytics/stats";
+import { mergeOverview, sessionDigest, tooBigForOverview, type SessionDigest } from "@/lib/analytics/stats";
 import { buildSession, type AgentLog, type AgentMeta, type LogRecord } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +13,8 @@ const ROOT = path.resolve(PROJECTS_ROOT);
 
 /** Thrown when the time budget runs out in the middle of a session. */
 class TimeUp extends Error {}
+/** Thrown for a session with a log too big to read whole. */
+class TooBig extends Error {}
 
 // Per-session numbers (no log text; null when the log couldn't be read), keyed by the files' path + mtime + size.
 // Memory only, never written to disk.
@@ -45,13 +47,13 @@ function parseLines(text: string, deadline: number): LogRecord[] {
 async function helperFiles(file: string) {
   const dir = subagentsDir(file);
   const names = await fs.readdir(dir).catch(() => [] as string[]);
-  const out: { id: string; abs: string; sig: string }[] = [];
+  const out: { id: string; abs: string; sig: string; size: number }[] = [];
   for (const n of names.sort()) {
     const m = AGENT_LOG.exec(n);
     if (!m) continue;
     const abs = path.join(dir, n);
     const st = await fs.stat(abs).catch(() => null);
-    if (st?.isFile()) out.push({ id: m[1], abs, sig: `${n}:${st.mtimeMs}:${st.size}` });
+    if (st?.isFile()) out.push({ id: m[1], abs, sig: `${n}:${st.mtimeMs}:${st.size}`, size: st.size });
   }
   return out;
 }
@@ -78,6 +80,7 @@ async function digestOf(rel: string, info: { project: string; title: string; mti
   // listProjects only hands back files it found under the projects folder; check anyway.
   if (!file.startsWith(ROOT + path.sep)) return null;
   const helpers = await helperFiles(file);
+  if (tooBigForOverview([info.size, ...helpers.map((h) => h.size)])) throw new TooBig();
   const sig = [`${info.mtime}:${info.size}`, ...helpers.map((h) => h.sig)].join("|");
   const hit = cache.get(file);
   if (hit?.sig === sig) return hit.digest;
@@ -116,6 +119,7 @@ async function scan(days: number) {
   const digests: SessionDigest[] = [];
   let partial = false;
   let scanned = 0;
+  let tooBig = 0;
   for (const s of sessions) {
     if (Date.now() > deadline) {
       partial = true;
@@ -129,6 +133,10 @@ async function scan(days: number) {
         partial = true;
         break;
       }
+      if (err instanceof TooBig) {
+        partial = true;
+        tooBig++;
+      }
       // anything else: skip this session
     }
     scanned++;
@@ -139,7 +147,7 @@ async function scan(days: number) {
   for (const key of cache.keys()) if (!live.has(key)) cache.delete(key);
 
   const overview = mergeOverview(digests, { days, now, projects: Object.fromEntries(projects.map((p) => [p.dir, p.path])) });
-  return { ...overview, partial, scanned, total: sessions.length, generatedAt: now };
+  return { ...overview, partial, scanned, tooBig, total: sessions.length, generatedAt: now };
 }
 
 /**

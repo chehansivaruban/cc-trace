@@ -209,6 +209,49 @@ assert.equal(formatDuration(-1), "");
   assert.equal(maskText("secret: 'abc\nnext line"), "secret: •••\nnext line");
 }
 
+// ── maskText: auth headers, URL passwords and more key names ──
+{
+  const maskText = createMasker();
+  assert.equal(maskText("curl -H 'Authorization: Bearer abcDEF123456ghiJKL' x"), "curl -H 'Authorization: Bearer •••' x");
+  assert.equal(maskText("Authorization: Basic dXNlcjpwYXNzd29yZA=="), "Authorization: Basic •••");
+  assert.equal(maskText("token bearer eyJ0eXAiOiJKV1QiLCJhbGciOi"), "token bearer •••");
+  // Ordinary prose that happens to follow the word isn't a token.
+  assert.equal(maskText("basic authentication is fine"), "basic authentication is fine");
+  assert.equal(maskText("Basic Authentication works"), "Basic Authentication works");
+  assert.equal(maskText("DATABASE_URL=postgres://admin:s3cretpw@db:5432/x"), "DATABASE_URL=postgres://admin:•••@db:5432/x");
+  assert.equal(maskText("git clone https://user:pw1234@host.example.com/r.git"), "git clone https://user:•••@host.example.com/r.git");
+  assert.equal(maskText("see https://example.com:8080/path"), "see https://example.com:8080/path");
+  for (const [k, v] of [["authorization", "xyz123"], ["credentials", "abc987"], ["access_key", "AKX1"], ["accessKey", "AKX2"], ["private-key", "pk999"], ["client_secret", "cs777"]]) {
+    const out = maskText(`${k}=${v}`);
+    assert.equal(out, `${k}=•••`, out);
+  }
+  assert.ok(!maskText('{"client_secret": "cs-value-1"}').includes("cs-value-1"));
+}
+
+// ── maskText: home folders and names in more spellings ──
+{
+  const maskText = createMasker();
+  // Lowercase Windows paths, and paths right after | or ;
+  assert.equal(maskText("dir c:\\users\\bob\\app"), "dir ~\\app");
+  assert.equal(maskText("x|/Users/bob/a;/home/carol/b"), "x|~/a;~/b");
+  // A Windows home with a space runs to the next separator.
+  assert.equal(maskText("cd C:\\Users\\John Smith\\proj now"), "cd ~\\proj now");
+  assert.equal(maskText('"C:\\\\Users\\\\John Smith\\\\proj"'), '"~\\\\proj"');
+  // ...but a home with no folder after it doesn't swallow the rest of the line.
+  assert.equal(maskText("C:\\Users\\bob is here"), "~ is here");
+  // Names with spaces or dots, and their dash-spelled project folders.
+  const spaced = createMasker({ names: userNamesFrom(["C:\\Users\\John Smith\\proj"]) });
+  assert.deepEqual(userNamesFrom(["C:\\Users\\John Smith\\proj"]), ["John Smith"]);
+  assert.equal(spaced("C--Users-John-Smith-proj by John Smith"), "C--Users-~-proj by •••");
+  const dotted = createMasker({ names: userNamesFrom(["/Users/john.doe/proj"]) });
+  assert.equal(dotted("-Users-john-doe-proj, owner john.doe"), "-Users-~-proj, owner •••");
+  assert.deepEqual(userNamesFrom(["c:\\users\\dora\\x"]), ["dora"]);
+  // URL-encoded names.
+  const named = createMasker({ names: ["alice"] });
+  assert.equal(named("file%3A%2F%2F%2FUsers%2Falice%2Fapp"), "file%3A%2F%2F%2FUsers%2F•••%2Fapp");
+  assert.equal(named("C%3A%5CUsers%5Calice%5Cx"), "C%3A%5CUsers%5C•••%5Cx");
+}
+
 // ── names come only from the open session's folders ──
 {
   const t0 = Date.parse("2026-11-01T10:00:00Z");

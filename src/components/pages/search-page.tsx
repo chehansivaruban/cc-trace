@@ -151,7 +151,7 @@ export function SearchPage({ route, navigate }: AppPageProps) {
               >
                 <span className="line-clamp-1 text-[0.8125rem] font-semibold">{mask(first.title)}</span>
                 <span className="block truncate text-xs text-muted-foreground">
-                  {mask(shortPath(paths[projectOf(first.file)] ?? projectOf(first.file)))} · {hits.length} match{hits.length === 1 ? "" : "es"}
+                  {shortPath(mask(paths[projectOf(first.file)] ?? projectOf(first.file)))} · {hits.length} match{hits.length === 1 ? "" : "es"}
                 </span>
               </button>
               <ul className="border-t border-foreground/10">

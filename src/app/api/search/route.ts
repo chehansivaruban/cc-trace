@@ -3,8 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import readline from "node:readline";
 import { PROJECTS_ROOT, listProjects, resolveSessionFile, subagentsDir } from "@/lib/claude-logs";
-import { createMasker, userNamesFrom } from "@/lib/redact";
-import { snippetOf } from "@/lib/search";
+import { cwdMaskers, snippetOf } from "@/lib/search";
 import { promptText } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -78,7 +77,7 @@ export async function GET(req: Request) {
   const limit = Number.isFinite(limitRaw) ? Math.min(1000, Math.max(1, Math.floor(limitRaw))) : 200;
   const home = os.homedir();
   const masking = params.get("mask") === "1";
-  const mask = masking ? createMasker({ home, names: userNamesFrom([home]) }) : (s: string) => s;
+  const maskFor = masking ? cwdMaskers(home) : () => (s: string) => s;
   const needle = q.toLowerCase();
   // JSON keeps these characters as they are, so a raw line without the text can't contain it either.
   const prefilter = !/["\\\u0000-\u001f]/.test(q);
@@ -132,6 +131,7 @@ export async function GET(req: Request) {
           const abs = resolveSessionFile(s.file);
           if (!abs) continue;
           scanned++;
+          const mask = maskFor(s.cwd);
           // Listing titles are cut at a word boundary, so masking still sees whole words.
           const title = mask(s.title);
           let inFile = 0;

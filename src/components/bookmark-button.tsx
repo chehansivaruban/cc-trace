@@ -1,6 +1,7 @@
 "use client";
 
 import { Bookmark, BookmarkCheck } from "lucide-react";
+import { useStoreMask } from "@/hooks/use-mask";
 import { useBookmarks } from "@/lib/bookmarks";
 import { isDroppedFile } from "@/lib/paths";
 import { cn } from "@/lib/utils";
@@ -8,6 +9,7 @@ import { cn } from "@/lib/utils";
 /** Bookmarks (or un-bookmarks) a session, or a step in it when `step` is given. */
 export function BookmarkButton(props: { file: string; step?: string; turn?: number; label: string; className?: string; showLabel?: boolean }) {
   const { has, toggle } = useBookmarks();
+  const storeMask = useStoreMask();
   const on = has(props.file, props.step);
   const what = props.step ? "step" : "session";
   // A dropped file isn't in the Claude folder, so a bookmark could never open it again.
@@ -25,7 +27,7 @@ export function BookmarkButton(props: { file: string; step?: string; turn?: numb
     );
   return (
     <button
-      onClick={() => toggle({ file: props.file, step: props.step, turn: props.turn, label: props.label })}
+      onClick={() => toggle({ file: props.file, step: props.step, turn: props.turn, label: props.label }, storeMask)}
       aria-pressed={on}
       aria-label={on ? `Remove the bookmark on this ${what}` : `Bookmark this ${what}`}
       title={on ? "Bookmarked (b)" : "Bookmark (b)"}

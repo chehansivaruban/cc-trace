@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { needsAttention } from "../src/lib/attention.ts";
 import { createBookmarkStore } from "../src/lib/bookmarks.ts";
+import { createMasker } from "../src/lib/redact.ts";
 import { DEBUG_LOG_MAX_BYTES, debugLogName, parseDebugLog, tailText } from "../src/lib/debug-log.ts";
 import { buildSession } from "../src/lib/session.ts";
 import { DEFAULT_SETTINGS, SETTINGS_KEY, readSettings, resolveTheme, subscribeSettings } from "../src/lib/settings.ts";
@@ -82,6 +83,11 @@ import path from "node:path";
   assert.equal(b.get().items.length, 1);
   assert.deepEqual(b.tags("p/b.jsonl"), ["demo"]);
   assert.ok(!b.get().items[0].label.includes("abcdefghijklmnop"), "secrets are masked before they are saved");
+  // Home folders by their shape always, and the open session's user names when the page passes its masker.
+  a.toggle({ file: "p/b.jsonl", step: "h1", label: "Reads /Users/bob/app/x.ts" });
+  assert.equal(a.get().items[0].label, "Reads ~/app/x.ts");
+  a.toggle({ file: "p/b.jsonl", step: "h2", label: "Ask alice about C:\\Users\\alice\\a" }, createMasker({ names: ["alice"] }));
+  assert.equal(a.get().items[0].label, "Ask ••• about ~\\a");
   for (const junk of ["{", "null", "[]", '{"items":"x"}', '{"items":[{},{"file":3},null]}']) {
     mem.set("cc-trace:bookmarks", junk);
     assert.deepEqual(createBookmarkStore(() => ok).get().items, [], junk);

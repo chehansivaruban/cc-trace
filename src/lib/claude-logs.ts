@@ -268,10 +268,14 @@ const scans = new Map<string, Scanned>();
 async function scanLog(abs: string, mtime: number, size: number): Promise<Scanned> {
   const hit = scans.get(abs);
   if (hit && hit.mtime === mtime && hit.size === size) return hit;
-  const head = scanHead(await readSlice(abs, 0, HEAD_BYTES));
-  // A small log is all head: its first line is whole, so it is scanned once, as a head.
-  const tail = size <= HEAD_BYTES ? head : scanTail(await readSlice(abs, size - TAIL_BYTES, TAIL_BYTES));
-  const s = { mtime, size, head, tail };
+  // Inside the same limit as the counting, so thousands of sessions never open more than a few files at once
+  // (with a low open-file limit, sessions would otherwise vanish from the list).
+  const s = await limit(async (): Promise<Scanned> => {
+    const head = scanHead(await readSlice(abs, 0, HEAD_BYTES));
+    // A small log is all head: its first line is whole, so it is scanned once, as a head.
+    const tail = size <= HEAD_BYTES ? head : scanTail(await readSlice(abs, size - TAIL_BYTES, TAIL_BYTES));
+    return { mtime, size, head, tail };
+  });
   scans.set(abs, s);
   return s;
 }

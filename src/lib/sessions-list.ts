@@ -83,10 +83,12 @@ export function worktreeParent(cwd: string, gitFile?: string): string | undefine
   return /^[A-Za-z]:\//.test(g[1]) ? g[1].replace(/\//g, "\\") : g[1];
 }
 
-// Inside Windows double quotes cmd.exe still expands %VAR% and PowerShell expands $(...) and `; a " ends the quote.
-// Inside POSIX single quotes everything is literal (a ' is escaped below), but a line break still ends the command.
-const UNSAFE_WINDOWS = /["`$%\r\n]/;
-const UNSAFE_POSIX = /[\r\n]/;
+// Inside Windows double quotes PowerShell expands $(...) and `, cmd.exe expands %VAR%, and a " ends the quote.
+// PowerShell 7 also treats curly quotes (U+2018-U+201B, U+201C-U+201E) as quotes. Inside POSIX single quotes
+// everything is literal (a ' is escaped below), but a line break or other control character can still end or
+// garble the command.
+const UNSAFE_WINDOWS = /["`$%\u0000-\u001f\u007f\u2018-\u201e]/;
+const UNSAFE_POSIX = /[\u0000-\u001f\u007f]/;
 const SAFE_ID = /^[\w-]+$/;
 
 /** False when the folder (read from a log, so possibly crafted) can't be quoted safely in a `cd` command. */
@@ -95,17 +97,21 @@ export function cwdIsSafe(cwd: string | undefined): boolean {
   return !(isWindowsPath(cwd) ? UNSAFE_WINDOWS : UNSAFE_POSIX).test(cwd);
 }
 
+/** The shell a resume command for `cwd` is written for, when it isn't a POSIX shell: "PowerShell" for Windows folders. */
+export const resumeShell = (cwd: string | undefined): "PowerShell" | undefined => (cwd && isWindowsPath(cwd) ? "PowerShell" : undefined);
+
 /**
  * The command that reopens a session in its own folder: `cd '<cwd>' && claude --resume <id>`, with
- * `--fork-session` to continue in a new copy. Windows folders (a drive letter or \\server) get double quotes.
+ * `--fork-session` to continue in a new copy. Windows folders (a drive letter or \\server) get double quotes
+ * and `; ` (PowerShell 5.1 can't parse `&&`, and PowerShell's `cd` also changes drive, unlike cmd.exe's).
  * A folder that can't be quoted safely drops the `cd` part; an id that isn't letters, digits, _ and - gives null.
  */
 export function resumeCommand(cwd: string | undefined, id: string, fork = false): string | null {
   if (!SAFE_ID.test(id)) return null;
   const cmd = `claude --resume ${id}${fork ? " --fork-session" : ""}`;
   if (!cwd || !cwdIsSafe(cwd)) return cmd;
-  const quoted = isWindowsPath(cwd) ? `"${cwd}"` : `'${cwd.replace(/'/g, "'\\''")}'`;
-  return `cd ${quoted} && ${cmd}`;
+  if (isWindowsPath(cwd)) return `cd "${cwd}"; ${cmd}`;
+  return `cd '${cwd.replace(/'/g, "'\\''")}' && ${cmd}`;
 }
 
 const APPS: Record<string, string> = {

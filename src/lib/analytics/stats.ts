@@ -230,6 +230,11 @@ export function contextGauge(turn: Turn, m: SessionModel): { used: number; windo
 type Bucket = { usage: Usage; replies: number; steps: number; toolCalls: number };
 export type DayDigest = { bucket: Bucket; byModel: Record<string, Bucket>; tools: Record<string, { count: number; failed: number }> };
 /** What the dashboard keeps per session: numbers per day, no log text except the title. */
+// The overview reads each log whole, and a JS string tops out near 512 MB: bigger sessions are skipped.
+export const OVERVIEW_MAX_LOG_BYTES = 300 * 1024 * 1024;
+/** True when any of a session's logs (main and helpers, by size in bytes) is too big for the overview. */
+export const tooBigForOverview = (sizes: readonly number[]) => sizes.some((n) => n > OVERVIEW_MAX_LOG_BYTES);
+
 export type SessionDigest = { file: string; project: string; title: string; lastTs: number; days: Record<string, DayDigest> };
 
 const pad = (n: number) => String(n).padStart(2, "0");

@@ -2,7 +2,7 @@
 //   node --no-warnings --experimental-strip-types scripts/stats.check.mts
 import assert from "node:assert/strict";
 import { buildSession, type AgentLog, type SessionModel, type Step, type Turn, type Usage } from "../src/lib/session.ts";
-import { burnSeries, cacheHit, contextGauge, localDay, mergeOverview, modelLabel, sessionDigest, sessionStats } from "../src/lib/analytics/stats.ts";
+import { burnSeries, cacheHit, contextGauge, localDay, mergeOverview, modelLabel, sessionDigest, sessionStats, tooBigForOverview } from "../src/lib/analytics/stats.ts";
 import { tipsFor } from "../src/lib/analytics/tips.ts";
 import { scopeToTurn } from "../src/lib/analytics/compare.ts";
 import { assignSlots, foldSlices } from "../src/components/charts/slots.ts";
@@ -189,6 +189,10 @@ assert.deepEqual(ov.byProject.map((r) => [r.key, r.label, r.sessions, r.file]), 
 assert.deepEqual(ov.tools.map((t) => [t.tool, t.count, t.failed]), [["Read", 2, 0], ["Agent", 1, 0], ["Bash", 1, 1]]);
 assert.deepEqual(ov.sessions.map((x) => x.file), ["proj/a.jsonl", "other/b.jsonl"]);
 // A 1-day window keeps only today's work.
+// Logs too big to read whole (a string tops out near 512 MB) are skipped, and the overview says so.
+assert.equal(tooBigForOverview([10, 299 * 1024 * 1024]), false);
+assert.equal(tooBigForOverview([10, 301 * 1024 * 1024]), true, "a big helper log counts too");
+assert.equal(tooBigForOverview([]), false);
 const today = mergeOverview([d1, d2], { days: 1, now, projects: {} }, day);
 assert.equal(totalOf(today.totals), 10);
 assert.deepEqual(today.byProject.map((r) => [r.key, r.label]), [["other", "other"]]);

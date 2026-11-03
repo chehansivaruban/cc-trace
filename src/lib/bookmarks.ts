@@ -2,7 +2,7 @@
 // Nothing is sent anywhere. Storage can be missing or throw: everything then works in memory until the page closes.
 import { useMemo, useSyncExternalStore } from "react";
 import { isDroppedFile } from "./paths.ts";
-import { maskSecrets } from "./redact.ts";
+import { createMasker, type Masker } from "./redact.ts";
 
 export type Bookmark = { file: string; step?: string; turn?: number; label: string; createdAt: number };
 export type BookmarkData = { items: Bookmark[]; tags: Record<string, string[]>; names: Record<string, string> };
@@ -56,6 +56,7 @@ function cleanTags(tags: unknown[]): string[] {
   return out;
 }
 
+const shapeMask = createMasker();
 const sameSpot = (b: Bookmark, file: string, step?: string) => b.file === file && (b.step ?? "") === (step ?? "");
 
 /** A bookmark store over any storage; the app uses one over localStorage, the self-check one over fakes. */
@@ -110,7 +111,12 @@ export function createBookmarkStore(getStorage: () => StorageLike | null | undef
       if (!memoryOnly) current = null;
       for (const l of listeners) l();
     },
-    toggle(b: Omit<Bookmark, "createdAt">) {
+    /**
+     * Adds or removes a bookmark. The label is always masked before it's saved: with `mask` (the open
+     * session's full masker: secrets, home folders and the user names known now) or, without one, secrets
+     * and home folders by their shape.
+     */
+    toggle(b: Omit<Bookmark, "createdAt">, mask: Masker = shapeMask) {
       // A dropped log isn't in the Claude folder, so a bookmark could never reopen it.
       if (isDroppedFile(b.file)) return;
       const d = get();
@@ -118,7 +124,7 @@ export function createBookmarkStore(getStorage: () => StorageLike | null | undef
         save({ ...d, items: d.items.filter((x) => !sameSpot(x, b.file, b.step)) });
         return;
       }
-      const label = maskSecrets(b.label).replace(/\s+/g, " ").trim().slice(0, LABEL_MAX);
+      const label = mask(b.label).replace(/\s+/g, " ").trim().slice(0, LABEL_MAX);
       const item: Bookmark = { file: b.file, ...(b.step ? { step: b.step } : {}), ...(b.turn !== undefined ? { turn: b.turn } : {}), label, createdAt: Date.now() };
       save({ ...d, items: [item, ...d.items] });
     },

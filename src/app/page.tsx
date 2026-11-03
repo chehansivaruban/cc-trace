@@ -23,7 +23,8 @@ import { SearchPage } from "@/components/pages/search-page";
 import { SettingsDialog } from "@/components/pages/settings-dialog";
 import { SESSION_VIEWS, type SessionViewProps } from "@/components/views/registry";
 import { useEscape } from "@/hooks/use-escape";
-import { MaskScope } from "@/hooks/use-mask";
+import { useFolders } from "@/hooks/use-folders";
+import { MaskScope, sessionMasker } from "@/hooks/use-mask";
 import { useSessionShortcuts } from "@/hooks/use-session-shortcuts";
 import { useSessionStream } from "@/hooks/use-session-stream";
 import type { ProjectInfo, SessionInfo } from "@/lib/claude-logs";
@@ -69,6 +70,7 @@ export default function Home() {
   const [filter, setFilter] = useState<StepFilter>(emptyFilter);
   const [filterOpen, setFilterOpen] = useState(false);
   const marks = useBookmarks();
+  const home = useFolders()?.home;
   const reduce = useReducedMotion();
 
   const refresh = useCallback(async () => {
@@ -144,6 +146,10 @@ export default function Home() {
   const viewFile = dropped ? DROPPED_PREFIX + dropped.name : file;
   // A name you gave the session (Bookmarks) wins over its title.
   const title = (file && !dropped && marks.nameOf(file)) || session?.title;
+  // Bookmark labels are stored, so they're always fully masked (this session's names included).
+  const cwdKey = model.meta.cwds.join("\n");
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `cwdKey` stands for the folders' contents
+  const storeMask = useMemo(() => sessionMasker(home, model.meta.cwds), [home, cwdKey]);
 
   // Session-level changes: from an app page they return to the last open session. Reads the live URL, not
   // this render's `route`, so two calls in one handler (pick a request, then select an agent) both land.
@@ -192,7 +198,7 @@ export default function Home() {
       if (next) pickSession(next);
     },
     bookmark: () =>
-      viewFile && marks.toggle({ file: viewFile, step: selectedStep?.id, turn: selectedStep ? turnIndex : undefined, label: selectedStep?.title ?? title ?? "Session" }),
+      viewFile && marks.toggle({ file: viewFile, step: selectedStep?.id, turn: selectedStep ? turnIndex : undefined, label: selectedStep?.title ?? title ?? "Session" }, storeMask),
   });
 
   const turnList = (

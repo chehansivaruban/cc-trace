@@ -11,14 +11,21 @@ const PATTERNS: RegExp[] = [
   /xox[abpr]-[\w-]+/g,
   /AKIA[0-9A-Z]{16}/g,
   /eyJ[\w-]+\.[\w-]+\.[\w-]+/g, // JWT-like
+  /(\b[a-z][\w+.-]*:\/\/[^\s:/@]+:)[^\s@/]+(?=@)/gi, // the password in postgres://admin:pw@db, https://user:pw@host
   /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, // emails
 ];
+
+// "Authorization: Bearer <token>" / "Basic <base64>": keep the word, hide the token. A token has a digit, a +, /
+// or =, or a lower-to-upper case change, so "basic authentication" stays readable.
+const AUTH_SCHEME = /\b(Bearer|Basic|bearer|basic|BEARER|BASIC)\s+(?=[\w.~+/-]*(?:\d|[+/=]|[a-z][A-Z]))[\w.~+/-]{12,}=*/g;
 
 // "password=hunter2", "API_KEY: abc", {"password": "x"}, {\"password\":\"x\"} (JSON inside JSON): keep the
 // name, hide the value. Quoted values may hold escaped quotes; a quote that never closes hides the rest of
 // its line only.
 const KEY_VALUE = new RegExp(
-  String.raw`(password|passwd|secret|token|api[_-]?key)((?:\\?["'])?\s*[:=]\s*)` +
+  String.raw`(password|passwd|secret|token|api[_-]?key|authorization|credentials?|access[_-]?key|private[_-]?key|client[_-]?secret)((?:\\?["'])?\s*[:=]\s*)` +
+    // A value already hidden by AUTH_SCHEME ("Authorization: Bearer •••") keeps its scheme word.
+    "(?!(?:Bearer|Basic|bearer|basic|BEARER|BASIC) •••)" +
     "(?:" +
     [
       String.raw`\\"(?:\\\\\\"|\\\\|\\[^"\n]|[^\\\n])*?(?:\\"|(?=\n)|$)`, // \"value\" (escaped JSON)
@@ -34,12 +41,17 @@ const KEY_VALUE = new RegExp(
 // (and the diff rows built on them) don't change.
 const PEM = /(-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----)([\s\S]*?)(-----END [A-Z0-9 ]*PRIVATE KEY-----|$)/g;
 
-// Any home folder (/Users/<name>, /home/<name>, C:\Users\<name>, Git Bash /c/Users/<name>, WSL /mnt/c/Users/<name>)
-// becomes "~". Only at a path boundary (start, whitespace, quote, =, (, :, comma, brackets), so
-// "https://x.com/home/page" stays. One or two backslashes: JSON-encoded Windows paths double them.
+// Any home folder (/Users/<name>, /home/<name>, C:\Users\<name> in any case, Git Bash /c/Users/<name>, WSL
+// /mnt/c/Users/<name>) becomes "~". Only at a path boundary (start, whitespace, quote, =, (, :, comma, brackets,
+// | and ;), so "https://x.com/home/page" stays. One or two backslashes: JSON-encoded Windows paths double them.
+// A Windows name may hold spaces ("C:\Users\John Smith\proj"): it runs to the next separator when one follows.
 // "Shared" and "Public" are not people.
-const HOME_ROOT = String.raw`(?:(?:\/mnt)?\/[A-Za-z](?=\/Users\/))?(?:\/Users|\/home|[A-Za-z]:(?:\\{1,2}|\/)Users)`;
-const HOME = new RegExp(String.raw`(?<=^|[\s"'\`=(:,[{<>])${HOME_ROOT}(?:\\{1,2}|\/)(?!(?:Shared|Public)\b)[^\\/\s"'\`:;,()<>[\]{}]+`, "g");
+const SEP = String.raw`(?:\\{1,2}|\/)`;
+const NAME_PART = String.raw`[^\\/\s"'\`:;,()<>[\]{}|]+`;
+const NOT_PERSON = String.raw`(?!(?:Shared|Public)\b)`;
+const POSIX_HOME = String.raw`(?:(?:\/mnt)?\/[A-Za-z](?=\/Users\/))?(?:\/Users|\/home)\/${NOT_PERSON}${NAME_PART}`;
+const WINDOWS_HOME = String.raw`[A-Za-z]:${SEP}(?:Users|users|USERS)${SEP}${NOT_PERSON}(?:${NAME_PART}(?: +${NAME_PART})+(?=${SEP})|${NAME_PART})`;
+const HOME = new RegExp(String.raw`(?<=^|[\s"'\`=(:,[{<>|;])(?:${WINDOWS_HOME}|${POSIX_HOME})`, "g");
 
 // Claude Code's folder names spell the path with dashes: "-Users-alice-app", "C--Users-alice-app", "-home-alice-app".
 const ENCODED_HOME = /(^|[^\w-])((?:[A-Za-z]-)?-(?:Users|home)-)(?!(?:Shared|Public)-)[^-\\/\s"'`]+/g;
@@ -55,7 +67,8 @@ export function maskSecrets(text: string, home?: string): string {
   // Trailing separators are trimmed so "/Users/me/" and "/Users/me" both work; "/Users/meg" is left alone.
   const h = home?.replace(/[\\/]+$/, "");
   if (h) out = out.replace(new RegExp(`${escapeRe(h)}(?=[\\\\/]|$|[^\\w.-])`, "g"), "~");
-  for (const re of PATTERNS) out = out.replace(re, MASK);
+  for (const re of PATTERNS) out = out.replace(re, (whole: string, keep?: unknown) => (typeof keep === "string" ? keep + MASK : MASK));
+  out = out.replace(AUTH_SCHEME, `$1 ${MASK}`);
   return out.replace(KEY_VALUE, (_, key: string, sep: string) => key + sep + MASK);
 }
 
@@ -87,7 +100,7 @@ export function homeFromCwds(cwds?: readonly (string | undefined | null)[]): str
 const NOT_NAMES = new Set(
   "user users home page test main node runner root admin app dev code src build work data ubuntu vscode shared public".split(" "),
 );
-const NAME_IN_PATH = /^(?:(?:\/mnt)?\/[A-Za-z](?=\/Users\/))?(?:\/Users|\/home|[A-Za-z]:(?:\\{1,2}|\/)Users)(?:\\{1,2}|\/)([^\\/]+)/;
+const NAME_IN_PATH = /^(?:(?:\/mnt)?\/[A-Za-z](?=\/Users\/))?(?:\/Users|\/home|[A-Za-z]:(?:\\{1,2}|\/)(?:Users|users|USERS))(?:\\{1,2}|\/)([^\\/]+)/;
 
 /**
  * User names from trusted paths only: the server's home folder and the open session's working folders.
@@ -116,14 +129,27 @@ export type Masker = (text: string) => string;
  */
 export function createMasker(opts: MaskOptions = {}): Masker {
   const names = (opts.names ?? []).filter((n) => n.length >= 3 && !NOT_NAMES.has(n.toLowerCase()));
+  // Each name as written, plus how it's spelled in Claude Code's folder names ("John Smith" -> "John-Smith")
+  // and in URLs ("%2Falice", "%5Calice").
+  const dashed = [...new Set(names.map(encodeName).filter((d) => d.length >= 3))];
   const namesRe = names.length ? new RegExp(`(?<![\\w.-])(?:${names.map(escapeRe).join("|")})(?![\\w-])`, "gi") : undefined;
+  const encodedRe = names.length ? new RegExp(`(%2F|%5C)(?:${names.map((n) => escapeRe(encodeURIComponent(n))).join("|")})(?![\\w-])`, "gi") : undefined;
+  const dashedRe = dashed.length
+    ? new RegExp(`(^|[^\\w-])((?:[A-Za-z]-)?-(?:Users|home)-)(?:${dashed.map(escapeRe).join("|")})(?=-|$|[^\\w-])`, "gi")
+    : undefined;
   return (text: string) => {
     if (typeof text !== "string" || !text) return text;
-    let out = maskSecrets(text, opts.home).replace(HOME, "~").replace(ENCODED_HOME, "$1$2~");
+    let out = maskSecrets(text, opts.home).replace(HOME, "~");
+    if (dashedRe) out = out.replace(dashedRe, "$1$2~");
+    out = out.replace(ENCODED_HOME, "$1$2~");
     if (namesRe) out = out.replace(namesRe, MASK);
+    if (encodedRe) out = out.replace(encodedRe, `$1${MASK}`);
     return out;
   };
 }
+
+// Claude Code's folder names replace every character but letters and digits with "-".
+const encodeName = (name: string) => name.replace(/[^A-Za-z0-9]/g, "-");
 
 /** One-off masking; prefer createMasker when masking many strings with the same options. */
 export const maskText = (text: string, opts?: MaskOptions): string => createMasker(opts)(text);

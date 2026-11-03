@@ -257,6 +257,18 @@ try {
   assert.equal(toolHit[0]?.step, "t1", "a match in a tool result points at its step");
   assert.ok((await search("helper-line-ok")).length === 1, "helper logs are searched");
   assert.deepEqual(await search("../../etc/passwd"), []);
+  {
+    // Logs written by someone else (copied in, or read in Docker): their user name is hidden too.
+    const dir = path.join(config, "projects", "-Users-alicesmoke-proj");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "a1.jsonl"), JSON.stringify({ type: "user", cwd: "/Users/alicesmoke/proj", timestamp: t, message: { content: "alicesmoke asked for the zebra-plan" } }) + "\n");
+    const plain = await search("zebra-plan");
+    assert.ok(plain.length === 1 && plain[0].snippet.includes("alicesmoke"), JSON.stringify(plain));
+    const hidden = await search("zebra-plan", "&mask=1");
+    assert.equal(hidden.length, 1);
+    assert.ok(!/alicesmoke/.test(hidden[0].snippet + hidden[0].title), JSON.stringify(hidden)); // the file is an id, not shown
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
   assert.equal((await get("/api/search?q=a")).status, 400);
   assert.equal((await get("/api/search?q=%20%20")).status, 400);
   assert.equal((await get("/api/search?q=hello", { Host: "evil.example" })).status, 403);

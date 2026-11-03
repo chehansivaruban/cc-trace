@@ -10,7 +10,7 @@ import { exportHtml } from "../src/lib/export/html.ts";
 import { exportMarkdown } from "../src/lib/export/markdown.ts";
 import { exportJson, homeOf, makeMasker } from "../src/lib/export/common.ts";
 import { maskSecrets } from "../src/lib/redact.ts";
-import { snippetOf } from "../src/lib/search.ts";
+import { cwdMaskers, snippetOf } from "../src/lib/search.ts";
 
 const t0 = Date.parse("2026-01-01T00:00:00.000Z");
 const at = (s: number) => new Date(t0 + s * 1000).toISOString();
@@ -345,6 +345,16 @@ assert.equal(snippetOf("nothing here", "needle"), null);
 // A query that only matches inside a secret finds nothing when masking.
 assert.equal(snippetOf("key sk-ant-api03-abcdefghijkl", "abcdefgh", masker), null);
 assert.match(snippetOf("x".repeat(100) + "Needle" + "y".repeat(100), "needle")!, /^….{60}Needle.{60}…$/);
+// Server-side search masking learns each session's own user name from its folder, not only the server's.
+{
+  const forCwd = cwdMaskers("/Users/server");
+  const alice = forCwd("/Users/alice/proj");
+  assert.equal(alice("alice asked for the zebra plan"), "••• asked for the zebra plan");
+  assert.equal(forCwd("/Users/alice/proj"), alice, "one masker per folder");
+  assert.equal(forCwd("C:\\Users\\bob\\x")("bob and alice and server"), "••• and alice and •••");
+  assert.equal(forCwd(undefined)("server here"), "••• here");
+  assert.equal(snippetOf("from alice: zebra plan", "zebra", alice), "from •••: zebra plan");
+}
 console.log("✓ masking happens before clipping");
 
 // Markdown: log text can't become a live link or heading.

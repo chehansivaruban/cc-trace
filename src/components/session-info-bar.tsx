@@ -9,7 +9,7 @@ import type { SessionModel, Turn } from "@/lib/session";
 import { BookmarkButton } from "./bookmark-button";
 import { DebugLogDialog, useHasDebugLog } from "./debug-log";
 import { ExportMenu } from "./export-menu";
-import { appName, cwdIsSafe, encodeProjectDir, permissionLabel, projectOfFile, resumeCommand, shortPath } from "@/lib/sessions-list";
+import { appName, cwdIsSafe, encodeProjectDir, permissionLabel, projectOfFile, resumeCommand, resumeShell, shortPath } from "@/lib/sessions-list";
 import { useSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 
@@ -46,7 +46,8 @@ export function CopyActions({ id, cwd, className, label = true }: { id: string; 
     return () => clearTimeout(t);
   }, [done]);
   // A folder that can't be quoted safely leaves just the claude command: say where to run it.
-  const where = cwdIsSafe(cwd) ? "" : " (open a terminal in the project folder first)";
+  const shell = resumeShell(cwd);
+  const where = !cwdIsSafe(cwd) ? " (open a terminal in the project folder first)" : shell ? ` (run it in ${shell})` : "";
   const resume = resumeCommand(cwd, id);
   const fork = resumeCommand(cwd, id, true);
   const items = [
