@@ -198,6 +198,18 @@ const risky: [string, "caution" | "danger" | undefined][] = [
   ["rm -f -R assets", "danger"],
   ["sudo rm -rf /var/x", "danger"],
   ["rm notes.txt", "caution"],
+  // Scratch folders in the computer's temporary space, and deletes inside a container, are a caution.
+  ["rm -rf /tmp/build-123", "caution"],
+  ["rm -rf /private/tmp/x /var/folders/ab/T/y", "caution"],
+  ['rm -rf "$(mktemp -d)"', "caution"],
+  ["rm -rf $TMPDIR/cache", "caution"],
+  ["Remove-Item -Recurse -Force $env:TEMP\\x", "caution"],
+  ["rmdir /s /q %TEMP%\\x", "caution"],
+  ["rm -rf /tmp/x src", "danger"],
+  ["rm -rf /tmpfoo", "danger"],
+  ["docker exec web rm -rf /app/cache", "caution"],
+  ["docker compose exec db rm -rf /var/lib/x", "caution"],
+  ["docker exec web ls && rm -rf src", "danger"],
   ["git push --force origin main", "danger"],
   ["git push -f", "danger"],
   ["git push --force-with-lease", "caution"],
@@ -217,7 +229,7 @@ const risky: [string, "caution" | "danger" | undefined][] = [
   ["claude --dangerously-skip-permissions -p hi", "danger"],
   // Rebuildable or scratch folders are a caution; anything else alongside them still counts.
   ["rm -rf node_modules .next", "caution"],
-  ["rm -rf /tmp/scratch-1 && npm ci", "danger"],
+  ["rm -rf /tmp/scratch-1 && npm ci", "caution"],
   ["rm -rf dist && git push --force", "danger"],
   ["rm -rf dist src", "danger"],
   ["rm -rf build/ios/upload", "caution"],
@@ -272,6 +284,10 @@ for (const [cmd] of risky.filter(([, l]) => l)) {
 }
 assert.match(riskOf(step("Bash", { command: "rm -rf x" }))!.why, /can't be undone/);
 assert.match(riskOf(step("Bash", { command: "rm -rf node_modules" }))!.why, /rebuild/);
+assert.match(riskOf(step("Bash", { command: "rm -rf /tmp/x" }))!.why, /temporary/);
+assert.match(riskOf(step("Bash", { command: "docker exec web rm -rf /app" }))!.why, /inside a container/);
+assert.match(riskOf(step("Bash", { command: "git push --force-with-lease origin main" }))!.why, /checks nobody else changed it/);
+assert.equal(riskOf(step("Bash", { command: "git push --force-with-lease origin main" }))!.level, "caution");
 // Writes outside the session folder, with Windows and POSIX spellings.
 const posix = { cwds: ["/work/app"] };
 assert.equal(riskOf(step("Write", { file_path: "/work/app/src/a.ts" }), posix), undefined);
@@ -413,5 +429,23 @@ filesTouched(junk);
 hookRuns(junk);
 for (const t of junk.turns) phasesOf(t);
 for (const t of junk.turns) for (const s of t.steps) riskOf(s, { cwds: [] });
+
+// ── Big sessions: the health checks over 50k steps stay well under a second ──
+{
+  const calls: Call[] = [];
+  for (let i = 0; i < 50_000; i++) {
+    const k = i % 5;
+    calls.push(k === 0 ? read(`/work/app/f${i % 300}.ts`) : k === 1 ? edit(`/work/app/f${i % 300}.ts`) : k === 2 ? bash(`npm test ${i % 7}`, { error: i % 3 === 0, output: "1 failed" }) : k === 3 ? grep(`x${i}`, { output: i % 2 ? "" : "a.ts" }) : write(`/work/app/n${i % 50}.ts`));
+  }
+  const requests: Call[][] = [];
+  for (let i = 0; i < calls.length; i += 500) requests.push(calls.slice(i, i + 500));
+  const big = session(requests);
+  const t = performance.now();
+  const r = healthReport(big);
+  const ms = performance.now() - t;
+  assert.ok(r.errors.toolCalls === 50_000, String(r.errors.toolCalls));
+  assert.ok(ms < 1000, `health on 50k steps took ${Math.round(ms)} ms`);
+  console.log(`✓ health on 50k steps in ${Math.round(ms)} ms`);
+}
 
 console.log("health checks passed");

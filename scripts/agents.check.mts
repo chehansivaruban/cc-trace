@@ -100,6 +100,26 @@ const explorer = tree.children[0];
 assert.ok(explorer.stats.steps >= 3, "Explorer's own steps are counted");
 assert.equal(totalTokens(explorer.stats.usage), totalTokens(m.actors.h1.usage));
 assert.equal(explorer.stats.durationMs, 11_000); // briefed at 2 s, reported back at 13 s
+// The tree's time is Stats' time: active spans within each request, added up, so days between requests don't count.
+{
+  const byAgent = new Map(sessionStats(m).byAgent.map((r) => [r.key, r.durationMs]));
+  const walk = (n: AgentNode): void => {
+    assert.equal(n.stats.durationMs, byAgent.get(n.actor.id) ?? 0, n.actor.name);
+    n.children.forEach(walk);
+  };
+  walk(tree);
+  const gap = buildSession([
+    { type: "user", timestamp: at(0), message: { content: "one" } },
+    asst(1, [toolUse("g1", "Read", { file_path: "a" })]),
+    res(2, "g1"),
+    asst(10, [{ type: "text", text: "done" }], "end_turn"),
+    { type: "user", timestamp: at(100_000), message: { content: "two" } },
+    asst(100_001, [toolUse("g2", "Read", { file_path: "a" })]),
+    res(100_002, "g2"),
+    asst(100_010, [{ type: "text", text: "done" }], "end_turn"),
+  ], {}, now);
+  assert.equal(agentTree(gap).stats.durationMs, 18_000, "9 s in each request, not the day in between");
+}
 // A helper whose parent is unknown still hangs off the lead; a cycle never loops.
 const odd = buildSession(main, { h1, h2, h3 }, now);
 odd.actors.h2.parent = "nobody";

@@ -5,7 +5,20 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { addUsage, buildSession, type AgentLog, type LogRecord } from "../src/lib/session.ts";
+import { addUsage, buildSession, totalTokens, type AgentLog, type LogRecord, type SessionModel, type Usage } from "../src/lib/session.ts";
+import { burnSeries, contextGauge, sessionDigest, sessionStats } from "../src/lib/analytics/stats.ts";
+import { agentChat, agentTree, tasksOf, teamsOf, type AgentNode } from "../src/lib/analytics/agents.ts";
+import { compare } from "../src/lib/analytics/compare.ts";
+import { healthReport } from "../src/lib/analytics/health.ts";
+import { sessionStory, storyOf } from "../src/lib/analytics/story.ts";
+import { filesTouched } from "../src/lib/analytics/files.ts";
+import { hookRuns } from "../src/lib/analytics/hooks.ts";
+import { phasesOf } from "../src/lib/analytics/phases.ts";
+import { tipsFor } from "../src/lib/analytics/tips.ts";
+import { riskOf } from "../src/lib/analytics/risk.ts";
+import { filterOptions } from "../src/lib/analytics/filters.ts";
+import { conversationRows } from "../src/lib/conversation.ts";
+import { needsAttention } from "../src/lib/attention.ts";
 import { contextWindow } from "../src/lib/models.ts";
 import { maskSecrets } from "../src/lib/redact.ts";
 
@@ -208,6 +221,48 @@ assert.equal(synth.status, "error");
   console.log(`✓ 150k steps built in ${took} ms`);
 }
 
+/**
+ * Every analytics function on one real session, and the token totals every view shows agree: Stats by
+ * model, by agent and by request, the agents tree, the dashboard digest and the cumulative chart.
+ */
+function checkAnalytics(m: SessionModel, name: string) {
+  const total = totalTokens(m.usage);
+  const sum = (us: Usage[]) => us.reduce((n, u) => n + totalTokens(u), 0);
+  const st = sessionStats(m);
+  assert.equal(sum(st.byModel.map((r) => r.usage)), total, `${name}: Stats by model`);
+  assert.equal(sum(st.byAgent.map((r) => r.usage)), total, `${name}: Stats by agent`);
+  if (m.turns.length) assert.equal(sum(st.byRequest.map((r) => r.usage)), total, `${name}: Stats by request`);
+  const nodes: AgentNode[] = [];
+  const walk = (n: AgentNode) => (nodes.push(n), n.children.forEach(walk));
+  walk(agentTree(m));
+  assert.equal(sum(nodes.map((n) => n.stats.usage)), total, `${name}: agents tree`);
+  const digest = sessionDigest(m, { file: name, project: "p", title: "t" });
+  if (digest.lastTs) assert.equal(sum(Object.values(digest.days).map((d) => d.bucket.usage)), total, `${name}: dashboard digest`);
+  const burn = burnSeries(m);
+  if (burn.length) assert.equal(burn.at(-1)!.tokens, total, `${name}: cumulative chart`);
+  assert.equal(compare(m, m).find((r) => r.metric === "tokens")!.a, total, `${name}: compare`);
+  healthReport(m);
+  sessionStory(m);
+  filesTouched(m);
+  hookRuns(m);
+  tasksOf(m);
+  teamsOf(m);
+  agentChat(m);
+  needsAttention(m);
+  const cwds = m.meta.cwds;
+  for (const t of m.turns) {
+    healthReport(m, t);
+    storyOf(t, m);
+    phasesOf(t);
+    tipsFor(t, m);
+    contextGauge(t, m);
+    burnSeries(m, t.index);
+    conversationRows(t, m.actors, { open: false });
+    filterOptions(t.steps);
+    for (const x of t.steps) riskOf(x, { cwds });
+  }
+}
+
 if (process.argv.includes("--all")) {
   const root = path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude"), "projects");
   const read = (f: string) => fs.readFileSync(f, "utf8").split("\n").filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
@@ -226,6 +281,7 @@ if (process.argv.includes("--all")) {
       }
       const s = buildSession(read(path.join(abs, name)), agents);
       sessions++;
+      checkAnalytics(s, `${dir}/${name}`);
       steps += s.turns.reduce((n, t) => n + t.steps.length, 0);
       helpers += Object.keys(agents).length;
       // Every helper with a log should have a brief from whoever started it.

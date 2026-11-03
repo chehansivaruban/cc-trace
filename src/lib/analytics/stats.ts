@@ -197,15 +197,37 @@ export type BurnPoint = { ts: number; tokens: number; turn?: number; step?: stri
 export function burnSeries(m: SessionModel, turn?: number): BurnPoint[] {
   const turns = turn === undefined ? m.turns : m.turns[turn] ? [m.turns[turn]] : [];
   const out: BurnPoint[] = [];
+  // Replies with a step, plus replies with nothing to show (hiddenUsage), merged in time order, so the last
+  // point is the same total as the Tokens card.
+  const wanted = new Set(turns.map((t) => t.index));
+  const hidden = (m.hiddenUsage ?? [])
+    .filter((x) => wanted.has(x.turn))
+    .map((x) => ({ ...x, ts: x.ts || m.turns[x.turn]?.ts || 0 })) // a record without a time sits at its request's start
+    .sort((a, b) => a.ts - b.ts);
+  let h = 0;
   let acc = 0;
+  const start = (ts: number, t: Turn) => {
+    if (!out.length) out.push({ ts: Math.min(t.ts, ts), tokens: 0 });
+  };
+  const hiddenUpTo = (ts: number) => {
+    for (; h < hidden.length && hidden[h].ts <= ts; h++) {
+      const x = hidden[h];
+      const t = m.turns[x.turn];
+      if (t) start(x.ts, t);
+      acc += totalTokens(x.usage);
+      out.push({ ts: x.ts, tokens: acc, turn: x.turn });
+    }
+  };
   for (const t of turns) {
     for (const s of t.steps) {
       if (!s.usage) continue;
-      if (!out.length) out.push({ ts: Math.min(t.ts, s.ts), tokens: 0 });
+      hiddenUpTo(s.ts - 1);
+      start(s.ts, t);
       acc += totalTokens(s.usage);
       out.push({ ts: s.ts, tokens: acc, turn: t.index, step: s.id });
     }
   }
+  hiddenUpTo(Infinity);
   return out;
 }
 

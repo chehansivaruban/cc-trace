@@ -1,7 +1,7 @@
 // Self-check for the token statistics, the context gauge, the tips and the cross-session overview.
 //   node --no-warnings --experimental-strip-types scripts/stats.check.mts
 import assert from "node:assert/strict";
-import { buildSession, type AgentLog, type SessionModel, type Step, type Turn, type Usage } from "../src/lib/session.ts";
+import { buildSession, totalTokens, type AgentLog, type SessionModel, type Step, type Turn, type Usage } from "../src/lib/session.ts";
 import { burnSeries, cacheHit, contextGauge, localDay, mergeOverview, modelLabel, sessionDigest, sessionStats, tooBigForOverview } from "../src/lib/analytics/stats.ts";
 import { tipsFor } from "../src/lib/analytics/tips.ts";
 import { scopeToTurn } from "../src/lib/analytics/compare.ts";
@@ -98,6 +98,21 @@ assert.equal(burn.at(-1)!.tokens, 6063);
 for (let i = 1; i < burn.length; i++) assert.ok(burn[i].tokens >= burn[i - 1].tokens && burn[i].ts >= burn[i - 1].ts);
 assert.deepEqual(burnSeries(m, 1).map((p) => p.tokens), [0, 1356]);
 assert.deepEqual(burnSeries(m, 99), []);
+// Replies with nothing to show (only thinking) still used tokens: the chart ends at the Tokens total.
+{
+  const hidden = buildSession([
+    { type: "user", timestamp: at(0), message: { content: "think" } },
+    { type: "assistant", timestamp: at(1), message: { id: "x1", model: OPUS, usage: u(10, 0, 0, 5), stop_reason: "tool_use", content: [{ type: "thinking", thinking: "" }] } },
+    { type: "assistant", timestamp: at(2), message: { id: "x2", model: OPUS, usage: u(1, 0, 20, 2), stop_reason: "end_turn", content: [{ type: "text", text: "ok" }] } },
+    { type: "user", timestamp: at(3), message: { content: "again" } },
+    { type: "assistant", timestamp: at(4), message: { id: "x3", model: OPUS, usage: u(7, 0, 0, 1), stop_reason: "end_turn", content: [] } },
+  ], {}, t0 + 3_600_000);
+  assert.ok((hidden.hiddenUsage ?? []).length === 2, "two replies show no step");
+  const series = burnSeries(hidden);
+  assert.equal(series.at(-1)!.tokens, totalTokens(hidden.usage));
+  for (let i = 1; i < series.length; i++) assert.ok(series[i].tokens >= series[i - 1].tokens && series[i].ts >= series[i - 1].ts);
+  assert.equal(burnSeries(hidden, 1).at(-1)!.tokens, totalTokens(hidden.turns[1].usage));
+}
 
 // Context gauge: Opus 5.5 has a 1M window.
 assert.deepEqual(contextGauge(m.turns[0], m), { used: 1100, window: 1_000_000, pct: 0.11 });

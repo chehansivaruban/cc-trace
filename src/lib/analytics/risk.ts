@@ -14,6 +14,10 @@ const CMD_START = "(?:^|[;&|(\\n\\x60]|\\$\\()\\s*";
 const WHY = {
   deleteFolder: "This deletes a folder and everything in it. It can't be undone from the bin.",
   deleteRebuildable: "This deletes a folder and everything in it. It can't be undone from the bin, but it only holds files the project can rebuild.",
+  deleteTemp:
+    "This deletes a folder in the computer's temporary space, where programs keep scratch files. It can't be undone from the bin, but those files are usually throwaway.",
+  deleteContainer:
+    "This deletes a folder inside a container (a sealed-off copy of a system that runs on your computer), not your own files. It can't be undone there.",
   deleteFile: "This deletes a file. It skips the bin, so it can't simply be restored.",
   forcePush: "This overwrites the online copy of the project (for example on GitHub) with this one. Work that anyone else saved there can be lost.",
   findDelete: "This deletes every file the search finds. It skips the bin, so they can't simply be restored.",
@@ -113,7 +117,13 @@ function unquote(cmd: string, depth = 0): string {
 const REBUILDABLE =
   /(?:^|[\\/])(?:node_modules|\.next|dist|build|out|\.turbo|\.cache|coverage|target|__pycache__|\.dart_tool|\.pytest_cache|test-results|playwright-report|\.vite|\.svelte-kit|\.nuxt|\.parcel-cache)(?:[\\/]\*?)?$|(?:^|[\\/])(?:node_modules|\.next|dist|build|out|\.turbo|\.cache|coverage|target|test-results|playwright-report)[\\/]/;
 
-type Deletion = { recursive: boolean; targets: string[] };
+type Deletion = { recursive: boolean; targets: string[]; container: boolean };
+
+// The computer's temporary space: /tmp, macOS's /var/folders, a fresh `mktemp -d`, $TMPDIR, %TEMP%, $env:TEMP.
+// Inside quotes unquote() has turned "$(" and "$" into "_" ("$(mktemp -d)" reads "_mktemp_-d_").
+const TEMP_TARGET =
+  /^(?:(?:\/private)?\/tmp\/|(?:\/private)?\/var\/folders\/|[$_]\(?mktemp(?![a-z])|[$_]\{?TMPDIR\}?[\\/]|%TE?MP%[\\/]|[$_]env:TE?MP[\\/])/i;
+const isTempTarget = (t: string) => TEMP_TARGET.test(t) && !/(?:^|[\\/])\.\.(?:[\\/]|$)/.test(t);
 
 /** Every delete in the command: rm, git rm (not --cached), unlink, Remove-Item, rmdir /s, del. */
 function deletions(cmd: string): Deletion[] {
@@ -134,7 +144,9 @@ function deletions(cmd: string): Deletion[] {
     else if (dosStyle) recursive = flags.some((f) => /^\/s$/i.test(f));
     // rmdir without /s only removes an empty folder: nothing is lost.
     if ((word === "rmdir" || word === "rd") && !recursive) continue;
-    out.push({ recursive, targets });
+    // `docker exec <container> rm …` runs inside the container, not on this computer.
+    const container = /\b(?:docker|podman)\s+(?:compose\s+|container\s+)?exec\b/i.test(seg.slice(0, m.index + 1));
+    out.push({ recursive, targets, container });
   }
   return out;
 }
@@ -163,8 +175,13 @@ export function riskOf(step: Step, ctx: RiskContext = {}): Risk | undefined {
     const dels = deletions(cmd);
     const folders = dels.filter((d) => d.recursive);
     if (folders.length) {
-      const routine = folders.every((d) => d.targets.length && d.targets.every((t) => rebuildable(t, ctx.cwds ?? [])));
-      hits.push(routine ? { level: "caution", why: WHY.deleteRebuildable } : { level: "danger", why: WHY.deleteFolder });
+      const own = folders.filter((d) => !d.container);
+      const safe = (t: string) => rebuildable(t, ctx.cwds ?? []) || isTempTarget(t);
+      const routine = own.every((d) => d.targets.length && d.targets.every(safe));
+      if (!routine) hits.push({ level: "danger", why: WHY.deleteFolder });
+      else if (own.some((d) => d.targets.some((t) => !isTempTarget(t)))) hits.push({ level: "caution", why: WHY.deleteRebuildable });
+      else if (own.length) hits.push({ level: "caution", why: WHY.deleteTemp });
+      if (own.length < folders.length) hits.push({ level: "caution", why: WHY.deleteContainer });
     }
     if (dels.some((d) => !d.recursive)) hits.push({ level: "caution", why: WHY.deleteFile });
     // Deleting comes first among cautions: it's the one that loses work.

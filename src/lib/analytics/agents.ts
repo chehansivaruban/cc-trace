@@ -9,31 +9,36 @@ export type AgentNode = { actor: Actor; children: AgentNode[]; stats: AgentStats
 const zero = (): Usage => ({ fresh: 0, cached: 0, written: 0, input: 0, cacheWrite5m: 0, cacheWrite1h: 0 });
 const allSteps = (m: SessionModel): Step[] => m.turns.flatMap((t) => t.steps);
 
-/** Steps each agent took (its own tools and notes, plus the messages it sent) and how long it was involved. */
+/**
+ * Steps each agent took (its own tools and notes, plus the messages it sent) and how long it was involved:
+ * its first to last step within each request, added up (the same time Stats shows), so the days between
+ * requests don't count.
+ */
 export function agentStats(m: SessionModel): Map<string, AgentStats> {
   const out = new Map<string, AgentStats>();
-  const span = new Map<string, [number, number]>();
   for (const a of Object.values(m.actors)) out.set(a.id, { steps: 0, usage: addUsage(zero(), a.usage ?? zero()), durationMs: 0 });
-  const touch = (id: string, ts: number) => {
-    if (!ts) return;
-    const s = span.get(id);
-    if (!s) span.set(id, [ts, ts]);
-    else {
-      if (ts < s[0]) s[0] = ts;
-      if (ts > s[1]) s[1] = ts;
+  for (const t of m.turns) {
+    const span = new Map<string, [number, number]>();
+    const touch = (id: string, ts: number) => {
+      const s = span.get(id);
+      if (!s) span.set(id, [ts, ts]);
+      else {
+        if (ts < s[0]) s[0] = ts;
+        if (ts > s[1]) s[1] = ts;
+      }
+    };
+    for (const s of t.steps) {
+      if (s.kind === "memory") continue;
+      const doer = s.from ?? s.actor;
+      const st = out.get(doer);
+      if (st) st.steps++;
+      touch(doer, s.ts);
+      if (s.from) touch(s.actor, s.ts); // a helper's work starts when it receives its brief
     }
-  };
-  for (const s of allSteps(m)) {
-    if (s.kind === "memory") continue;
-    const doer = s.from ?? s.actor;
-    const st = out.get(doer);
-    if (st) st.steps++;
-    touch(s.actor, s.ts);
-    if (s.from) touch(s.from, s.ts);
-  }
-  for (const [id, [a, b]] of span) {
-    const st = out.get(id);
-    if (st) st.durationMs = b - a;
+    for (const [id, [a, b]] of span) {
+      const st = out.get(id);
+      if (st && b > a) st.durationMs += b - a;
+    }
   }
   return out;
 }
