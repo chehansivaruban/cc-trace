@@ -2,7 +2,7 @@
 
 // Health (E1–E3, N3): how smoothly Claude worked, what went wrong and what it did next, risky actions and hooks.
 import { useMemo, useState, type ReactNode } from "react";
-import { AlertTriangle, CornerDownRight, Info, FileSearch, Files, Repeat, RotateCcw, SearchX, ShieldAlert, Undo2, Webhook, XCircle } from "lucide-react";
+import { AlertTriangle, Ban, CornerDownRight, Info, FileSearch, Files, Repeat, RotateCcw, SearchX, ShieldAlert, Undo2, Webhook, XCircle } from "lucide-react";
 import { MapButton, Section, fmt, plural, useJump, useTechnical } from "@/components/view-kit";
 import { useMask } from "@/hooks/use-mask";
 import { VirtualList } from "@/components/virtual-list";
@@ -12,7 +12,7 @@ import { FINDING_WEIGHT, healthReport, type Finding, type Recovery } from "@/lib
 import { hookRuns, type HookRun } from "@/lib/analytics/hooks";
 import { permissionModeRisk, riskOf, type Risk } from "@/lib/analytics/risk";
 import { explainTool } from "@/lib/explain";
-import type { Step, Turn } from "@/lib/session";
+import { isFailed, type Step, type Turn } from "@/lib/session";
 import { cn } from "@/lib/utils";
 import type { SessionViewProps } from "./registry";
 
@@ -31,6 +31,7 @@ const NEXT: Record<Recovery, { label: string; icon: typeof Repeat; cls: string }
   retried: { label: "Then Claude tried again", icon: Repeat, cls: "text-sky-600 dark:text-sky-300" },
   different: { label: "Then Claude tried another way", icon: CornerDownRight, cls: "text-emerald-600 dark:text-emerald-400" },
   "gave-up": { label: "Claude didn't try it again", icon: Undo2, cls: "text-muted-foreground" },
+  declined: { label: "You said no", icon: Ban, cls: "text-muted-foreground" },
 };
 
 // "Good to know" is kept for the neutral notes section; risk badges never use it.
@@ -124,8 +125,11 @@ export function HealthView(props: SessionViewProps) {
                     {" "}· most often “{explainTool(report.errors.mostFailing, {}, "Claude").title.toLowerCase()}”{tech && <> ({report.errors.mostFailing})</>}
                   </span>
                 )}
-                {report.errors.items.length > report.errors.total && (
-                  <span className="text-muted-foreground"> · plus {plural(report.errors.items.length - report.errors.total, "other problem")}, like a failed request to Claude</span>
+                {report.errors.items.length > report.errors.total + report.errors.declined && (
+                  <span className="text-muted-foreground"> · plus {plural(report.errors.items.length - report.errors.total - report.errors.declined, "other problem")}, like a failed request to Claude</span>
+                )}
+                {report.errors.declined > 0 && (
+                  <span className="text-muted-foreground"> · you said no to {plural(report.errors.declined, "step")}</span>
                 )}
               </p>
               <ErrorStrip turns={turns} onPick={(t, id) => jump.select(t, id)} mask={mask} />
@@ -140,7 +144,7 @@ export function HealthView(props: SessionViewProps) {
                   const n = NEXT[next];
                   return (
                     <Row onClick={() => jump.select(t, step.id)} onMap={() => jump.toMap(t, step.id)}>
-                      <StepIcon icon={step.icon} className="mt-0.5 size-3.5 shrink-0 text-red-500" />
+                      <StepIcon icon={step.icon} className={cn("mt-0.5 size-3.5 shrink-0", next === "declined" ? "text-muted-foreground" : "text-red-500")} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[0.8125rem] font-medium">
                           {mask(step.title)}
@@ -313,7 +317,7 @@ function ErrorStrip({ turns, onPick, mask }: { turns: Turn[]; onPick: (turn: num
     const out: { x: number; turn: number; step: Step }[] = [];
     let i = 0;
     for (const t of turns) for (const s of t.steps) {
-      if (s.status === "error") out.push({ x: i, turn: t.index, step: s });
+      if (isFailed(s)) out.push({ x: i, turn: t.index, step: s });
       i++;
     }
     return { out, n: Math.max(1, i) };

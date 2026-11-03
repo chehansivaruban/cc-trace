@@ -1,7 +1,7 @@
 // Token statistics for one session (Stats view) and across sessions (Dashboard). Pure functions, O(steps).
 // Token counts only: cc-trace never shows prices or costs.
 import { contextWindow } from "../models.ts";
-import { totalTokens, type SessionModel, type Step, type Turn, type Usage } from "../session.ts";
+import { isFailed, totalTokens, type SessionModel, type Step, type Turn, type Usage } from "../session.ts";
 import { safeClip } from "../redact.ts";
 
 export type Row = {
@@ -150,7 +150,7 @@ export function sessionStats(m: SessionModel): SessionStats {
         let tr = tools.get(s.tool);
         if (!tr) tools.set(s.tool, (tr = { tool: s.tool, count: 0, failed: 0 }));
         tr.count++;
-        if (s.status === "error") tr.failed++;
+        if (isFailed(s)) tr.failed++;
         if (s.durationMs !== undefined && s.durationMs > (tr.longest?.durationMs ?? -1)) {
           tr.longest = s;
           tr.turn = t.index;
@@ -259,7 +259,7 @@ export function sessionDigest(m: SessionModel, info: { file: string; project: st
         d.bucket.toolCalls++;
         const tr = (d.tools[s.tool] ??= { count: 0, failed: 0 });
         tr.count++;
-        if (s.status === "error") tr.failed++;
+        if (isFailed(s)) tr.failed++;
       }
       if (s.model || s.usage) {
         const b = (d.byModel[s.model ?? "unknown"] ??= bucket());

@@ -228,6 +228,8 @@ try {
   assert.equal(permissionLabel("bypassPermissions").risky, true);
   assert.equal(permissionLabel("default").risky, false);
   assert.equal(permissionLabel("madeUp").label, "madeUp");
+  // Every mode real logs carry has a plain-English name.
+  for (const mode of ["default", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions"]) assert.ok(!/[A-Z]/.test(permissionLabel(mode).label.slice(1)) && permissionLabel(mode).label !== mode, mode);
   assert.equal(modelName("claude-opus-4-1-20250805"), "Opus 4.1");
   assert.equal(modelName("claude-opus-4-20250514"), "Opus 4");
   assert.equal(modelName("claude-sonnet-4-5"), "Sonnet 4.5");

@@ -15,6 +15,7 @@ import { useRoute } from "@/lib/route";
 import { useSettings } from "@/lib/settings";
 import { totalTokens, type Usage } from "@/lib/session";
 import { cn } from "@/lib/utils";
+import { maxOf } from "@/lib/num";
 import { isDroppedFile } from "@/lib/paths";
 import type { SessionViewProps } from "./registry";
 
@@ -112,7 +113,7 @@ export function StatsView({ model, turn, file }: SessionViewProps) {
     { id: "time", label: "Time", width: "3.75rem", align: "right", minor: true, sort: (r) => r.durationMs, cell: (r) => shortDuration(r.durationMs) },
   ];
 
-  const maxTool = Math.max(1, ...stats.tools.map((t) => t.count));
+  const maxTool = maxOf(stats.tools, (t) => t.count, 1);
   const twins = sameLabel(stats.tools.map((t) => t.tool));
   const toolCols: Column<ToolRow>[] = [
     {

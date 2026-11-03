@@ -1,17 +1,18 @@
 // Health checks (E1, E2): errors and what Claude did next, plus simple local checks for wasted effort.
 // No AI involved: every finding comes from counting steps.
-import type { Actor, SessionModel, Step, Turn } from "../session.ts";
+import { isDenied, isFailed, type Actor, type SessionModel, type Step, type Turn } from "../session.ts";
 import { FILE_CHANGE_TOOLS, fileOf } from "./files.ts";
 import { normalizePath } from "../paths.ts";
 import { safeClip } from "../redact.ts";
 
 export type FindingKind = "repeated-tool" | "fix-loop" | "empty-result" | "excessive-reads" | "write-then-edit" | "high-error-rate";
 export type Finding = { kind: FindingKind; title: string; explain: string; steps: string[]; turn: number };
-export type Recovery = "retried" | "different" | "gave-up";
+export type Recovery = "retried" | "different" | "gave-up" | "declined";
 export type HealthReport = {
   score: number;
   findings: Finding[];
-  errors: { total: number; toolCalls: number; mostFailing?: string; items: { step: Step; next: Recovery }[] };
+  /** `total` counts failed tool steps; `declined` the steps you said no to (listed with next "declined"). */
+  errors: { total: number; declined: number; toolCalls: number; mostFailing?: string; items: { step: Step; next: Recovery }[] };
 };
 
 /**
@@ -97,6 +98,7 @@ function findingsFor(turn: Turn, actors: Record<string, Actor>): Finding[] {
   const open = new Map<string, { chain: Chain; err: string; at: number }>();
   let changes = 0; // successful file changes and other commands so far: things that may have changed the outcome
   for (const s of tools) {
+    if (isDenied(s)) continue; // you said no: neither a failure nor a success
     const cmd = COMMAND_TOOLS.has(s.tool!) ? commandOf(s) : undefined;
     if (!cmd) {
       if (FILE_CHANGE_TOOLS.has(s.tool!) && s.status === "success") changes++;
@@ -137,6 +139,7 @@ function findingsFor(turn: Turn, actors: Record<string, Actor>): Finding[] {
   const streak = new Map<string, { key: string; step: Step; ids: string[] }>();
   const streaks: { actor: string; key: string; step: Step; ids: string[] }[] = [];
   for (const s of tools) {
+    if (isDenied(s)) continue; // asking again after you said no isn't being stuck
     const actor = owner(s);
     const cmd = commandOf(s);
     if (s.tool === "Read" || POLLING.test(s.tool!) || (cmd && loops.has(`${actor}\u0000${cmd}`))) {
@@ -240,7 +243,7 @@ function findingsFor(turn: Turn, actors: Record<string, Actor>): Finding[] {
   }
 
   // Lots of steps that didn't work.
-  const failedTools = tools.filter((s) => s.status === "error");
+  const failedTools = tools.filter(isFailed);
   if (failedTools.length >= ERRORS_MIN && failedTools.length / tools.length >= ERROR_RATE) {
     add("high-error-rate", "Many steps didn't work",
       `${failedTools.length} of ${tools.length} steps in this request failed. A few errors are normal (Claude reads them and adjusts); this many suggests it was struggling with something.`,
@@ -285,12 +288,18 @@ export function healthReport(m: SessionModel, turn?: Turn): HealthReport {
   const failures = new Map<string, number>();
   let toolCalls = 0;
   let total = 0;
+  let declined = 0;
   for (const t of turns) {
     findings.push(...findingsFor(t, actors));
     const steps = Array.isArray(t.steps) ? t.steps : [];
     steps.forEach((s, i) => {
       if (s.tool !== undefined) toolCalls++;
       if (s.status !== "error") return;
+      if (isDenied(s)) {
+        declined++;
+        items.push({ step: s, next: "declined" });
+        return;
+      }
       items.push({ step: s, next: recovery(steps, i) });
       if (s.tool === undefined) return;
       total++;
@@ -299,5 +308,5 @@ export function healthReport(m: SessionModel, turn?: Turn): HealthReport {
   }
   let mostFailing: string | undefined;
   for (const [tool, n] of failures) if (!mostFailing || n > failures.get(mostFailing)!) mostFailing = tool;
-  return { score: healthScore(findings), findings, errors: { total, toolCalls, mostFailing, items } };
+  return { score: healthScore(findings), findings, errors: { total, declined, toolCalls, mostFailing, items } };
 }

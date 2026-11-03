@@ -17,6 +17,7 @@ import { BookmarkButton } from "./bookmark-button";
 import { fmt } from "@/components/view-kit";
 import { maskClip } from "@/lib/redact";
 import { appear } from "@/lib/motion";
+import { maxOf } from "@/lib/num";
 import { useReducedMotion } from "./settings-provider";
 
 const EDITS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
@@ -462,7 +463,7 @@ function MemoryChart({ turns, current, onPick }: { turns: Turn[]; current: numbe
   const [hover, setHover] = useState<number | null>(null);
   const known = turns.filter((t) => t.context > 0);
   if (known.length < 2) return null;
-  const max = Math.max(...known.map((t) => t.context));
+  const max = maxOf(known, (t) => t.context);
   const focus = turns[hover ?? current];
   return (
     <>

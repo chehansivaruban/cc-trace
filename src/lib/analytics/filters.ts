@@ -1,7 +1,7 @@
 // Step filters (C2), shared by the Map, the Conversation and the Agents view. Groups combine with AND
 // (a tool AND an agent); choices inside one group combine with OR (Read OR Grep). An empty group lets
 // everything through. Text is a plain, case-insensitive substring, never a pattern.
-import type { Step } from "../session.ts";
+import { DENIED, outputString, type Step } from "../session.ts";
 
 export type StepCategory = "you" | "tools" | "helpers" | "errors" | "permissions" | "memory" | "connectors";
 export type StepFilter = {
@@ -25,7 +25,6 @@ export const CATEGORIES: { id: StepCategory; label: string }[] = [
 export const emptyFilter = (): StepFilter => ({ categories: new Set(), tools: new Set(), commands: new Set(), agents: new Set(), text: "" });
 export const isFilterEmpty = (f: StepFilter) => !f.categories.size && !f.tools.size && !f.commands.size && !f.agents.size && !f.text.trim();
 
-const DENIED = /doesn't want to proceed|tool use was rejected|permission (to use .* )?(was )?denied|user (rejected|denied)|requires approval/i;
 const isHelper = (id?: string) => !!id && id !== "you" && id !== "lead";
 const outputText = (s: Step) => (typeof s.output === "string" ? s.output : "");
 
@@ -35,7 +34,7 @@ export function stepCategories(s: Step): StepCategory[] {
   if (s.kind === "tool") out.push("tools");
   if (isHelper(s.actor) || isHelper(s.from)) out.push("helpers");
   if (s.status === "error" || s.event === "api_error") out.push("errors");
-  if (s.tool === "ExitPlanMode" || (s.kind === "tool" && DENIED.test(outputText(s).slice(0, 600)))) out.push("permissions");
+  if (s.tool === "ExitPlanMode" || (s.kind === "tool" && DENIED.test(outputString(s.output).slice(0, 600)))) out.push("permissions");
   if (s.kind === "memory" || s.event === "compact") out.push("memory");
   if (s.tool?.startsWith("mcp__")) out.push("connectors");
   return out;

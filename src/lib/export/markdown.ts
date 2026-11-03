@@ -2,6 +2,7 @@
 // so a Markdown viewer never runs it; code and tool data go in fenced blocks.
 import type { SessionModel } from "../session.ts";
 import { outline, type ExportOptions } from "./common.ts";
+import { maxOf } from "../num.ts";
 
 /**
  * Text outside code: no raw HTML, no links or images ([…](…)), and no headings from the log. Brackets,
@@ -17,7 +18,7 @@ const md = (s: string) =>
 const oneLine = (s: string) => md(s.replace(/\s+/g, " ").trim()).replace(/([*_`])/g, "\\$1");
 const quote = (s: string, indent = "") => md(s).split("\n").map((l) => `${indent}> ${l}`).join("\n");
 function fence(s: string, indent = "") {
-  const longest = Math.max(2, ...[...s.matchAll(/`+/g)].map((x) => x[0].length));
+  const longest = maxOf(s.matchAll(/`+/g), (x) => x[0].length, 2);
   const f = "`".repeat(longest + 1);
   return [`${indent}${f}`, ...s.split("\n").map((l) => indent + l), `${indent}${f}`].join("\n");
 }

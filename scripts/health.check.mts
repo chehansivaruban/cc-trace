@@ -1,7 +1,7 @@
 // Self-check for the health checks, files changed, risky-action alerts, phases and hook runs.
 //   node --no-warnings --experimental-strip-types scripts/health.check.mts
 import assert from "node:assert/strict";
-import { buildSession, type LogRecord, type SessionModel, type Step } from "../src/lib/session.ts";
+import { buildSession, isDenied, isFailed, type LogRecord, type SessionModel, type Step } from "../src/lib/session.ts";
 import { FINDING_WEIGHT, healthReport, type Finding } from "../src/lib/analytics/health.ts";
 import { filesTouched, isInside } from "../src/lib/analytics/files.ts";
 import { normalizePath } from "../src/lib/paths.ts";
@@ -48,6 +48,35 @@ assert.deepEqual(h.findings, []);
 assert.equal(h.errors.total, 0);
 assert.equal(h.errors.toolCalls, 4);
 assert.equal(h.errors.mostFailing, undefined);
+
+// ── Steps you said no to aren't Claude failing ──
+{
+  const NO = "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file).";
+  const calls = [
+    bash("rm -rf dist", { error: true, output: NO }),
+    bash("rm -rf dist", { error: true, output: NO }),
+    bash("rm -rf dist", { error: true, output: NO }),
+    bash("git push", { error: true, output: NO }),
+    ...["a", "b", "c", "d", "e", "f"].map((c) => bash(`echo ${c}`)),
+  ];
+  const m = session([calls]);
+  const r = healthReport(m);
+  assert.deepEqual(r.findings, [], "no struggling or fix-loop finding for declined steps");
+  assert.equal(r.score, 100, "the score is unchanged");
+  assert.equal(r.errors.total, 0, "declined steps aren't errors");
+  assert.equal(r.errors.declined, 4);
+  assert.deepEqual(r.errors.items.map((i) => i.next), ["declined", "declined", "declined", "declined"], "listed as “you said no”");
+  assert.equal(r.errors.toolCalls, 10);
+  const steps = m.turns[0].steps.filter((x) => x.tool === "Bash");
+  assert.equal(steps.filter(isDenied).length, 4);
+  assert.equal(steps.filter(isFailed).length, 0);
+  assert.ok(!isDenied({ status: "success", output: NO } as Step), "only a failed step can be a no");
+  assert.ok(isDenied({ status: "error", output: [{ type: "text", text: "Permission to use Bash has been denied." }] } as unknown as Step));
+  // A real failure next to a no still counts.
+  const mixed = healthReport(session([[bash("x", { error: true, output: NO }), bash("y", { error: true, output: "boom" })]]));
+  assert.equal(mixed.errors.total, 1);
+  assert.equal(mixed.errors.declined, 1);
+}
 
 // ── Each finding kind: its fixture triggers it exactly once, and nothing else ──
 const pad = [read("/work/app/x.ts"), read("/work/app/y.ts"), grep("found", { output: "x.ts" })];

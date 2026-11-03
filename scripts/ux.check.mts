@@ -1,7 +1,7 @@
 // Self-check for settings, bookmarks, attention alerts, keyboard shortcuts and the debug log helpers.
 //   node --no-warnings --experimental-strip-types scripts/ux.check.mts
 import assert from "node:assert/strict";
-import { needsAttention } from "../src/lib/attention.ts";
+import { ATTENTION_NOTIFIES, needsAttention } from "../src/lib/attention.ts";
 import { createBookmarkStore } from "../src/lib/bookmarks.ts";
 import { createMasker } from "../src/lib/redact.ts";
 import { DEBUG_LOG_MAX_BYTES, debugLogName, parseDebugLog, tailText } from "../src/lib/debug-log.ts";
@@ -148,15 +148,38 @@ import path from "node:path";
   assert.equal(needsAttention(buildSession(plan, {}, t0 + 5_000), t0 + 5_000)?.reason, "plan");
   assert.equal(needsAttention(buildSession(plan, {}, t0 + 60 * 60_000), t0 + 60 * 60_000)?.reason, "plan", "a plan waiting an hour still needs you");
 
-  // A command that has been waiting a while with nothing after it is probably a permission prompt.
-  const bash = [base[0], { type: "assistant", timestamp: at(1), message: { id: "m1", stop_reason: "tool_use", content: [{ type: "tool_use", id: "b1", name: "Bash", input: { command: "rm -rf build" } }] } }];
-  assert.equal(needsAttention(buildSession(bash, {}, t0 + 3_000), t0 + 3_000), undefined, "a command that just started is still running");
-  assert.equal(needsAttention(buildSession(bash, {}, t0 + 30_000), t0 + 30_000)?.reason, "permission");
-  assert.equal(needsAttention(buildSession(bash, {}, t0 + 10 * 60_000), t0 + 10 * 60_000), undefined, "the permission guess stops once the session is stale");
-  const bypass = [{ type: "user", timestamp: at(0), permissionMode: "bypassPermissions", message: { content: "go" } }, bash[1]];
-  assert.equal(needsAttention(buildSession(bypass, {}, t0 + 30_000), t0 + 30_000), undefined, "no prompts in bypass mode");
-  const reading = [base[0], { type: "assistant", timestamp: at(1), message: { id: "m1", stop_reason: "tool_use", content: [{ type: "tool_use", id: "r1", name: "Read", input: { file_path: "/a" } }] } }];
-  assert.equal(needsAttention(buildSession(reading, {}, t0 + 30_000), t0 + 30_000), undefined, "reading never asks");
+  // Logs never record a permission prompt, so it's a guess, and a careful one. Commands (tests, builds,
+  // installs) often run for minutes: never guessed.
+  const call = (name: string, input: unknown, extra: Record<string, unknown> = {}) => ({ type: "assistant", timestamp: at(1), ...extra, message: { id: "m1", stop_reason: "tool_use", content: [{ type: "tool_use", id: "c1", name, input }] } });
+  const ask1 = (mode: string | undefined, name = "Edit", input: unknown = { file_path: "/a", old_string: "x", new_string: "y" }) => [
+    { type: "user", timestamp: at(0), ...(mode ? { permissionMode: mode } : {}), message: { content: "go" } },
+    call(name, input),
+  ];
+  const guess = (recs: unknown[], s: number) => needsAttention(buildSession(recs as never[], {}, t0 + s * 1000), t0 + s * 1000)?.reason;
+  assert.equal(guess(ask1("default", "Bash", { command: "npm test" }), 30), undefined, "a long command is just running");
+  assert.equal(guess(ask1("default", "PowerShell", { command: "dir" }), 30), undefined);
+  // The lead's own edit, web fetch or MCP tool, waiting 20 s in a mode that asks, with the whole session quiet.
+  assert.equal(guess(ask1("default"), 15), undefined, "under 20 s it's still working");
+  assert.equal(guess(ask1("default"), 30), "permission");
+  assert.equal(guess(ask1("plan", "WebFetch", { url: "https://x" }), 30), "permission");
+  assert.equal(guess(ask1("default", "mcp__github__create_issue", {}), 30), "permission");
+  assert.equal(guess(ask1(undefined), 30), "permission", "older logs without a mode ran in the default mode");
+  assert.equal(guess(ask1("acceptEdits"), 30), undefined, "edits don't ask in acceptEdits");
+  assert.equal(guess(ask1("acceptEdits", "WebFetch", { url: "https://x" }), 30), "permission");
+  for (const mode of ["auto", "dontAsk", "bypassPermissions"]) assert.equal(guess(ask1(mode), 30), undefined, `no prompts in ${mode}`);
+  assert.equal(guess(ask1("default", "Read", { file_path: "/a" }), 30), undefined, "reading never asks");
+  assert.equal(guess(ask1("default"), 10 * 60), undefined, "the permission guess stops once the session is stale");
+  // Anything newer from anyone (a helper still working, a system record) means the session isn't waiting.
+  const busy = [...ask1("default"), { type: "system", subtype: "turn_duration", timestamp: at(25) }];
+  assert.equal(guess(busy, 30), undefined, "the session isn't quiet");
+  assert.equal(guess(busy, 50), "permission", "quiet again for 20 s");
+  const helperEdit = needsAttention(
+    buildSession([ask1("default")[0]] as never[], { h1: { records: [{ type: "assistant", timestamp: at(1), message: { id: "h", stop_reason: "tool_use", content: [{ type: "tool_use", id: "e9", name: "Edit", input: { file_path: "/b" } }] } }] } }, t0 + 30_000),
+    t0 + 30_000,
+  );
+  assert.equal(helperEdit, undefined, "only the lead's own tools are guessed");
+  // The guess shows the badge only; questions and plans may also notify.
+  assert.deepEqual(ATTENTION_NOTIFIES, { question: true, plan: true, permission: false });
 
   // Malformed logs never crash.
   assert.equal(needsAttention(buildSession([{}, null, { type: "assistant" }, { type: "zzz", message: null }] as never[], {}, t0), t0), undefined);

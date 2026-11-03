@@ -1,6 +1,7 @@
 "use client";
 // One-series column chart: ≤ 24px columns with a 4px rounded top, 2px gaps, a tooltip per column.
 import { useMemo, useState, type KeyboardEvent } from "react";
+import { maxOf } from "@/lib/num";
 import { ChartTooltip, TipRow, compact, fmt, niceMax, useWidth } from "./kit";
 
 export type Bar = { key: string; value: number; label: string; detail?: string };
@@ -48,7 +49,7 @@ export function BarChart(props: {
   }, [props.bars, plotW]);
 
   if (!bars.length) return <p className="py-6 text-center text-xs text-muted-foreground">Nothing to draw yet.</p>;
-  const yMax = niceMax(Math.max(...bars.map((b) => b.value)));
+  const yMax = niceMax(maxOf(bars, (b) => b.value));
   const band = plotW / bars.length;
   const w = Math.min(24, Math.max(1, band - (band >= MIN_BAND ? GAP : 0)));
   const base = PAD.top + plotH;

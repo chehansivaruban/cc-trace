@@ -12,6 +12,7 @@ import { cacheHit, type Overview, type Row } from "@/lib/analytics/stats";
 import { useMask } from "@/hooks/use-mask";
 import type { AppPageProps } from "@/lib/route";
 import { useSettings } from "@/lib/settings";
+import { maxOf } from "@/lib/num";
 import { totalTokens } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
@@ -114,7 +115,7 @@ export function DashboardPage({ navigate }: AppPageProps) {
     ...tokenColumns<Row>((r) => r.usage, tech, total),
     { id: "replies", label: "Replies", width: "4rem", align: "right", minor: true, sort: (r) => r.replies ?? 0, cell: (r) => fmt(r.replies ?? 0) },
   ];
-  const maxTool = Math.max(1, ...(data?.tools.map((t) => t.count) ?? []));
+  const maxTool = maxOf(data?.tools ?? [], (t) => t.count, 1);
   const twins = sameLabel(data?.tools.slice(0, 25).map((t) => t.tool) ?? []);
   const toolCols: Column<ToolCount>[] = [
     {

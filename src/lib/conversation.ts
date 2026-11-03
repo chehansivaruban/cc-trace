@@ -1,7 +1,7 @@
 // Pure helpers behind the Conversation view and the tool renderers: chat rows, diffs, command outcomes, labels.
 import { diffWords as wordDiff, structuredPatch } from "diff";
 import { maskThenClip } from "./redact.ts";
-import type { Actor, Step, Turn } from "./session.ts";
+import { isDenied, type Actor, type Step, type Turn } from "./session.ts";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- tool inputs and results are untyped JSON */
 
@@ -164,13 +164,12 @@ export function bashOutcome(step: Step): BashOutcome {
 }
 
 export type ToolOutcome = "denied" | "interrupted" | "orphan";
-const DENIED = /doesn't want to proceed|user (?:rejected|denied)|permission (?:to use .* )?(?:was )?denied|was rejected by the user/i;
 
 /** How a tool call ended badly, if it did: you said no, you stopped it, or it never got a result. */
 export function toolOutcome(step: Step, open: boolean): ToolOutcome | undefined {
   const out = outputText(step.output);
   if (/\[Request interrupted by user/i.test(out)) return "interrupted";
-  if (step.status === "error" && DENIED.test(out)) return "denied";
+  if (isDenied(step)) return "denied";
   if (step.status === "running" && !open) return "orphan";
   return undefined;
 }

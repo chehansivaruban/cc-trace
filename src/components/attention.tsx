@@ -3,7 +3,7 @@
 // "Claude needs you" (G1): tab title and favicon change, an optional desktop notification, and a badge.
 import { useEffect, useMemo, useRef } from "react";
 import { BellRing } from "lucide-react";
-import { ATTENTION_TEXT, needsAttention } from "@/lib/attention";
+import { ATTENTION_NOTIFIES, ATTENTION_TEXT, needsAttention } from "@/lib/attention";
 import type { SessionModel } from "@/lib/session";
 import { useSettings } from "@/lib/settings";
 import { cn } from "@/lib/utils";
@@ -20,13 +20,15 @@ function useAttention(model: SessionModel) {
 }
 
 /**
- * Watches the open session. While Claude waits on you the tab title starts with "● " and the favicon turns
- * amber. With Settings → Desktop notifications on (and allowed), a notification is shown once per wait,
- * only when cc-trace isn't the focused window. The notification never includes text from the log.
+ * Watches the open session. While Claude asks you a question or waits for a plan approval the tab title
+ * starts with "● " and the favicon turns amber. With Settings → Desktop notifications on (and allowed), a
+ * notification is shown once per wait, only when cc-trace isn't the focused window. The notification never
+ * includes text from the log. A guessed permission prompt only shows the badge: it may be wrong.
  */
 export function AttentionWatcher({ model }: { model: SessionModel }) {
   const [settings] = useSettings();
-  const attention = useAttention(model);
+  const found = useAttention(model);
+  const attention = found && ATTENTION_NOTIFIES[found.reason] ? found : undefined;
   const key = attention ? `${attention.reason}:${attention.step?.id ?? ""}` : "";
   const notified = useRef("");
 

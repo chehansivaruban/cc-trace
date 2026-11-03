@@ -131,7 +131,7 @@ const MODES: Record<string, { label: string; text: string; risky?: boolean }> = 
   default: { label: "Asks before changes", text: "Claude asks you before it edits files or runs commands." },
   acceptEdits: { label: "Edits without asking", text: "Claude changes files without asking, but still asks before running commands." },
   plan: { label: "Planning only", text: "Claude can look around and suggest a plan, but makes no changes until you approve." },
-  auto: { label: "Auto mode", text: "Claude decides on its own, with safety checks on risky actions." },
+  auto: { label: "Acts on its own, with checks", text: "Claude goes ahead without asking, but a safety check stops risky actions first." },
   dontAsk: { label: "Pre-approved only", text: "Claude only does what you allowed in advance and skips anything else without asking." },
   bypassPermissions: { label: "Never asks", text: "Every safety prompt is switched off: Claude can change files and run commands without asking.", risky: true },
 };

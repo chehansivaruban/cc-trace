@@ -1,6 +1,6 @@
 // Compare two sessions or requests (H2): the same numbers side by side, with the difference.
 // Lower is counted as better for every metric: less effort for the job. No money: tokens, not cost.
-import { SESSION_START, addUsage, totalTokens, type SessionModel, type Usage } from "../session.ts";
+import { SESSION_START, addUsage, isErrorStep, isToolCall, totalTokens, type SessionModel, type Usage } from "../session.ts";
 
 export type CompareMetric = "requests" | "tokens" | "durationMs" | "helpers" | "toolCalls" | "errors";
 export type CompareRow = { metric: string; a: number; b: number; delta: number; better: "a" | "b" | "same" };
@@ -8,7 +8,8 @@ export type CompareRow = { metric: string; a: number; b: number; delta: number; 
 export const METRIC_LABELS: Record<CompareMetric, string> = {
   requests: "Requests",
   tokens: "Tokens",
-  durationMs: "Time Claude spent working",
+  // Each request's first to last step, added up (the same as Stats' requests table), so waits inside a request count.
+  durationMs: "Time from first to last step",
   helpers: "Helpers",
   toolCalls: "Tool calls",
   errors: "Steps with errors",
@@ -29,8 +30,8 @@ export function sessionNumbers(m: SessionModel): Record<CompareMetric, number> {
     durationMs += Math.max(0, (t.end || t.ts) - t.ts);
     for (const id of t.actors) if (m.actors[id]?.kind === "helper") helpers.add(id);
     for (const s of t.steps) {
-      if (s.kind === "tool") toolCalls++;
-      if (s.status === "error") errors++;
+      if (isToolCall(s)) toolCalls++;
+      if (isErrorStep(s)) errors++;
     }
   }
   return { requests: m.turns.filter((t) => t.text !== SESSION_START).length, tokens: totalTokens(usage), durationMs, helpers: helpers.size, toolCalls, errors };
@@ -51,7 +52,7 @@ export function compare(a: SessionModel, b: SessionModel): CompareRow[] {
 /** Tool calls per tool name, most used first. */
 export function topTools(m: SessionModel, n = 10): { name: string; count: number }[] {
   const counts = new Map<string, number>();
-  for (const t of m.turns) for (const s of t.steps) if (s.kind === "tool" && s.tool) counts.set(s.tool, (counts.get(s.tool) ?? 0) + 1);
+  for (const t of m.turns) for (const s of t.steps) if (isToolCall(s)) counts.set(s.tool, (counts.get(s.tool) ?? 0) + 1);
   return [...counts].map(([name, count]) => ({ name, count })).sort((x, y) => y.count - x.count || x.name.localeCompare(y.name)).slice(0, n);
 }
 

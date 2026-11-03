@@ -1,6 +1,7 @@
 "use client";
 // One-series line chart (2px line, 10 % wash) with a crosshair that snaps to the nearest point.
 import { useMemo, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { maxOf } from "@/lib/num";
 import { ChartTooltip, TipRow, compact, fmt, niceMax, useWidth } from "./kit";
 
 export type LinePoint = { x: number; y: number };
@@ -42,7 +43,7 @@ export function LineChart(props: {
     if (!points.length) return null;
     const x0 = points[0].x;
     const x1 = points.at(-1)!.x;
-    const yMax = niceMax(Math.max(...points.map((p) => p.y)));
+    const yMax = niceMax(maxOf(points, (p) => p.y));
     const sx = (x: number) => PAD.left + (x1 === x0 ? plotW / 2 : ((x - x0) / (x1 - x0)) * plotW);
     const sy = (y: number) => PAD.top + plotH - (y / yMax) * plotH;
     // Thousands of points: keep the lowest and highest per pixel column, which looks identical.

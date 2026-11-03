@@ -107,6 +107,28 @@ export type SessionModel = {
   hiddenUsage?: HiddenUsage[];
 };
 
+// What Claude Code writes as a tool's result when you (or your settings) said no to it.
+export const DENIED = /doesn't want to proceed|tool use was rejected|user (?:rejected|denied)|permission (?:to use .* )?(?:was )?denied|was rejected by the user|requires approval/i;
+
+/** A step's result as plain text (text blocks joined), for matching. */
+export function outputString(output: unknown): string {
+  if (typeof output === "string") return output;
+  if (Array.isArray(output)) return output.map((b) => (typeof b?.text === "string" ? b.text : "")).join("\n");
+  return "";
+}
+
+/** A step you said no to (a declined permission prompt): it "failed", but Claude didn't. */
+export const isDenied = (s: Pick<Step, "status" | "output">): boolean => s.status === "error" && DENIED.test(outputString(s.output).slice(0, 600));
+
+/** A step that went wrong on Claude's side: an error that isn't you saying no. */
+export const isFailed = (s: Pick<Step, "status" | "output">): boolean => s.status === "error" && !isDenied(s);
+
+/** "Tool calls", one definition for every view: every step that used a tool (helpers' briefs included). */
+export const isToolCall = (s: Step): s is Step & { tool: string } => !!s.tool;
+
+/** "Steps with errors", one definition for every view: failed steps, not counting declines or helper reports. */
+export const isErrorStep = (s: Step): boolean => s.kind !== "report" && isFailed(s);
+
 // A session whose last write is older than this was interrupted or finished, not still working.
 export const STALE_MS = 2 * 60_000;
 // Title of the work logged before your first message (a continued or resumed session).
@@ -442,10 +464,16 @@ export function buildSession(rawMain: LogRecord[], rawAgents: Record<string, Age
   }
 
   // Background helpers that stopped early only show up as a notification to the lead.
+  const lastOfFailed = new Map<string, number>();
+  if (failed.size) {
+    for (const s of steps) {
+      for (const id of [s.actor, s.from]) if (id && failed.has(id) && s.ts > (lastOfFailed.get(id) ?? -Infinity)) lastOfFailed.set(id, s.ts);
+    }
+  }
   for (const [id, summary] of failed) {
     const a = actors[id];
     if (!a) continue;
-    const last = Math.max(...steps.filter((s) => s.actor === id || s.from === id).map((s) => s.ts), a.firstTs);
+    const last = Math.max(lastOfFailed.get(id) ?? -Infinity, a.firstTs);
     push({ kind: "report", actor: a.parent ?? "lead", from: id, icon: "stop", title: "Stopped early", subtitle: `${a.name} → ${nameOf(a.parent ?? "lead")}`,
       doing: `${a.name} stopped early`, what: `${a.name} stopped before finishing:`, quote: summary,
       why: "Helpers can stop because of an error, a usage limit, or because they were cancelled. The lead decides what to do next.", status: "error", ts: last });
@@ -454,15 +482,30 @@ export function buildSession(rawMain: LogRecord[], rawAgents: Record<string, Age
   steps.sort((a, b) => a.ts - b.ts || a.seq - b.seq);
 
   // Live state: helpers are done once they report after their last incoming message.
-  const lastTs = Math.max(0, ...steps.map((s) => s.ts));
+  // One pass (no spreading into Math.max: huge arrays overflow the call stack).
+  let lastTs = 0;
+  type Seen = { lastIn?: Step; lastOut?: Step; own?: Step };
+  const seenBy = new Map<string, Seen>();
+  const seenOf = (id: string) => {
+    let x = seenBy.get(id);
+    if (!x) seenBy.set(id, (x = {}));
+    return x;
+  };
+  for (const s of steps) {
+    if (s.ts > lastTs) lastTs = s.ts;
+    const lane = seenOf(s.actor);
+    lane.own = s;
+    if (s.from && s.kind !== "report") lane.lastIn = s;
+    if (s.from) {
+      const sender = seenOf(s.from);
+      sender.own = s;
+      if (s.kind === "report") sender.lastOut = s;
+    }
+  }
   const stale = now - lastTs > STALE_MS;
   for (const a of Object.values(actors)) {
     if (a.kind !== "helper") continue;
-    const incoming = steps.filter((s) => s.actor === a.id && s.from && s.kind !== "report");
-    const lastIn = incoming.at(-1);
-    const outgoing = steps.filter((s) => s.from === a.id && s.kind === "report");
-    const lastOut = outgoing.at(-1);
-    const own = steps.filter((s) => s.actor === a.id || s.from === a.id).at(-1);
+    const { lastIn, lastOut, own } = seenBy.get(a.id) ?? {};
     a.state = failed.has(a.id) ? "failed" : lastOut && (!lastIn || lastOut.ts >= lastIn.ts) ? "done" : own && now - own.ts < STALE_MS ? "working" : "idle";
   }
   for (const s of steps) {
@@ -480,14 +523,23 @@ export function buildSession(rawMain: LogRecord[], rawAgents: Record<string, Age
     turns.push({ index: 0, text: SESSION_START, ts: steps[0].ts, end: 0, steps: [], actors: [], usage: zero(), context: 0 });
   }
   for (const p of prompts) turns.push({ index: turns.length, text: p.quote ?? "", ts: p.ts, end: 0, steps: [], actors: [], usage: zero(), context: 0 });
+  // Turns are in time order: the last one that started at or before `ts` (binary search), else the first.
   const turnAt = (ts: number) => {
-    let i = 0;
-    while (i + 1 < turns.length && turns[i + 1].ts <= ts) i++;
-    return turns[i];
+    let lo = 0;
+    let hi = turns.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (turns[mid].ts <= ts) lo = mid;
+      else hi = mid - 1;
+    }
+    return turns[lo];
   };
+  // A prompt always opens its own turn, even when timestamps tie with the previous step: the k-th prompt
+  // is the k-th prompt turn.
+  const promptOffset = turns.length - prompts.length;
+  let promptNo = 0;
   for (const s of steps) {
-    // A prompt always opens its own turn, even when timestamps tie with the previous step.
-    const t = s.kind === "prompt" ? turns.find((t) => t.ts === s.ts && !t.steps.some((x) => x.kind === "prompt")) ?? turnAt(s.ts) : turnAt(s.ts);
+    const t = s.kind === "prompt" ? turns[promptOffset + promptNo++] : turnAt(s.ts);
     t.steps.push(s);
   }
   const firstLeadReply = new Map<Turn, number>();
@@ -566,8 +618,9 @@ function sessionMeta(main: LogRecord[], agents: Record<string, AgentLog>): Sessi
       // The latest value wins: titles can be renamed, the mode and branch can change mid-session.
       if (rec.type === "custom-title") meta.customTitle = str(rec.customTitle) ?? meta.customTitle;
       if (rec.type === "ai-title") meta.aiTitle = str(rec.aiTitle) ?? meta.aiTitle;
-      if (rec.type === "mode") meta.permissionMode = str(rec.mode) ?? meta.permissionMode;
-      else if (rec.type === "user") meta.permissionMode = str(rec.permissionMode) ?? meta.permissionMode;
+      // The mode is on your messages ("default", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions").
+      // "mode" records only say "normal" (a different setting), so they're ignored.
+      meta.permissionMode = str(rec.permissionMode) ?? meta.permissionMode;
       meta.gitBranch = str(rec.gitBranch) ?? meta.gitBranch;
       meta.version = str(rec.version) ?? meta.version;
       meta.entrypoint = str(rec.entrypoint) ?? meta.entrypoint;

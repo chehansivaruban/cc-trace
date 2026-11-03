@@ -12,6 +12,7 @@ import type { AppPageProps } from "@/lib/route";
 import { SESSION_START, buildSession, type SessionModel } from "@/lib/session";
 import { cn } from "@/lib/utils";
 import { maskClip } from "@/lib/redact";
+import { maxOf } from "@/lib/num";
 
 const shortPath = (p: string) => p.split(/[\\/]/).filter(Boolean).slice(-2).join("/") || p;
 
@@ -114,7 +115,7 @@ export function ComparePage({ route, navigate }: AppPageProps) {
   const rows = useMemo(() => compare(a.scoped, b.scoped), [a.scoped, b.scoped]);
   const tools = useMemo(() => compareTools(a.scoped, b.scoped, 8), [a.scoped, b.scoped]);
   const models = useMemo(() => compareModels(a.scoped, b.scoped), [a.scoped, b.scoped]);
-  const maxTool = Math.max(1, ...tools.flatMap((t) => [t.a, t.b]));
+  const maxTool = maxOf(tools, (t) => Math.max(t.a, t.b), 1);
   const storyA = turnA === "all" ? sessionStory(a.model, maskA) : a.model.turns[turnA] ? storyOf(a.model.turns[turnA], a.model, maskA) : "";
   const storyB = turnB === "all" ? sessionStory(b.model, maskB) : b.model.turns[turnB] ? storyOf(b.model.turns[turnB], b.model, maskB) : "";
   const loading = a.loading || b.loading;

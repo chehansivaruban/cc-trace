@@ -1,6 +1,6 @@
 // Story summary (N1): a plain-English paragraph for a request or a whole session, built from the
 // recorded steps. No AI: the same session always gives the same words. Text may hold [[term:label]] markers.
-import { SESSION_START, totalTokens, type SessionModel, type Step, type Turn } from "../session.ts";
+import { SESSION_START, isErrorStep, isFailed, totalTokens, type SessionModel, type Step, type Turn } from "../session.ts";
 
 const EDIT_TOOLS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
 const WEB_TOOLS = new Set(["WebFetch", "WebSearch"]);
@@ -57,14 +57,14 @@ function factsOf(steps: Step[], m: SessionModel, mask: Mask): Facts {
     if (s.kind === "message" && s.from && s.actor !== "you") f.messages++;
     if (s.kind === "reply") f.replied = true;
     if (s.event === "interrupted") f.interrupted = true;
-    if (s.status === "error" && s.kind !== "report") f.errors++;
+    if (isErrorStep(s)) f.errors++;
     if (s.kind === "report" && s.status === "error" && s.from) f.failedHelpers.push(mask(m.actors[s.from]?.name ?? "A helper"));
     if (s.kind !== "tool") continue;
     if (s.tool === "Read" && fileOf(s)) f.reads.add(fileOf(s));
     else if (EDIT_TOOLS.has(s.tool ?? "") && fileOf(s)) f.changed.add(fileOf(s));
     else if (s.icon === "test") {
       f.tests++;
-      f.lastTestFailed = s.status === "error";
+      f.lastTestFailed = isFailed(s);
     } else if (s.tool === "Bash" || s.tool === "PowerShell") f.commands++;
     else if (WEB_TOOLS.has(s.tool ?? "")) f.web++;
   }

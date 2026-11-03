@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import { buildSession, totalTokens, type AgentLog, type LogRecord } from "../src/lib/session.ts";
 import { agentChat, agentTree, tasksOf, teamsOf, type AgentNode } from "../src/lib/analytics/agents.ts";
 import { sessionStory, storyOf } from "../src/lib/analytics/story.ts";
-import { compare, compareModels, compareTools, scopeToTurn } from "../src/lib/analytics/compare.ts";
+import { METRIC_LABELS, compare, compareModels, compareTools, scopeToTurn, topTools } from "../src/lib/analytics/compare.ts";
+import { sessionStats } from "../src/lib/analytics/stats.ts";
 import { commandOf, emptyFilter, filterOptions, filterSteps, type StepFilter } from "../src/lib/analytics/filters.ts";
 import { exportHtml } from "../src/lib/export/html.ts";
 import { exportMarkdown } from "../src/lib/export/markdown.ts";
@@ -226,6 +227,23 @@ assert.ok(rows.every((r) => r.delta === r.b - r.a));
 const tools = compareTools(m, failing);
 assert.deepEqual(tools.find((t) => t.name === "Bash"), { name: "Bash", a: 2, b: 2 });
 assert.deepEqual(compareModels(m, failing), { a: ["claude-sonnet-4-5"], b: ["claude-sonnet-4-5"], both: ["claude-sonnet-4-5"] });
+// One definition of "tool calls" (every step that used a tool, helpers' briefs included) and of
+// "steps with errors" (not counting steps you said no to), shared with Stats and the story.
+assert.equal(row("toolCalls").a, sessionStats(m).byRequest.reduce((n, r) => n + (r.toolCalls ?? 0), 0));
+assert.ok(row("toolCalls").a > m.turns.flatMap((t) => t.steps).filter((s) => s.kind === "tool").length, "briefs count as tool calls");
+assert.equal(topTools(m, Infinity).find((x) => x.name === "Agent")?.count, 3); // two from the lead, one from a helper
+const NO = "The user doesn't want to proceed with this tool use. The tool use was rejected.";
+const declined = buildSession([
+  { type: "user", timestamp: at(0), message: { content: "clean up" } },
+  asst(1, [toolUse("d1", "Bash", { command: "rm -rf dist" })]),
+  res(2, "d1", NO, { is_error: true }),
+  asst(3, [toolUse("d2", "Bash", { command: "ls" })]),
+  res(4, "d2", "boom", { is_error: true }),
+  asst(5, [{ type: "text", text: "Left it." }], "end_turn"),
+], {}, now);
+assert.equal(compare(declined, declined).find((r) => r.metric === "errors")!.a, 1, "a no isn't an error");
+assert.match(storyOf(declined.turns[0], declined), /1 step hit errors/);
+assert.equal(METRIC_LABELS.durationMs, "Time from first to last step");
 const scoped = scopeToTurn(m, 0);
 assert.equal(scoped.turns.length, 1);
 assert.equal(compare(scoped, m).every((r) => r.better === "same"), true);

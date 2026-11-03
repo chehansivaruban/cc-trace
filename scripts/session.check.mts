@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { addUsage, buildSession, type AgentLog } from "../src/lib/session.ts";
+import { addUsage, buildSession, type AgentLog, type LogRecord } from "../src/lib/session.ts";
 import { contextWindow } from "../src/lib/models.ts";
 import { maskSecrets } from "../src/lib/redact.ts";
 
@@ -91,9 +91,10 @@ const toolUseResult = { stdout: "a.log", stderr: "", interrupted: false };
 const rich = [
   { type: "custom-title", customTitle: "cc-trace tool setup", sessionId: "x" },
   { type: "ai-title", aiTitle: "Set up the tool", sessionId: "x" },
-  { type: "mode", mode: "plan", sessionId: "x" },
+  // Real logs: the mode is on your messages ("permissionMode"); "mode" records only ever say "normal".
+  { type: "mode", mode: "normal", sessionId: "x" },
   { type: "attachment", timestamp: at(0), cwd: "/p/app", attachment: { type: "hook_non_blocking_error", hookName: "Stop", hookEvent: "Stop", exitCode: 1, stderr: "boom", command: "notify" } },
-  { type: "user", timestamp: at(0), cwd: "/p/app", gitBranch: "main", version: "2.1.309", entrypoint: "cli",
+  { type: "user", timestamp: at(0), cwd: "/p/app", gitBranch: "main", version: "2.1.309", entrypoint: "cli", permissionMode: "plan",
     message: { content: [{ type: "image", source: { type: "base64", media_type: "image/png", data: "AAAA" } }, { type: "text", text: "check the logs" }] } },
   { type: "assistant", timestamp: at(1), cwd: "/p/app", message: { id: "r1", model: "claude-sonnet-4-5", usage: tok, stop_reason: "tool_use", content: [{ type: "thinking", thinking: "Look at the log first.", signature: "x" }] } },
   { type: "assistant", timestamp: at(1), cwd: "/p/app", message: { id: "r1", model: "claude-sonnet-4-5", usage: tok, stop_reason: "tool_use", content: [{ type: "tool_use", id: "t1", name: "Bash", input: { command: "ls" } }] } },
@@ -102,6 +103,7 @@ const rich = [
   { type: "assistant", timestamp: at(5), message: { id: "r2", model: "mystery-1", stop_reason: "end_turn", content: [{ type: "thinking", thinking: "" }, { type: "text", text: "Done." }] } },
   { type: "user", timestamp: at(6), message: { content: [{ type: "text", text: "[Request interrupted by user]" }] } },
   { type: "user", timestamp: at(7), isCompactSummary: true, message: { content: "This session is being continued..." } },
+  { type: "mode", mode: "normal", sessionId: "x" },
 ];
 m = buildSession(rich, {}, now);
 const steps = m.turns.flatMap((t) => t.steps);
@@ -121,6 +123,9 @@ assert.deepEqual(m.meta, {
   customTitle: "cc-trace tool setup", aiTitle: "Set up the tool", permissionMode: "plan", gitBranch: "feature", cwds: ["/p/app", "/p/app/sub"],
   version: "2.1.309", entrypoint: "cli", models: ["claude-sonnet-4-5", "mystery-1"], firstTs: t0, lastTs: t0 + 7000,
 });
+// The latest permissionMode wins; "mode" records never override it.
+assert.equal(buildSession([...rich, { type: "user", timestamp: at(8), permissionMode: "bypassPermissions", message: { content: "go" } }, { type: "mode", mode: "normal" }], {}, now).meta.permissionMode, "bypassPermissions");
+assert.equal(buildSession([{ type: "mode", mode: "normal" }, { type: "user", timestamp: at(0), message: { content: "hi" } }], {}, now).meta.permissionMode, undefined);
 const apiError = steps.find((s) => s.event === "api_error")!;
 assert.equal(apiError.actor, "lead");
 assert.equal(apiError.status, "error");
@@ -182,6 +187,26 @@ const synth = buildSession([
   { type: "assistant", timestamp: at(1), isApiErrorMessage: true, message: { id: "e1", model: "<synthetic>", content: [{ type: "text", text: "API Error: 529 overloaded" }] } },
 ], {}, now).turns[0].steps.find((s) => s.event === "api_error")!;
 assert.equal(synth.status, "error");
+
+// Very big sessions: no spreading huge arrays into Math.max (a RangeError past ~65k-130k items), and no
+// per-step scan over every request.
+{
+  const N = 150_000;
+  const big: LogRecord[] = [];
+  for (let r = 0; r < 300; r++) big.push({ type: "user", timestamp: new Date(t0 + r * N * 2).toISOString(), message: { content: `request ${r}` } });
+  for (let i = 0; i < N; i++) {
+    const ts = new Date(t0 + i * 600).toISOString();
+    big.push({ type: "assistant", timestamp: ts, message: { id: `b${i}`, stop_reason: "tool_use", content: [{ type: "tool_use", id: `bt${i}`, name: "Read", input: { file_path: "/a" } }] } });
+    big.push({ type: "user", timestamp: ts, message: { content: [{ type: "tool_result", tool_use_id: `bt${i}`, content: "ok" }] } });
+  }
+  big.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+  const started = Date.now();
+  const bm = buildSession(big, { h1: { records: big.slice(0, 2000).map((r) => ({ ...r, message: r.message && { ...r.message, id: `h${r.message.id}` } })) } }, now);
+  const took = Date.now() - started;
+  assert.equal(bm.turns.reduce((n, t) => n + t.steps.filter((x) => x.tool === "Read").length, 0) >= N, true);
+  assert.ok(took < 10_000, `150k steps built in ${took} ms`);
+  console.log(`✓ 150k steps built in ${took} ms`);
+}
 
 if (process.argv.includes("--all")) {
   const root = path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude"), "projects");

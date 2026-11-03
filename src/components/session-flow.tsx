@@ -8,6 +8,7 @@ import { useZoom } from "@/hooks/use-zoom";
 import { maskClip } from "@/lib/redact";
 import { cn } from "@/lib/utils";
 import { hueColor } from "./step-icon";
+import { maxOf } from "@/lib/num";
 import { Term } from "./term-text";
 import { ZoomControls } from "./zoom-controls";
 
@@ -45,7 +46,7 @@ export function SessionFlow(props: {
 
   // Band width follows the memory each request started with. An unmeasured request reuses the
   // last known size, except right after a summary, when memory shrank: then the next known size.
-  const max = Math.max(1, ...turns.map((t) => t.context));
+  const max = maxOf(turns, (t) => t.context, 1);
   let last = 0;
   const sizes = turns.map((t, i) => {
     const mem = memoryOf(t);
