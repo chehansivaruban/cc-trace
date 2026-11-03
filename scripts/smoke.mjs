@@ -324,9 +324,9 @@ try {
                 if (source === null) state.main = state.main.concat(records);
                 else state.agents[source] = { ...state.agents[source], records: (state.agents[source]?.records ?? []).concat(records) };
               } else if (event === "reset") {
+                // Like useSessionStream: the main log starts over, the helpers' logs are kept.
                 state.resets++;
                 state.main = [];
-                state.agents = {};
               } else if (event === "ready" && !ready) {
                 ready = true;
                 script(state, waitFor).then(
@@ -375,19 +375,26 @@ try {
         assert.equal(new Set(m.steps.map((s) => s.id)).size, m.steps.length, "no step id twice");
       }
 
+      // A helper log, so the restart below can show helpers survive it.
+      const liveSub = path.join(liveDir, "live", "subagents");
+      fs.mkdirSync(liveSub, { recursive: true });
+      fs.appendFileSync(path.join(liveSub, "agent-lh.jsonl"), JSON.stringify({ type: "user", timestamp: t, message: { content: "rf5-helper" } }) + "\n");
+      await waitFor((s) => (s.agents.lh?.records ?? []).length > 0, "the helper log");
+
       // /clear-style: the log is rewritten shorter. The page must start over, with no old steps left.
       const resetsBefore = state.resets;
       fs.writeFileSync(liveLog, JSON.stringify({ type: "user", timestamp: t, message: { content: "after-clear" } }) + "\n");
       await waitFor((s) => s.resets > resetsBefore && s.main.some((r) => r.message?.content === "after-clear"), "the restart after the log shrank");
       await sleep(800);
       assert.equal(state.main.length, 1, "only the rewritten log is left");
+      assert.equal(state.agents.lh?.records.length, 1, "the helper's log survives the main log shrinking, and isn't sent twice");
       if (canModel) {
         const m = model(state);
         assert.equal(m.turns, 1);
         assert.ok(!m.steps.some((s) => s.id === "rf5-tool"), "old steps are gone after the restart");
       }
     });
-    console.log(`✓ live updates: a new step arrives once, a shrinking log starts over${canModel ? "" : " (model check needs Node 22.6+)"}`);
+    console.log(`✓ live updates: a new step arrives once, a shrinking log starts over and keeps its helpers${canModel ? "" : " (model check needs Node 22.6+)"}`);
   }
   // ── end live updates ──
 

@@ -13,6 +13,8 @@ import { SESSION_START, buildSession, type SessionModel } from "@/lib/session";
 import { cn } from "@/lib/utils";
 import { maskClip } from "@/lib/redact";
 import { maxOf } from "@/lib/num";
+import { modelName } from "@/lib/sessions-list";
+import { toolLabel } from "@/components/stats-parts";
 
 const shortPath = (p: string) => p.split(/[\\/]/).filter(Boolean).slice(-2).join("/") || p;
 
@@ -26,12 +28,13 @@ const show = (metric: string, n: number) => (metric === "durationMs" ? duration(
 
 /** One side of the comparison: a session from the logs, optionally narrowed to one request. */
 function useSide(file: string | undefined, turn: number | "all", size: number | undefined) {
-  const { logs, connected } = useSessionStream(file ?? null);
+  const { logs, ready } = useSessionStream(file ?? null);
   // The stream keeps updating; "now" only matters for live state, which comparing doesn't show.
   const model = useMemo(() => buildSession(logs.main, logs.agents), [logs]);
   const scoped = useMemo(() => (turn === "all" ? model : scopeToTurn(model, turn)), [model, turn]);
-  // An empty log (size 0) or one that isn't listed (size 0 too) never sends records: don't wait for them.
-  const loading = !!file && size !== 0 && (!connected || !logs.main.length);
+  // Numbers are only final once the whole log (helpers included) has been read. A log that isn't listed
+  // (size 0) can't be opened: don't wait for it.
+  const loading = !!file && size !== 0 && !ready;
   return { model, scoped, loading, empty: !!file && !loading && !model.turns.length };
 }
 
@@ -154,7 +157,8 @@ export function ComparePage({ route, navigate }: AppPageProps) {
         </p>
       )}
 
-      {fileA && fileB && !a.empty && !b.empty && (
+      {/* Only once both logs are read whole: half-read numbers would look final. */}
+      {fileA && fileB && !loading && !a.empty && !b.empty && (
         <>
           <div className="mt-6 overflow-x-auto rounded-xl border border-foreground/10">
             <table className="w-full text-[0.8125rem]">
@@ -209,8 +213,10 @@ export function ComparePage({ route, navigate }: AppPageProps) {
           {tools.length ? (
             <ul className="space-y-2">
               {tools.map((t) => (
-                <li key={t.name} className="grid grid-cols-[minmax(0,9rem)_1fr] items-center gap-3 text-xs">
-                  <span className="truncate font-mono">{t.name}</span>
+                <li key={t.name} className="grid grid-cols-[minmax(0,11rem)_1fr] items-center gap-3 text-xs">
+                  <span className="truncate" title={t.name}>
+                    {toolLabel(t.name)}
+                  </span>
                   <span className="space-y-1">
                     {(["a", "b"] as const).map((k) => (
                       <span key={k} className="flex items-center gap-2">
@@ -235,7 +241,9 @@ export function ComparePage({ route, navigate }: AppPageProps) {
             {(["a", "b"] as const).map((k) => (
               <div key={k} className="min-w-0 rounded-xl border border-foreground/10 px-4 py-3">
                 <p className="text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">{k.toUpperCase()}</p>
-                <p className="mt-1 font-mono text-xs break-words">{models[k].length ? models[k].join(", ") : "None recorded"}</p>
+                <p className="mt-1 text-xs break-words" title={models[k].join(", ")}>
+                  {models[k].length ? [...new Set(models[k].map((x) => modelName(x) ?? x))].join(", ") : "None recorded"}
+                </p>
               </div>
             ))}
           </div>
