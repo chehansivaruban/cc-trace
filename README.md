@@ -65,7 +65,7 @@ On Linux, if you get permission errors reading the logs, add `--user "$(id -u):$
 - **Files:** every file Claude read, changed or created, with the changes.
 - **Whole session:** how each request led to the next, and what Claude still remembered.
 - **Compare:** two sessions, or two requests, side by side to see which took more effort: tokens, time, errors and the models used.
-- **"Claude needs you":** when Claude is waiting on a question, a plan or (probably) your permission, the tab title and icon change, and you can turn on a desktop notification.
+- **"Claude needs you":** when Claude is waiting on a question or a plan, the tab title and icon change, and you can turn on a desktop notification. When it's probably waiting for your permission (an edit or web fetch that has sat for 20 seconds with nothing else happening, in a mode that asks), a "needs you" badge shows; that one is a guess, so it never sends a notification.
 - **Debug log:** Claude Code's own diary for the session (only there when Claude Code ran with `--debug`), with filters.
 
 ### Share it
@@ -77,7 +77,7 @@ On Linux, if you get permission errors reading the logs, add `--user "$(id -u):$
 ### Make it yours
 
 - **Bookmarks:** bookmark a session or a single step, name sessions, tag them, and find them again in Bookmarks or the session browser.
-- **Settings:** light or dark, text size (Smaller to Largest), reduce motion, technical details shown by default, "Hide sensitive text", and desktop notifications.
+- **Settings:** light or dark, text size (Smaller to Largest), spacing (Comfortable or Compact), reduce motion, technical details shown by default, "Hide sensitive text", and desktop notifications.
 - **Keyboard shortcuts** and a short **tour** of the screen, plus a **How it works** guide for newcomers.
 - Works on small screens too.
 
@@ -151,7 +151,7 @@ npm publish     # runs the check and a production build first
 - **No tokens, no money, no network.** cc-trace never calls Claude, any AI service or any other host. Nothing you see costs anything, and token numbers are read from the logs, never estimated.
 - **Read-only.** It never changes, moves or deletes anything in your Claude folder and never installs hooks. It doesn't copy your history: logs are read when you open them and held in memory only. The one exception is a bookmark: it keeps a short label (the step or session title, at most 160 characters, with secrets like passwords and keys hidden) in this browser, so the Bookmarks page can show it.
 - **Stays in this browser.** Your settings, bookmarks, tags and session names are saved in this browser's storage, nowhere else. A log you drag onto the page is read in the browser and never sent to the server.
-- **Hide sensitive text.** Session logs contain everything you and Claude typed, including any secrets that appeared in prompts or tool output. Turn on **Settings → Hide sensitive text** before taking screenshots or exporting: it hides passwords, API keys, tokens and private keys, your home folder (also in Claude Code's dash-spelled folder names) and your user name, on screen and in exports (each export can also switch it on or off). It works by recognising these patterns, so give a screenshot a last look before you share it.
+- **Hide sensitive text.** Session logs contain everything you and Claude typed, including any secrets that appeared in prompts or tool output. Turn on **Settings → Hide sensitive text** before taking screenshots or exporting: it hides passwords (also inside web and database addresses), API keys, tokens, sign-in headers and private keys, your home folder (also in Claude Code's dash-spelled folder names) and your user name, on screen and in exports (each export can also switch it on or off). It works by recognising these patterns, so give a screenshot a last look before you share it.
 - Don't expose cc-trace's port to a network.
 
 ## License
