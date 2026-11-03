@@ -81,5 +81,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     if (ready) document.documentElement.toggleAttribute("data-reduce-motion", reduce);
   }, [ready, reduce]);
 
+  useEffect(() => {
+    if (!ready) return;
+    if (settings.density === "compact") document.documentElement.setAttribute("data-density", "compact");
+    else document.documentElement.removeAttribute("data-density");
+  }, [ready, settings.density]);
+
   return <MotionConfig reducedMotion={reduce ? "always" : "never"}>{children}</MotionConfig>;
 }

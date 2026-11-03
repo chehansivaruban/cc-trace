@@ -13,13 +13,16 @@ export const metadata: Metadata = {
 };
 
 // Runs before paint so nothing flashes: theme (Settings, then the 0.1 header toggle, then the system),
-// text size, and reduce motion (the setting or the system's). SettingsProvider keeps them in sync afterwards.
-const settingsScript = `try{var d=document.documentElement,s={},m=function(q){return matchMedia(q).matches};try{s=JSON.parse(localStorage.getItem("cc-trace:settings"))||{}}catch(e){}var t=s.theme,l=null;try{l=localStorage.getItem("theme")}catch(e){}d.classList.toggle("dark",t==="dark"||(t!=="light"&&(l==="dark"||(l!=="light"&&m("(prefers-color-scheme: dark)")))));if([0.9,1.15,1.3].indexOf(s.textScale)>=0)d.style.setProperty("--text-scale",String(s.textScale));if(s.reduceMotion===true||m("(prefers-reduced-motion: reduce)"))d.setAttribute("data-reduce-motion","")}catch(e){}`;
+// text size, spacing, and reduce motion (the setting or the system's). SettingsProvider keeps them in sync afterwards.
+const settingsScript = `try{var d=document.documentElement,s={},m=function(q){return matchMedia(q).matches};try{s=JSON.parse(localStorage.getItem("cc-trace:settings"))||{}}catch(e){}var t=s.theme,l=null;try{l=localStorage.getItem("theme")}catch(e){}d.classList.toggle("dark",t==="dark"||(t!=="light"&&(l==="dark"||(l!=="light"&&m("(prefers-color-scheme: dark)")))));if([0.9,1.15,1.3].indexOf(s.textScale)>=0)d.style.setProperty("--text-scale",String(s.textScale));if(s.density==="compact")d.setAttribute("data-density","compact");if(s.reduceMotion===true||m("(prefers-reduced-motion: reduce)"))d.setAttribute("data-reduce-motion","")}catch(e){}`;
 
 // Text size scales the root font size, so every rem-based size (Tailwind text, spacing, popovers, tooltips,
 // the tour) grows together while viewport units stay true. Reduce motion stills CSS animations and transitions.
+// Compact spacing tightens the rows marked .dense-row (lists and tables); unlayered, so it beats Tailwind's padding.
 const settingsCss =
   "html{font-size:calc(100% * var(--text-scale,1))}" +
+  "html[data-density=compact] .dense-row{padding-top:0.25rem;padding-bottom:0.25rem}" +
+  "html[data-density=compact] .dense-pb{padding-bottom:0.25rem}" +
   "html[data-reduce-motion] *,html[data-reduce-motion] *::before,html[data-reduce-motion] *::after{animation-duration:0.01ms!important;animation-iteration-count:1!important;transition-duration:0.01ms!important;scroll-behavior:auto!important}";
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

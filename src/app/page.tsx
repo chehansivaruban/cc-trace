@@ -11,7 +11,7 @@ import { FilterBar } from "@/components/filter-bar";
 import { Header } from "@/components/header";
 import { HelpDialog } from "@/components/help-dialog";
 import { SessionInfoBar } from "@/components/session-info-bar";
-import { SessionTabs } from "@/components/session-tabs";
+import { SESSION_PANEL_ID, SessionTabs, sessionTabId } from "@/components/session-tabs";
 import { Welcome } from "@/components/welcome";
 import type { Selection } from "@/components/story-map";
 import { TurnList } from "@/components/turn-list";
@@ -24,7 +24,7 @@ import { SettingsDialog } from "@/components/pages/settings-dialog";
 import { SESSION_VIEWS, type SessionViewProps } from "@/components/views/registry";
 import { useEscape } from "@/hooks/use-escape";
 import { useFolders } from "@/hooks/use-folders";
-import { MaskScope, sessionMasker } from "@/hooks/use-mask";
+import { MaskScope, sessionMasker, useMask } from "@/hooks/use-mask";
 import { useSessionShortcuts } from "@/hooks/use-session-shortcuts";
 import { useSessionStream } from "@/hooks/use-session-stream";
 import type { ProjectInfo, SessionInfo } from "@/lib/claude-logs";
@@ -73,10 +73,20 @@ export default function Home() {
   const home = useFolders()?.home;
   const reduce = useReducedMotion();
 
+  // Why the session list couldn't be read, in plain English (shown with a Retry button), or null.
+  const [listError, setListError] = useState<string | null>(null);
   const refresh = useCallback(async () => {
-    const res = await fetch("/api/sessions");
-    const list: ProjectInfo[] = await res.json();
-    setProjects(list);
+    try {
+      const res = await fetch("/api/sessions");
+      if (!res.ok) throw new Error(String(res.status));
+      const list: ProjectInfo[] = await res.json();
+      if (!Array.isArray(list)) throw new Error("not a list");
+      setProjects(list);
+      setListError(null);
+    } catch {
+      // Keep the list already shown, if any; say so only when there's nothing to show.
+      setListError("cc-trace couldn't read the list of your sessions. Is it still running? Check the terminal you started it from, then try again.");
+    }
   }, []);
 
   // The server answers within 1.5 s and keeps counting big logs in the background: ask again until it's done.
@@ -125,7 +135,9 @@ export default function Home() {
     setDropped(null);
     setFilter(emptyFilter());
   }, [file]);
-  const { logs, connected } = useSessionStream(dropped || missing ? null : file);
+  const { logs, connected, ready } = useSessionStream(dropped || missing ? null : file);
+  // Until the whole log is read, counts (Stats, Health) would be partial: show "Loading session…" instead.
+  const reading = !dropped && !missing && !!file && !ready;
   // A dropped file is never live: "now" far in the future marks it finished.
   const model = useMemo(
     () => (dropped ? buildSession(dropped.records, dropped.agents, Number.MAX_SAFE_INTEGER) : buildSession(logs.main, logs.agents, now)),
@@ -140,7 +152,7 @@ export default function Home() {
     listed && listed.title === "Untitled session" && firstAsk ? { ...listed, title: safeClip(firstAsk.replace(/\s+/g, " ").trim(), 300) } : listed;
   const lastTurn = model.turns.length - 1;
   const turnIndex = sessionRoute?.turn !== undefined && sessionRoute.turn <= lastTurn ? sessionRoute.turn : lastTurn;
-  const turn = model.turns[turnIndex];
+  const turn = reading ? undefined : model.turns[turnIndex];
   const selected: Selection = sessionRoute?.step ? { type: "step", id: sessionRoute.step } : actorPick;
   const selectedStep = selected?.type === "step" ? turn?.steps.find((s) => s.id === selected.id) : undefined;
   const viewFile = dropped ? DROPPED_PREFIX + dropped.name : file;
@@ -205,7 +217,7 @@ export default function Home() {
     <TurnList turns={model.turns} actors={model.actors} selectedIndex={turnIndex} liveIndex={model.live.active ? lastTurn : undefined} onPick={pickTurn} />
   );
   const details = (onClose?: () => void) => (
-    <DetailsPanel file={viewFile ?? undefined} turn={turn} turns={model.turns} onPickTurn={pickTurn} onShowSession={() => go({ view: "flow" })} actors={model.actors} selected={selected} onSelect={setSelected} onHelp={() => setHelp(true)} onClose={onClose} />
+    <DetailsPanel loading={reading || (!projects && !listError)} file={viewFile ?? undefined} turn={turn} turns={model.turns} onPickTurn={pickTurn} onShowSession={() => go({ view: "flow" })} actors={model.actors} selected={selected} onSelect={setSelected} onHelp={() => setHelp(true)} onClose={onClose} />
   );
 
   return (
@@ -217,7 +229,7 @@ export default function Home() {
       <main className="@container relative flex h-dvh w-screen flex-col overflow-hidden bg-background">
         {!dropped && <AttentionWatcher model={model} />}
         <Header
-          projects={projects ?? []}
+          projects={projects}
           project={project}
           session={session}
           title={title}
@@ -247,8 +259,6 @@ export default function Home() {
               {turn && (
                 <SessionTabs
                   view={view}
-                  turnIndex={turnIndex}
-                  turnCount={model.turns.length}
                   onView={(v) => go({ view: v })}
                   filter={FILTERED_VIEWS.includes(view) ? { active: !isFilterEmpty(filter), open: filterOpen, onToggle: () => setFilterOpen(!filterOpen) } : undefined}
                 />
@@ -258,7 +268,11 @@ export default function Home() {
                   <FilterBar steps={turn.steps} value={filter} onChange={setFilter} actors={model.actors} />
                 </div>
               )}
-              <div data-tour="map" className="relative min-h-0 flex-1">
+              <div
+                data-tour="map"
+                className="relative min-h-0 flex-1"
+                {...(turn ? { id: SESSION_PANEL_ID, role: "tabpanel", "aria-labelledby": sessionTabId(view) } : {})}
+              >
                 {turn && <Welcome onHelp={() => setHelp(true)} />}
                 {turn && (file || dropped) ? (
                   <ActiveView
@@ -277,7 +291,9 @@ export default function Home() {
                 ) : (
                   <Empty
                     projects={projects}
-                    loading={!!file && (!connected || (listed?.requests ?? 0) > 0)} // a big log takes a while to replay
+                    error={listError}
+                    onRetry={() => void refresh()}
+                    loading={reading || (!!file && !connected)} // a big log takes a while to replay
                     missing={missing}
                     onNewest={() => pickSession(projects?.[0]?.sessions[0])}
                   />
@@ -337,8 +353,33 @@ function AppPageView({ page, ...props }: { page: Exclude<AppPage, "session"> } &
   return <Page {...props} />;
 }
 
-function Empty({ projects, loading, missing, onNewest }: { projects: ProjectInfo[] | null; loading: boolean; missing: boolean; onNewest: () => void }) {
-  if (!projects) return null;
+function Empty(props: { projects: ProjectInfo[] | null; error: string | null; onRetry: () => void; loading: boolean; missing: boolean; onNewest: () => void }) {
+  const { projects, loading, missing, onNewest } = props;
+  const folders = useFolders();
+  const mask = useMask();
+  if (!projects && props.error)
+    return (
+      <div className="flex h-full items-center justify-center p-6">
+        <div className="max-w-sm text-center" role="alert">
+          <p className="text-sm font-medium">Couldn&apos;t load your sessions</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{props.error}</p>
+          <button
+            onClick={props.onRetry}
+            className="mt-4 h-8 rounded-lg border border-foreground/10 px-3 text-xs text-muted-foreground transition-colors hover:bg-foreground/[0.06] hover:text-foreground"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  if (!projects)
+    return (
+      <div className="flex h-full items-center justify-center p-6">
+        <p className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" /> Looking for your sessions…
+        </p>
+      </div>
+    );
   if (missing)
     return (
       <div className="flex h-full items-center justify-center p-6">
@@ -365,8 +406,10 @@ function Empty({ projects, loading, missing, onNewest }: { projects: ProjectInfo
         <p className="text-sm font-medium">{!projects.length ? "No Claude Code sessions found" : loading ? "Loading session…" : "Nothing to show yet"}</p>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
           {!projects.length
-            ? "cc-trace looked in ~/.claude/projects. Use Claude Code once, then come back."
-            : "Send Claude a message and watch it appear here as it happens."}
+            ? `cc-trace looked in ${folders ? mask(folders.projects) : "your Claude Code folder"}. Use Claude Code once, then come back.`
+            : loading
+              ? "Reading its log from start to finish. A long session can take a few seconds."
+              : "Send Claude a message and watch it appear here as it happens."}
         </p>
       </div>
     </div>

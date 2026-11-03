@@ -1,10 +1,11 @@
 "use client";
 // Building blocks shared by the Stats view and the Dashboard: stat tiles, sections, a sortable table, a meter.
-import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AlertTriangle, ArrowDown, ArrowUp, ChevronRight, Gauge } from "lucide-react";
 import { fmt, useWidth } from "@/components/charts/kit";
 import { explainTool } from "@/lib/explain";
+import { useSettings } from "@/lib/settings";
 import { totalTokens, type Usage } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
@@ -37,7 +38,7 @@ export function TechToggle({ on, onChange }: { on: boolean; onChange: (v: boolea
   return (
     <button onClick={() => onChange(!on)} aria-pressed={on} className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground">
       <ChevronRight className={cn("size-3.5 transition-transform", on && "rotate-90")} />
-      {on ? "Hide" : "Show"} the technical details
+      {on ? "Hide" : "Show"} technical details
     </button>
   );
 }
@@ -96,7 +97,8 @@ export type Column<T> = {
   minor?: boolean;
 };
 
-const ROW_H = 38;
+// Row height in px: Settings → Spacing → Compact makes the tables denser.
+const ROW_H = { comfortable: 38, compact: 30 } as const;
 const VIRTUAL_OVER = 200;
 
 /** A sortable table. Rows can be clicked; lists over 200 rows are virtualised. */
@@ -112,6 +114,8 @@ export function SortTable<T>(props: {
 }) {
   const [ref, width] = useWidth<HTMLDivElement>();
   const [sort, setSort] = useState(props.initialSort);
+  const [{ density }] = useSettings();
+  const rowH = ROW_H[density];
   const cols = props.columns.filter((c) => !(c.minor && width > 0 && width < 560));
   const grid = cols.map((c) => c.width).join(" ");
   const rows = useMemo(() => {
@@ -128,7 +132,8 @@ export function SortTable<T>(props: {
 
   const scroller = useRef<HTMLDivElement>(null);
   const virtual = rows.length > VIRTUAL_OVER;
-  const v = useVirtualizer({ count: virtual ? rows.length : 0, getScrollElement: () => scroller.current, estimateSize: () => ROW_H, overscan: 12 });
+  const v = useVirtualizer({ count: virtual ? rows.length : 0, getScrollElement: () => scroller.current, estimateSize: () => rowH, overscan: 12 });
+  useEffect(() => v.measure(), [v, rowH]);
 
   const renderRow = (r: T, style?: CSSProperties) => (
     <div
@@ -138,7 +143,7 @@ export function SortTable<T>(props: {
       title={props.rowTitle?.(r)}
       onClick={() => props.onRow?.(r)}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && props.onRow && (e.preventDefault(), props.onRow(r))}
-      style={{ gridTemplateColumns: grid, height: ROW_H, ...style }}
+      style={{ gridTemplateColumns: grid, height: rowH, ...style }}
       className={cn(
         "grid items-center gap-3 border-b border-foreground/[0.06] px-2 text-[0.8125rem] outline-none",
         props.onRow && "cursor-pointer hover:bg-foreground/[0.05] focus-visible:bg-foreground/[0.07]",

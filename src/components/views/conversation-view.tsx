@@ -180,9 +180,13 @@ function Conversation({ model, turn, selected, onSelect, filter }: SessionViewPr
     <section className="flex h-full min-h-0 flex-col" aria-label="Conversation">
       <div className="shrink-0 border-b border-foreground/10 px-4 py-3">
         <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
-          <p className="min-w-0 flex-1 basis-[min(100%,26.25rem)] text-[0.8125rem] leading-relaxed">
-            Request {turn.index + 1} as a conversation: what you asked, what Claude and its helpers said, and every step they took, in order. Click a step to open it.
-          </p>
+          <div className="min-w-0 flex-1 basis-[min(100%,26.25rem)]">
+            <p className="text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">Conversation · Request {turn.index + 1}</p>
+            <h2 className="mt-1 text-lg font-semibold tracking-tight">What was said, in order</h2>
+            <p className="mt-1 text-[0.8125rem] leading-relaxed text-muted-foreground">
+              What you asked, what Claude and its helpers said, and every step they took. Click a step to open it.
+            </p>
+          </div>
           <div className="flex shrink-0 items-center gap-2">
             {tools.length > 0 && (
               <button
@@ -209,7 +213,7 @@ function Conversation({ model, turn, selected, onSelect, filter }: SessionViewPr
           </span>
           <label className="ml-auto flex cursor-pointer items-center gap-1.5 select-none">
             <input type="checkbox" checked={tech} onChange={(e) => setTech(e.target.checked)} className="accent-foreground" />
-            Technical details
+            Show technical details
           </label>
         </div>
       </div>
@@ -273,7 +277,7 @@ const RowView = memo(function RowView(p: RowProps) {
       <SpecialRow row={row} onDetails={p.onDetails} />
     );
   return (
-    <div data-find-row={p.i} data-step={row.id} className="pb-2.5">
+    <div data-find-row={p.i} data-step={row.id} className="dense-pb pb-2.5">
       <div
         className={cn(
           "rounded-xl transition-shadow duration-500",
@@ -477,7 +481,7 @@ function TextRow({ row, actors, hue, tech, onDetails }: { row: ConvRow; actors: 
       {s.thinking ? (
         <Thinking text={s.thinking} />
       ) : s.usage ? (
-        <p data-find-skip className="mt-1 text-[0.6875rem] text-muted-foreground/70">
+        <p data-find-skip className="mt-1 text-[0.6875rem] text-muted-foreground">
           Thinking not recorded
         </p>
       ) : null}
@@ -501,7 +505,7 @@ function ToolRow({ row, open, tech, canWhy, onToggle, onWhy, onDetails, hue }: R
         <button
           onClick={() => onToggle(s.id)}
           aria-expanded={open}
-          className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1.5 py-1.5 text-left transition-colors hover:bg-foreground/[0.05]"
+          className="dense-row flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1.5 py-1.5 text-left transition-colors hover:bg-foreground/[0.05]"
         >
           <ChevronRight className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", open && "rotate-90")} />
           <span className="flex size-6 shrink-0 items-center justify-center rounded-md" style={{ background: hueColor(hue, 0.16), color: hueColor(hue) }}>

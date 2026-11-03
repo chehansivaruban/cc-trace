@@ -30,7 +30,7 @@ function Pill({ on, onClick, children, count, dot }: { on: boolean; onClick: () 
     >
       {dot && <span className="size-2 shrink-0 rounded-[3px]" style={{ background: dot }} />}
       <span className="truncate">{children}</span>
-      {count !== undefined && <span className={cn("tabular-nums", on ? "text-background/70" : "text-muted-foreground/70")}>{count}</span>}
+      {count !== undefined && <span className={cn("tabular-nums", on ? "text-background/70" : "text-muted-foreground")}>{count}</span>}
     </button>
   );
 }

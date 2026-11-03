@@ -96,3 +96,31 @@ export function phasesOf(turn: Turn): Phase[] {
 }
 
 const MAX_PHASES = 40;
+
+/** A stretch of the phase band as shown: one phase, or several too narrow to read on their own. */
+export type PhaseSegment = { kind: PhaseKind; from: number; to: number; parts: Phase[] };
+
+/**
+ * For display: phases shorter than `minSteps` steps are merged into their neighbours (the smaller one, or
+ * the next on a tie), so every part of the band is wide enough to read and tap. A merged part takes the kind
+ * that covers most of its steps; `parts` keeps the phases inside it for the tooltip.
+ */
+export function mergeNarrowPhases(phases: Phase[], minSteps: number): PhaseSegment[] {
+  const len = (s: { from: number; to: number }) => s.to - s.from + 1;
+  const segs: PhaseSegment[] = phases.map((p) => ({ kind: p.kind, from: p.from, to: p.to, parts: [p] }));
+  for (;;) {
+    if (segs.length < 2) break;
+    const i = segs.findIndex((s) => len(s) < minSteps);
+    if (i < 0) break;
+    const prev = segs[i - 1];
+    const next = segs[i + 1];
+    const into = !prev ? i + 1 : !next ? i - 1 : len(prev) < len(next) ? i - 1 : i + 1;
+    const [a, b] = into < i ? [segs[into], segs[i]] : [segs[i], segs[into]];
+    const parts = [...a.parts, ...b.parts];
+    const steps = new Map<PhaseKind, number>();
+    for (const p of parts) steps.set(p.kind, (steps.get(p.kind) ?? 0) + len(p));
+    const kind = [...steps].sort((x, y) => y[1] - x[1])[0][0];
+    segs.splice(Math.min(i, into), 2, { kind, from: a.from, to: b.to, parts });
+  }
+  return segs;
+}

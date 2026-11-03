@@ -274,7 +274,7 @@ function SessionCard(props: {
       {g.steps.length > 0 && (
         <ul className="mt-3 divide-y divide-foreground/[0.06] border-t border-foreground/[0.06]">
           {g.steps.map((b) => (
-            <li key={b.step} className="flex items-center gap-2 py-1.5">
+            <li key={b.step} className="dense-row flex items-center gap-2 py-1.5">
               <button onClick={() => props.onOpen(b)} className="flex min-w-0 flex-1 items-baseline gap-2 rounded-lg px-1 py-1 text-left hover:bg-foreground/[0.04]">
                 <span className="shrink-0 text-[0.6875rem] text-muted-foreground tabular-nums">{b.turn !== undefined ? `Request ${b.turn + 1}` : "Step"}</span>
                 <span className="truncate text-[0.8125rem]">{props.mask(b.label) || "A step"}</span>

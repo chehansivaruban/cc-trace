@@ -6,7 +6,7 @@ import { createBookmarkStore } from "../src/lib/bookmarks.ts";
 import { createMasker } from "../src/lib/redact.ts";
 import { DEBUG_LOG_MAX_BYTES, debugLogName, parseDebugLog, tailText } from "../src/lib/debug-log.ts";
 import { buildSession } from "../src/lib/session.ts";
-import { DEFAULT_SETTINGS, SETTINGS_KEY, readSettings, resolveTheme, subscribeSettings } from "../src/lib/settings.ts";
+import { DEFAULT_SETTINGS, SETTINGS_KEY, parseSettings, readSettings, resolveTheme, subscribeSettings } from "../src/lib/settings.ts";
 import { SHORTCUTS, isTypingTarget, matchShortcut } from "../src/hooks/use-shortcuts.ts";
 import { createLayerStack } from "../src/hooks/use-escape.ts";
 import { appear, slide } from "../src/lib/motion.ts";
@@ -43,6 +43,13 @@ import path from "node:path";
   assert.equal(resolveTheme("system", "light", true), "light", "the 0.1 header toggle is honoured until Settings picks one");
   assert.equal(resolveTheme("system", "junk", false), "light");
   assert.deepEqual(DEFAULT_SETTINGS.notifications, false, "notifications are off until switched on");
+  // Spacing: comfortable unless "compact" was chosen; junk falls back.
+  assert.equal(DEFAULT_SETTINGS.density, "comfortable");
+  assert.equal(parseSettings(JSON.stringify({ density: "compact" })).density, "compact");
+  assert.equal(parseSettings(JSON.stringify({ density: "tiny" })).density, "comfortable");
+  // The script that runs before paint applies it, like the text size.
+  const layout = fs.readFileSync(path.join(import.meta.dirname, "..", "src", "app", "layout.tsx"), "utf8");
+  assert.match(layout, /data-density/);
   console.log("settings store checks passed");
 }
 

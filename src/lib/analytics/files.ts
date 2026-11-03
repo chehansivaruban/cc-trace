@@ -21,7 +21,8 @@ export function fileOf(step: Step): string | undefined {
   return typeof p === "string" && p.trim() ? p : undefined;
 }
 
-export type FileTouched = { path: string; reads: number; writes: number; edits: number; changes: { step: Step; turn: number }[] };
+/** `created`: Claude made the file (its first change was a Write, with no read or change of it before). */
+export type FileTouched = { path: string; reads: number; writes: number; edits: number; created: boolean; changes: { step: Step; turn: number }[] };
 
 /**
  * Every file read or changed in the session, one entry per file however its path was spelled.
@@ -40,7 +41,7 @@ export function filesTouched(m: SessionModel): FileTouched[] {
       if (!p) continue;
       const key = normalizePath(p);
       let f = files.get(key);
-      if (!f) files.set(key, (f = { path: p, reads: 0, writes: 0, edits: 0, changes: [], first: order, firstChange: Infinity }));
+      if (!f) files.set(key, (f = { path: p, reads: 0, writes: 0, edits: 0, created: false, changes: [], first: order, firstChange: Infinity }));
       order++;
       if (isRead) {
         f.reads++;
@@ -48,11 +49,15 @@ export function filesTouched(m: SessionModel): FileTouched[] {
       }
       if (step.tool === "Write") f.writes++;
       else f.edits++;
-      if (f.firstChange === Infinity) f.firstChange = order;
+      if (f.firstChange === Infinity) {
+        f.firstChange = order;
+        // Claude Code marks a Write that replaced an existing file as an "update".
+        f.created = step.tool === "Write" && !f.reads && (step.result as { type?: unknown } | undefined)?.type !== "update";
+      }
       f.changes.push({ step, turn: ti });
     }
   }
   return [...files.values()]
     .sort((a, b) => a.firstChange - b.firstChange || a.first - b.first)
-    .map((f) => ({ path: f.path, reads: f.reads, writes: f.writes, edits: f.edits, changes: f.changes }));
+    .map((f) => ({ path: f.path, reads: f.reads, writes: f.writes, edits: f.edits, created: f.created, changes: f.changes }));
 }

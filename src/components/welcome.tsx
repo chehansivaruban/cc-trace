@@ -45,7 +45,7 @@ export function Welcome({ onHelp }: { onHelp: () => void }) {
           <p className="mt-1 text-[0.8125rem] text-muted-foreground">See what Claude is doing while it works, in plain words.</p>
           <ol className="mt-3 space-y-2 text-[0.8125rem] leading-relaxed">
             <li>
-              <b>1.</b> Each message you send is a <b>request</b>. Pick one on the left, or open <b>Whole session</b> to see how they connect.
+              <b>1.</b> Each message you send is a <b>request</b>. Pick a request from the list, or open <b>Whole session</b> to see how they connect.
             </li>
             <li>
               <b>2.</b> Each row on the map is an agent: you, Claude, and any helpers. Arrows are messages between them.

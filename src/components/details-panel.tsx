@@ -42,6 +42,8 @@ export function DetailsPanel(props: {
   onClose?: () => void;
   /** The session log, so a step can be bookmarked. */
   file?: string;
+  /** The session is still being read. */
+  loading?: boolean;
 }) {
   const { turn, actors, selected } = props;
   const step = selected?.type === "step" ? turn?.steps.find((s) => s.id === selected.id) : undefined;
@@ -74,7 +76,9 @@ export function DetailsPanel(props: {
           ) : turn ? (
             <TurnSummary turn={turn} turns={props.turns} actors={actors} onSelect={props.onSelect} onPickTurn={props.onPickTurn} onHelp={props.onHelp} />
           ) : (
-            <p className="text-sm text-muted-foreground">Pick a request to see what happened.</p>
+            <p className="text-sm text-muted-foreground">
+              {props.loading ? "Loading…" : props.turns.length ? "Pick a request to see what happened." : "Explanations of each step show up here once there's a session to look at."}
+            </p>
           )}
         </motion.div>
       </AnimatePresence>
@@ -340,7 +344,7 @@ function StepCard(props: {
         <>
           <button onClick={() => setTech(!tech)} className="mt-5 flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground">
             <ChevronRight className={cn("size-3.5 transition-transform", tech && "rotate-90")} />
-            {tech ? "Hide" : "Show"} the technical details
+            {tech ? "Hide" : "Show"} technical details
           </button>
           {tech && (
             <div className="mt-3 space-y-3">

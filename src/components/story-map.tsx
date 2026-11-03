@@ -39,6 +39,8 @@ export function StoryMap(props: {
   selected: Selection;
   onSelect: (s: Selection) => void;
   onShowRequests: () => void;
+  /** Which request this is, e.g. "Request 3 of 31" (the tab just says "Map"). */
+  heading?: string;
   /** Steps that don't pass are left off the map, like "Only messages between agents" does. */
   filter?: StepFilter;
 }) {
@@ -191,6 +193,7 @@ export function StoryMap(props: {
         >
           <ListOrdered className="size-3.5" /> Requests
         </button>
+        {props.heading && <h2 className="shrink-0 text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">{props.heading}</h2>}
         <div className="flex min-w-0 flex-1 basis-full items-center gap-2.5 sm:basis-0" role="status" aria-live="polite">
           <span className="relative flex size-2.5 shrink-0">
             {now.pulse && <span className="absolute inset-0 animate-ping rounded-full bg-sky-400 opacity-60" />}

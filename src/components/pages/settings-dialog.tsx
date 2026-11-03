@@ -25,6 +25,10 @@ const SIZES: { value: Settings["textScale"]; label: string }[] = [
   { value: 1.15, label: "Larger" },
   { value: 1.3, label: "Largest" },
 ];
+const DENSITIES: { value: Settings["density"]; label: string }[] = [
+  { value: "comfortable", label: "Comfortable" },
+  { value: "compact", label: "Compact" },
+];
 const button =
   "flex h-8 items-center gap-1.5 rounded-lg border border-foreground/15 px-3 text-xs font-medium transition-[background-color,transform] duration-150 hover:bg-foreground/[0.06] active:scale-[0.97]";
 
@@ -110,6 +114,9 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
               </Field>
               <Field label="Text size">
                 <Segmented options={SIZES} value={settings.textScale} onChange={(textScale) => update({ textScale })} label="Text size" />
+              </Field>
+              <Field label="Spacing">
+                <Segmented options={DENSITIES} value={settings.density} onChange={(density) => update({ density })} label="Spacing" />
               </Field>
               <Toggle
                 label="Reduce motion"

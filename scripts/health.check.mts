@@ -6,7 +6,7 @@ import { FINDING_WEIGHT, healthReport, type Finding } from "../src/lib/analytics
 import { filesTouched, isInside } from "../src/lib/analytics/files.ts";
 import { normalizePath } from "../src/lib/paths.ts";
 import { riskOf } from "../src/lib/analytics/risk.ts";
-import { phasesOf } from "../src/lib/analytics/phases.ts";
+import { mergeNarrowPhases, phasesOf } from "../src/lib/analytics/phases.ts";
 import { hookRuns } from "../src/lib/analytics/hooks.ts";
 
 const t0 = Date.parse("2026-01-01T00:00:00.000Z");
@@ -347,6 +347,10 @@ assert.ok(files.findIndex((f) => f === b) > files.findIndex((f) => f === a));
 // A failed edit didn't change anything.
 const failedEdit = filesTouched(session([[edit("/work/app/a.ts", { error: true })]]));
 assert.deepEqual(failedEdit, []);
+// New files: written first, never read or changed before. A file that was read first, or edited first, existed.
+const made = filesTouched(session([[write("/work/app/new.ts"), edit("/work/app/new.ts"), read("/work/app/old.ts"), write("/work/app/old.ts"), edit("/work/app/x.ts")]]));
+assert.deepEqual(made.map((f) => [f.path.split("/").pop(), f.created]), [["new.ts", true], ["old.ts", false], ["x.ts", false]]);
+assert.equal(a.created, false);
 
 // ── Phases: cover every step exactly once, in order ──
 const phaseM = session([
@@ -376,6 +380,27 @@ assert.equal(fp[0].from, 0);
 assert.equal(fp.at(-1)!.to, flippy.steps.length - 1);
 for (let i = 1; i < fp.length; i++) assert.equal(fp[i].from, fp[i - 1].to + 1);
 assert.deepEqual(phasesOf(phaseM.turns[1]).map((p) => p.kind), ["answering"]);
+// For display, phases too narrow to read are merged into their neighbours; every step stays covered.
+{
+  const ph = [
+    { kind: "exploring", from: 0, to: 9 },
+    { kind: "changing", from: 10, to: 10 },
+    { kind: "testing", from: 11, to: 11 },
+    { kind: "reviewing", from: 12, to: 21 },
+    { kind: "answering", from: 22, to: 22 },
+  ] as const;
+  const segs = mergeNarrowPhases([...ph], 4);
+  assert.deepEqual(segs.map((x) => [x.kind, x.from, x.to, x.parts.length]), [["exploring", 0, 9, 1], ["reviewing", 10, 22, 4]]);
+  for (const x of segs) assert.ok(x.to - x.from + 1 >= 4);
+  assert.deepEqual(mergeNarrowPhases([...ph], 1).map((x) => x.parts.length), [1, 1, 1, 1, 1], "wide enough: nothing merged");
+  assert.deepEqual(mergeNarrowPhases([{ kind: "testing", from: 0, to: 1 }], 4).map((x) => [x.kind, x.from, x.to]), [["testing", 0, 1]], "one short phase stays");
+  assert.deepEqual(mergeNarrowPhases([], 4), []);
+  const many = mergeNarrowPhases(fp, Math.ceil(flippy.steps.length / 10));
+  assert.ok(many.length <= 10, `${many.length} segments`);
+  assert.equal(many[0].from, 0);
+  assert.equal(many.at(-1)!.to, flippy.steps.length - 1);
+  for (let i = 1; i < many.length; i++) assert.equal(many[i].from, many[i - 1].to + 1);
+}
 assert.deepEqual(phasesOf({ index: 0, text: "", ts: 0, end: 0, steps: [], actors: [], usage: clean.usage, context: 0 }), []);
 
 // ── Delegating: briefs and reports ──

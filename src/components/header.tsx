@@ -22,7 +22,8 @@ import { SessionBrowser } from "./session-browser";
  * narrower than 44rem the pages move to a second row of icons.
  */
 export function Header(props: {
-  projects: ProjectInfo[];
+  /** null until /api/sessions answers. */
+  projects: ProjectInfo[] | null;
   project?: ProjectInfo;
   session?: SessionInfo;
   /** The name to show for the session: a name you gave it, else its title. */
@@ -39,7 +40,9 @@ export function Header(props: {
   /** "Claude needs you", next to the status. */
   badge?: ReactNode;
 }) {
-  const { projects, project, session, live, connected } = props;
+  const { project, session, live, connected } = props;
+  const projects = props.projects ?? [];
+  const listing = props.projects === null;
   const [open, setOpen] = useState(false);
   const m = useMask();
   const reduce = useReducedMotion();
@@ -86,7 +89,7 @@ export function Header(props: {
               {props.fileName ? <FileText className="size-4 shrink-0 text-amber-500" /> : <History className="size-4 shrink-0 text-muted-foreground" />}
               <span className="flex min-w-0 flex-1 flex-col leading-tight">
                 <span className="truncate text-sm">
-                  {props.fileName ? m(props.fileName) : session ? m(props.title ?? session.title) : projects.length ? "Choose a session" : "No sessions yet"}
+                  {props.fileName ? m(props.fileName) : session ? m(props.title ?? session.title) : listing ? "Loading…" : projects.length ? "Choose a session" : "No sessions yet"}
                 </span>
                 {!props.fileName && project && (
                   <span className="hidden truncate text-[0.6875rem] text-muted-foreground @min-[36rem]:block">

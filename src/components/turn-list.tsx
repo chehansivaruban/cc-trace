@@ -37,7 +37,7 @@ export function TurnList(props: { turns: Turn[]; actors: Record<string, Actor>; 
               key={t.index}
               ref={selected ? active : undefined}
               onClick={() => props.onPick(t.index)}
-              className={cn("w-full rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-foreground/[0.06]", selected && "bg-foreground/[0.08]")}
+              className={cn("dense-row w-full rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-foreground/[0.06]", selected && "bg-foreground/[0.08]")}
             >
               <div className="flex items-center gap-2 text-[0.6875rem] font-medium text-muted-foreground">
                 <span>#{t.index + 1}</span>

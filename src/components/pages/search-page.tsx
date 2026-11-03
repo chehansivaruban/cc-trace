@@ -41,10 +41,15 @@ export function SearchPage({ route, navigate }: AppPageProps) {
   const [state, setState] = useState<State>({ hits: [], busy: false });
   // Project folders as Claude Code recorded them (the folder names alone are lossy).
   const [paths, setPaths] = useState<Record<string, string>>({});
+  const [sessionCount, setSessionCount] = useState<number | null>(null);
   useEffect(() => {
     fetch("/api/sessions")
       .then((r) => r.json())
-      .then((list: ProjectInfo[]) => setPaths(Object.fromEntries((Array.isArray(list) ? list : []).map((p) => [p.dir, p.path]))))
+      .then((list: ProjectInfo[]) => {
+        const all = Array.isArray(list) ? list : [];
+        setPaths(Object.fromEntries(all.map((p) => [p.dir, p.path])));
+        setSessionCount(all.reduce((n, p) => n + (Array.isArray(p.sessions) ? p.sessions.length : 0), 0));
+      })
       .catch(() => {});
   }, []);
 
@@ -129,7 +134,9 @@ export function SearchPage({ route, navigate }: AppPageProps) {
         </label>
       </form>
       <p className="mt-2 min-h-4 text-xs text-muted-foreground" aria-live="polite">
-        {tooShort
+        {sessionCount === 0
+          ? "No sessions on this computer yet. Use Claude Code once, then come back to search them."
+          : tooShort
           ? "Type at least 2 characters."
           : state.error
             ? state.error
@@ -159,7 +166,7 @@ export function SearchPage({ route, navigate }: AppPageProps) {
                   <li key={`${h.step ?? ""}${i}`}>
                     <button
                       onClick={() => navigate({ page: "session", file: h.file, turn: h.turn, view: "map", step: h.step, q: undefined })}
-                      className="block w-full px-4 py-2 text-left hover:bg-foreground/[0.04]"
+                      className="dense-row block w-full px-4 py-2 text-left hover:bg-foreground/[0.04]"
                     >
                       <span className="text-[0.6875rem] text-muted-foreground">
                         Request {h.turn + 1}

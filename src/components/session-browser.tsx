@@ -135,7 +135,7 @@ export function SessionBrowser(props: {
             }}
             placeholder="Search titles, first messages, ids, models…"
             aria-label="Search sessions"
-            className="min-w-0 flex-1 bg-transparent text-[0.8125rem] outline-none placeholder:text-muted-foreground/70"
+            className="min-w-0 flex-1 bg-transparent text-[0.8125rem] outline-none placeholder:text-muted-foreground"
           />
           {q && (
             <button onClick={() => setQ("")} className="rounded p-0.5 text-muted-foreground hover:text-foreground" aria-label="Clear search">
@@ -276,7 +276,7 @@ function SessionRow(props: {
       tabIndex={-1}
       onClick={props.onPick}
       className={cn(
-        "group flex cursor-pointer items-start gap-2 rounded-lg px-2.5 py-2 transition-colors hover:bg-foreground/[0.06]",
+        "dense-row group flex cursor-pointer items-start gap-2 rounded-lg px-2.5 py-2 transition-colors hover:bg-foreground/[0.06]",
         props.current && "bg-foreground/[0.06]",
         props.active && "ring-2 ring-foreground/20 ring-inset",
       )}
@@ -302,7 +302,7 @@ function SessionRow(props: {
           )}
           {s.worktreeOf && <span className="whitespace-nowrap"> · worktree</span>}
         </div>
-        <div className="mt-0.5 text-[0.6875rem] text-muted-foreground/70">
+        <div className="mt-0.5 text-[0.6875rem] text-muted-foreground">
           {props.sort === "started" ? `started ${ago(s.started, props.now)}` : `active ${ago(s.mtime, props.now)}`}
         </div>
       </div>

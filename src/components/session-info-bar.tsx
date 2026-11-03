@@ -117,7 +117,7 @@ function Chip({ icon: Icon, children, title, className }: { icon?: typeof Folder
 }
 
 /**
- * One line above the tabs: is it running, how freely Claude may act, branch, folder(s) and app. On the right:
+ * One line (two when space runs out) above the tabs: is it running, how freely Claude may act, branch, folder(s) and app. On the right:
  * bookmark the session, Claude Code's own debug log, export, and copy commands.
  */
 export function SessionInfoBar({ model, file, title, turn }: { model: SessionModel; file: string; title: string; turn?: Turn }) {
@@ -163,23 +163,23 @@ export function SessionInfoBar({ model, file, title, turn }: { model: SessionMod
     resumeCwd && (
       <Chip key="cwd" icon={Folder} title={meta.cwds.map(m).join("\n")}>
         <span className="max-w-[13.75rem] truncate">{m(shortPath(resumeCwd))}</span>
-        {meta.cwds.length > 1 && <span className="text-foreground/40">+{meta.cwds.length - 1} more</span>}
+        {meta.cwds.length > 1 && <span className="text-muted-foreground">+{meta.cwds.length - 1} more</span>}
       </Chip>
     ),
     (app || meta.version) && (
       <Chip key="app" icon={MonitorSmartphone} title={[app && `Started from ${app}`, meta.version && `Claude Code ${meta.version}`].filter(Boolean).join(" · ")}>
         {app ?? "Claude Code"}
-        {showTechnical && meta.version && <span className="text-foreground/40">v{meta.version}</span>}
+        {showTechnical && meta.version && <span className="text-muted-foreground">v{meta.version}</span>}
       </Chip>
     ),
   ].filter(Boolean);
 
   return (
-    <div className="flex h-10 shrink-0 items-center gap-2 border-b border-foreground/10 pr-2 pl-4 text-[0.75rem] text-muted-foreground">
-      <div className="flex min-w-0 flex-1 items-center gap-2.5 overflow-x-auto [scrollbar-width:none]">
-        {chips.flatMap((c, i) => (i ? [<span key={`sep${i}`} className="shrink-0 text-foreground/20">·</span>, c] : [c]))}
-      </div>
-      <div className="flex shrink-0 items-center gap-0.5">
+    <div className="flex min-h-10 shrink-0 flex-wrap items-center gap-x-2 gap-y-0.5 border-b border-foreground/10 py-1 pr-2 pl-4 text-[0.75rem] text-muted-foreground">
+      {/* Wraps when it runs out of room, so nothing is cut off; the buttons move under the chips before the
+          chips get squeezed into a narrow column. */}
+      <div className="flex min-w-0 flex-[1_1_20rem] flex-wrap items-center gap-x-3 gap-y-1">{chips}</div>
+      <div className="ml-auto flex shrink-0 items-center gap-0.5">
         <BookmarkButton file={file} label={title} className="h-7" />
         <button
           onClick={() => setDebugOpen(true)}

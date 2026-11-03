@@ -1,4 +1,4 @@
-// The Map ("Request N, step by step") as a registry view.
+// The Map (one request, step by step) as a registry view.
 import { StoryMap } from "@/components/story-map";
 import type { SessionViewProps } from "./registry";
 
@@ -16,6 +16,7 @@ export function MapView({ model, turn, file, selected, onSelect, onShowRequests,
       onSelect={onSelect}
       onShowRequests={onShowRequests ?? (() => {})}
       filter={filter}
+      heading={`Request ${index + 1} of ${model.turns.length}`}
     />
   );
 }

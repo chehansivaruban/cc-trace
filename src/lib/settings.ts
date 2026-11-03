@@ -10,6 +10,8 @@ export type Settings = {
   maskSensitive: boolean;
   notifications: boolean;
   reduceMotion: boolean;
+  /** Row spacing in lists and tables: "compact" fits more on screen. */
+  density: "comfortable" | "compact";
 };
 
 export const SETTINGS_KEY = "cc-trace:settings";
@@ -21,6 +23,7 @@ export const DEFAULT_SETTINGS: Settings = {
   maskSensitive: false,
   notifications: false,
   reduceMotion: false,
+  density: "comfortable",
 };
 
 const THEMES: Settings["theme"][] = ["system", "light", "dark"];
@@ -40,6 +43,7 @@ export function parseSettings(raw: string | null | undefined): Settings {
   if (!v || typeof v !== "object") return out;
   if (THEMES.includes(v.theme as Settings["theme"])) out.theme = v.theme as Settings["theme"];
   if (SCALES.includes(v.textScale as Settings["textScale"])) out.textScale = v.textScale as Settings["textScale"];
+  if (v.density === "compact" || v.density === "comfortable") out.density = v.density;
   for (const k of FLAGS) if (typeof v[k] === "boolean") out[k] = v[k] as boolean;
   return out;
 }

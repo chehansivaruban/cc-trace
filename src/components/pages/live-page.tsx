@@ -61,7 +61,7 @@ export function LivePage({ navigate }: AppPageProps) {
         </div>
         <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground select-none">
           <input type="checkbox" checked={technical} onChange={(e) => setTechnical(e.target.checked)} className="accent-foreground" />
-          Technical details
+          Show technical details
         </label>
       </div>
 
@@ -120,7 +120,7 @@ export function LivePage({ navigate }: AppPageProps) {
                     {!l.file && <span>no messages yet</span>}
                   </span>
                   {technical && (
-                    <span className="mt-1.5 block font-mono text-[0.6875rem] break-all text-muted-foreground/80">
+                    <span className="mt-1.5 block font-mono text-[0.6875rem] break-all text-muted-foreground">
                       session {l.sessionId} · process {l.pid}
                       {l.version && ` · Claude Code ${l.version}`}
                       {l.entrypoint && ` · ${l.entrypoint}`}

@@ -81,7 +81,8 @@ export function SessionFlow(props: {
     <section className="relative h-full" aria-label="Whole session">
       <div ref={scroller} className="h-full cursor-grab overflow-auto data-[panning]:cursor-grabbing data-[panning]:select-none">
         <div className="mx-auto max-w-[57.5rem] px-4 pt-5 pb-16 sm:px-6" style={{ zoom }}>
-          <h2 className="text-lg font-semibold tracking-tight">How your requests connect</h2>
+          <p className="text-[0.6875rem] font-semibold tracking-wide text-muted-foreground uppercase">Whole session · {turns.length} request{turns.length === 1 ? "" : "s"}</p>
+          <h2 className="mt-1 text-lg font-semibold tracking-tight">How your requests connect</h2>
           <p className="mt-1 max-w-[40rem] text-[0.8125rem] leading-relaxed text-muted-foreground">
             The orange stream is Claude&apos;s <Term k="context">memory</Term>. Before every reply Claude re-reads everything above it, so each request builds on the
             ones before and the stream gets wider. Where it narrows, Claude summarised older parts to make room. <Term k="helper">Helpers</Term> branch off to the

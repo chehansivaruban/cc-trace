@@ -192,8 +192,7 @@ export function DropFile({ onLoad }: { onLoad: LoadLog }) {
   );
 }
 
-/** Shown above a dropped file instead of the session info bar. */
-/** Shown above a dropped file. `actions` (Export) work on it too: exports are made in the browser. */
+/** Shown above a dropped file instead of the session info bar. `actions` (Export) work on it too: exports are made in the browser. */
 export function DroppedBanner({ name, onClose, actions }: { name: string; onClose: () => void; actions?: ReactNode }) {
   const mask = useMask();
   return (
