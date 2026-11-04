@@ -28,14 +28,14 @@ const show = (metric: string, n: number) => (metric === "durationMs" ? duration(
 
 /** One side of the comparison: a session from the logs, optionally narrowed to one request. */
 function useSide(file: string | undefined, turn: number | "all", size: number | undefined) {
-  const { logs, ready } = useSessionStream(file ?? null);
+  const { logs, ready, progress } = useSessionStream(file ?? null);
   // The stream keeps updating; "now" only matters for live state, which comparing doesn't show.
   const model = useMemo(() => buildSession(logs.main, logs.agents), [logs]);
   const scoped = useMemo(() => (turn === "all" ? model : scopeToTurn(model, turn)), [model, turn]);
   // Numbers are only final once the whole log (helpers included) has been read. A log that isn't listed
   // (size 0) can't be opened: don't wait for it.
   const loading = !!file && size !== 0 && !ready;
-  return { model, scoped, loading, empty: !!file && !loading && !model.turns.length };
+  return { model, scoped, loading, progress, empty: !!file && !loading && !model.turns.length };
 }
 
 function Picker(props: {
@@ -154,6 +154,7 @@ export function ComparePage({ route, navigate }: AppPageProps) {
       {loading && (
         <p className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
           <Loader2 className="size-3.5 animate-spin" /> Reading the logs…
+          {a.progress + b.progress > 0 && <span className="tabular-nums">{(a.progress + b.progress).toLocaleString()} lines so far</span>}
         </p>
       )}
 

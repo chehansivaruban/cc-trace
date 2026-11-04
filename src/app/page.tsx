@@ -135,7 +135,7 @@ export default function Home() {
     setDropped(null);
     setFilter(emptyFilter());
   }, [file]);
-  const { logs, connected, ready } = useSessionStream(dropped || missing ? null : file);
+  const { logs, connected, ready, progress } = useSessionStream(dropped || missing ? null : file);
   // Until the whole log is read, counts (Stats, Health) would be partial: show "Loading session…" instead.
   const reading = !dropped && !missing && !!file && !ready;
   // A dropped file is never live: "now" far in the future marks it finished.
@@ -292,6 +292,7 @@ export default function Home() {
                   <Empty
                     projects={projects}
                     error={listError}
+                    progress={progress}
                     onRetry={() => void refresh()}
                     loading={reading || (!!file && !connected)} // a big log takes a while to replay
                     missing={missing}
@@ -353,7 +354,7 @@ function AppPageView({ page, ...props }: { page: Exclude<AppPage, "session"> } &
   return <Page {...props} />;
 }
 
-function Empty(props: { projects: ProjectInfo[] | null; error: string | null; onRetry: () => void; loading: boolean; missing: boolean; onNewest: () => void }) {
+function Empty(props: { projects: ProjectInfo[] | null; error: string | null; progress: number; onRetry: () => void; loading: boolean; missing: boolean; onNewest: () => void }) {
   const { projects, loading, missing, onNewest } = props;
   const folders = useFolders();
   const mask = useMask();
@@ -408,7 +409,9 @@ function Empty(props: { projects: ProjectInfo[] | null; error: string | null; on
           {!projects.length
             ? `cc-trace looked in ${folders ? mask(folders.projects) : "your Claude Code folder"}. Use Claude Code once, then come back.`
             : loading
-              ? "Reading its log from start to finish. A long session can take a few seconds."
+              ? props.progress
+                ? `Read ${props.progress.toLocaleString()} lines of its log so far…`
+                : "Reading its log from start to finish. A long session can take a few seconds."
               : "Send Claude a message and watch it appear here as it happens."}
         </p>
       </div>
