@@ -6,7 +6,16 @@ import { promptText } from "./session.ts";
 import { encodeProjectDir, withTimeout, worktreeParent } from "./sessions-list.ts";
 
 // CLAUDE_CONFIG_DIR is Claude Code's own override for ~/.claude (also how the Docker image mounts it).
-export const CLAUDE_ROOT = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
+/**
+ * The user's home folder. A function on purpose: Next's build-time file tracer evaluates
+ * `os.homedir()` written inline and then tries to bundle the whole home folder (which fails
+ * on Windows CI on protected folders such as "Application Data").
+ */
+export function userHome(): string {
+  return os.homedir();
+}
+
+export const CLAUDE_ROOT = process.env.CLAUDE_CONFIG_DIR || path.join(userHome(), ".claude");
 export const PROJECTS_ROOT = path.join(CLAUDE_ROOT, "projects");
 // Claude Code's registry of running sessions: one "<pid>.json" per open Claude Code.
 export const SESSIONS_ROOT = path.join(CLAUDE_ROOT, "sessions");

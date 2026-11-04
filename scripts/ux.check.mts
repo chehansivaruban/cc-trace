@@ -1,6 +1,7 @@
 // Self-check for settings, bookmarks, attention alerts, keyboard shortcuts and the debug log helpers.
 //   node --no-warnings --experimental-strip-types scripts/ux.check.mts
 import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
 import { ATTENTION_NOTIFIES, needsAttention } from "../src/lib/attention.ts";
 import { createBookmarkStore } from "../src/lib/bookmarks.ts";
 import { createMasker } from "../src/lib/redact.ts";
@@ -303,7 +304,7 @@ import path from "node:path";
 {
   // MotionConfig reducedMotion stops x/y/scale but not a raw `transform` string, and framer's own
   // useReducedMotion only reads the system, not Settings → Reduce motion.
-  const root = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "src");
+  const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src");
   const bad: string[] = [];
   const walk = (dir: string) => {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {

@@ -1,8 +1,7 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import readline from "node:readline";
-import { PROJECTS_ROOT, listProjects, resolveSessionFile, subagentsDir } from "@/lib/claude-logs";
+import { PROJECTS_ROOT, listProjects, resolveSessionFile, subagentsDir, userHome } from "@/lib/claude-logs";
 import { cwdMaskers, snippetOf } from "@/lib/search";
 import { promptText } from "@/lib/session";
 
@@ -75,7 +74,7 @@ export async function GET(req: Request) {
   if (q.length > 200) return new Response("Search text is too long", { status: 400 });
   const limitRaw = Number(params.get("limit") ?? 200);
   const limit = Number.isFinite(limitRaw) ? Math.min(1000, Math.max(1, Math.floor(limitRaw))) : 200;
-  const home = os.homedir();
+  const home = userHome();
   const masking = params.get("mask") === "1";
   const maskFor = masking ? cwdMaskers(home) : () => (s: string) => s;
   const needle = q.toLowerCase();
