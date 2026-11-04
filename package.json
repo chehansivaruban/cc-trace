@@ -1,6 +1,6 @@
 {
   "name": "cc-trace-map",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "See what Claude Code and its helper agents are doing, in plain English: a live, local, interactive map of your sessions.",
   "license": "MIT",
   "keywords": [
