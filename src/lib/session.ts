@@ -107,8 +107,15 @@ export type SessionModel = {
   hiddenUsage?: HiddenUsage[];
 };
 
-// What Claude Code writes as a tool's result when you (or your settings) said no to it.
-export const DENIED = /doesn't want to proceed|tool use was rejected|user (?:rejected|denied)|permission (?:to use .* )?(?:was )?denied|was rejected by the user|requires approval/i;
+// What Claude Code itself writes as a tool's result when you (or your permission settings) said no to it, at
+// the very start of the result (optionally inside <tool_use_error>). Anchored on purpose: commands and
+// databases print "Permission denied" for real failures ("bash: ./x: Permission denied", "EACCES: permission
+// denied", "permission denied for table x"), and those must stay failures.
+export const DENIED =
+  /^\s*(?:<tool_use_error>\s*)?(?:Error:\s*)?(?:The user doesn't want to (?:proceed|take this action)|The tool use was rejected|Permission to use \S+(?: with [^\n]*?)? has been denied|User rejected (?:the )?tool use)/i;
+// Claude Code's automatic checks blocking a step (auto mode's classifier, built-in safety checks): not you
+// saying no, so still a failed step, but a permissions matter for the step filter.
+export const BLOCKED = /^\s*(?:<tool_use_error>\s*)?Permission for this (?:action|command) was denied by/i;
 
 /** A step's result as plain text (text blocks joined), for matching. */
 export function outputString(output: unknown): string {

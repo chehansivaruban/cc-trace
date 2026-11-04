@@ -4,6 +4,7 @@ import { isDenied, isFailed, type Actor, type SessionModel, type Step, type Turn
 import { FILE_CHANGE_TOOLS, fileOf } from "./files.ts";
 import { normalizePath } from "../paths.ts";
 import { safeClip } from "../redact.ts";
+import { pushAll } from "../num.ts";
 
 export type FindingKind = "repeated-tool" | "fix-loop" | "empty-result" | "excessive-reads" | "write-then-edit" | "high-error-rate";
 export type Finding = { kind: FindingKind; title: string; explain: string; steps: string[]; turn: number };
@@ -126,7 +127,7 @@ function findingsFor(turn: Turn, actors: Record<string, Actor>): Finding[] {
   for (const c of chains) {
     if (c.ids.length < FIX_LOOP_MIN) continue;
     const l = loops.get(c.key);
-    if (l) l.ids.push(...c.ids);
+    if (l) pushAll(l.ids, c.ids);
     else loops.set(c.key, { cmd: c.cmd, ids: [...c.ids] });
   }
   for (const { cmd, ids } of loops.values()) {
@@ -160,7 +161,7 @@ function findingsFor(turn: Turn, actors: Record<string, Actor>): Finding[] {
     if (r.ids.length < REPEAT_MIN) continue;
     const k = `${r.actor}\u0000${r.key}`;
     const prev = repeats.get(k);
-    if (prev) prev.ids.push(...r.ids);
+    if (prev) pushAll(prev.ids, r.ids);
     else repeats.set(k, { actor: r.actor, step: r.step, ids: [...r.ids] });
   }
   for (const { actor, step, ids } of repeats.values()) {

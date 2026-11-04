@@ -11,13 +11,19 @@ const PATTERNS: RegExp[] = [
   /xox[abpr]-[\w-]+/g,
   /AKIA[0-9A-Z]{16}/g,
   /eyJ[\w-]+\.[\w-]+\.[\w-]+/g, // JWT-like
-  /(\b[a-z][\w+.-]*:\/\/[^\s:/@]+:)[^\s@/]+(?=@)/gi, // the password in postgres://admin:pw@db, https://user:pw@host
+  /(\b[a-z][\w+.-]*:\/\/[^\s:/@]*:)[^\s@/]+(?=@)/gi, // the password in postgres://admin:pw@db, https://user:pw@host, redis://:pw@host
   /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, // emails
 ];
 
-// "Authorization: Bearer <token>" / "Basic <base64>": keep the word, hide the token. A token has a digit, a +, /
-// or =, or a lower-to-upper case change, so "basic authentication" stays readable.
-const AUTH_SCHEME = /\b(Bearer|Basic|bearer|basic|BEARER|BASIC)\s+(?=[\w.~+/-]*(?:\d|[+/=]|[a-z][A-Z]))[\w.~+/-]{12,}=*/g;
+// "Authorization: <scheme> <token>" (a header, a JSON field, a curl -H): whatever the token looks like, it's
+// hidden; the scheme word (Bearer, Basic, …) stays.
+const AUTH_HEADER = /\b(authorization\\?["']?\s*[:=]\s*\\?["']?)(?:(Bearer|Basic|Token|Digest|Negotiate)\s+)?(?!•••)[^\s"'\\,;]+/gi;
+// "Bearer <token>" anywhere: hidden whatever its characters. "Basic <base64>" outside a header only when it
+// looks like a token (a digit, +, / or =, or a lower-to-upper case change), so "basic authentication" stays.
+const AUTH_SCHEME = [
+  /\b(Bearer)\s+(?!•••)[\w.~+/-]{12,}=*/gi,
+  /\b(Basic|basic|BASIC)\s+(?=[\w.~+/-]*(?:\d|[+/=]|[a-z][A-Z]))[\w.~+/-]{12,}=*/g,
+];
 
 // "password=hunter2", "API_KEY: abc", {"password": "x"}, {\"password\":\"x\"} (JSON inside JSON): keep the
 // name, hide the value. Quoted values may hold escaped quotes; a quote that never closes hides the rest of
@@ -25,7 +31,7 @@ const AUTH_SCHEME = /\b(Bearer|Basic|bearer|basic|BEARER|BASIC)\s+(?=[\w.~+/-]*(
 const KEY_VALUE = new RegExp(
   String.raw`(password|passwd|secret|token|api[_-]?key|authorization|credentials?|access[_-]?key|private[_-]?key|client[_-]?secret)((?:\\?["'])?\s*[:=]\s*)` +
     // A value already hidden by AUTH_SCHEME ("Authorization: Bearer •••") keeps its scheme word.
-    "(?!(?:Bearer|Basic|bearer|basic|BEARER|BASIC) •••)" +
+    String.raw`(?!\\?["']?(?:Bearer|Basic|Token|Digest|Negotiate) •••)` +
     "(?:" +
     [
       String.raw`\\"(?:\\\\\\"|\\\\|\\[^"\n]|[^\\\n])*?(?:\\"|(?=\n)|$)`, // \"value\" (escaped JSON)
@@ -68,7 +74,8 @@ export function maskSecrets(text: string, home?: string): string {
   const h = home?.replace(/[\\/]+$/, "");
   if (h) out = out.replace(new RegExp(`${escapeRe(h)}(?=[\\\\/]|$|[^\\w.-])`, "g"), "~");
   for (const re of PATTERNS) out = out.replace(re, (whole: string, keep?: unknown) => (typeof keep === "string" ? keep + MASK : MASK));
-  out = out.replace(AUTH_SCHEME, `$1 ${MASK}`);
+  out = out.replace(AUTH_HEADER, (_, pre: string, scheme?: string) => `${pre}${scheme ? `${scheme} ` : ""}${MASK}`);
+  for (const re of AUTH_SCHEME) out = out.replace(re, `$1 ${MASK}`);
   return out.replace(KEY_VALUE, (_, key: string, sep: string) => key + sep + MASK);
 }
 

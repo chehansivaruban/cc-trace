@@ -1,7 +1,7 @@
 "use client";
 // One-series line chart (2px line, 10 % wash) with a crosshair that snaps to the nearest point.
 import { useMemo, useState, type KeyboardEvent, type PointerEvent } from "react";
-import { maxOf } from "@/lib/num";
+import { maxOf, pushAll } from "@/lib/num";
 import { ChartTooltip, TipRow, compact, fmt, niceMax, useWidth } from "./kit";
 
 export type LinePoint = { x: number; y: number };
@@ -60,7 +60,7 @@ export function LineChart(props: {
         }
       }
       for (const [lo, hi] of cols.values()) shown.push(...(lo === hi ? [lo] : lo.x <= hi.x ? [lo, hi] : [hi, lo]));
-    } else shown.push(...points);
+    } else pushAll(shown, points);
     const line = shown.map((p, i) => `${i ? "L" : "M"}${sx(p.x).toFixed(1)},${sy(p.y).toFixed(1)}`).join("");
     const base = PAD.top + plotH;
     const area = `${line}L${sx(shown.at(-1)!.x).toFixed(1)},${base}L${sx(shown[0].x).toFixed(1)},${base}Z`;

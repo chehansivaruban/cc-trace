@@ -72,6 +72,30 @@ assert.equal(h.errors.mostFailing, undefined);
   assert.equal(steps.filter(isFailed).length, 0);
   assert.ok(!isDenied({ status: "success", output: NO } as Step), "only a failed step can be a no");
   assert.ok(isDenied({ status: "error", output: [{ type: "text", text: "Permission to use Bash has been denied." }] } as unknown as Step));
+  // Only Claude Code's own decline wording, at the start of the result: system and database errors that say
+  // "permission denied" are real failures.
+  const err = (output: unknown) => ({ status: "error", output }) as unknown as Step;
+  for (const real of [
+    "bash: ./deploy.sh: Permission denied",
+    "Exit code 128\ngit@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.",
+    "Error: EACCES: permission denied, open '/etc/hosts'",
+    "ERROR:  permission denied for table invoices",
+    "Exit code 1\nThe user doesn't want to proceed with this tool use.", // a command printing the words
+    "Permission for this action was denied by the Claude Code auto mode classifier. Reason: [Production Reads].",
+  ]) {
+    assert.equal(isDenied(err(real)), false, real);
+    assert.equal(isFailed(err(real)), true, real);
+  }
+  for (const no of [
+    NO,
+    "The user doesn't want to take this action right now. STOP what you are doing and wait for the user to tell you how to proceed.",
+    "<tool_use_error>The user doesn't want to proceed with this tool use.</tool_use_error>",
+    "Permission to use Bash with command rm -rf dist has been denied.",
+    "The tool use was rejected by the user.",
+  ]) {
+    assert.equal(isDenied(err(no)), true, no);
+    assert.equal(isFailed(err(no)), false, no);
+  }
   // A real failure next to a no still counts.
   const mixed = healthReport(session([[bash("x", { error: true, output: NO }), bash("y", { error: true, output: "boom" })]]));
   assert.equal(mixed.errors.total, 1);

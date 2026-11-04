@@ -7,7 +7,7 @@ import { formatDuration } from "@/lib/conversation";
 import { ERROR_NOTE } from "@/lib/explain";
 import { useMask } from "@/hooks/use-mask";
 import { useSettings } from "@/lib/settings";
-import { SESSION_START, totalTokens, type Actor, type Step, type Turn, type Usage } from "@/lib/session";
+import { SESSION_START, isErrorStep, isFailed, totalTokens, type Actor, type Step, type Turn, type Usage } from "@/lib/session";
 import { cn } from "@/lib/utils";
 import { StepIcon, hueColor } from "./step-icon";
 import type { Selection } from "./story-map";
@@ -170,8 +170,9 @@ function TurnSummary(props: {
   const read = files((x) => x.tool === "Read");
   const changed = files((x) => EDITS.has(x.tool ?? ""));
   const tests = s.filter((x) => x.icon === "test");
-  const failedTests = tests.filter((x) => x.status === "error").length;
-  const errors = s.filter((x) => x.status === "error").length;
+  const failedTests = tests.filter(isFailed).length;
+  // Steps you said no to aren't "didn't work": one definition everywhere (isErrorStep).
+  const errors = s.filter(isErrorStep).length;
   const reply = s.findLast((x) => x.kind === "reply");
 
   const memory = s.find((x) => x.kind === "memory")?.memory;
@@ -314,7 +315,7 @@ function StepCard(props: {
           See how all your requests connect <ChevronRight className="size-3.5" />
         </button>
       )}
-      {s.status === "error" && <p className="mt-3 rounded-xl bg-red-500/10 px-3.5 py-2.5 text-[0.8125rem] leading-relaxed text-red-600 dark:text-red-300">{ERROR_NOTE}</p>}
+      {isFailed(s) && <p className="mt-3 rounded-xl bg-red-500/10 px-3.5 py-2.5 text-[0.8125rem] leading-relaxed text-red-600 dark:text-red-300">{ERROR_NOTE}</p>}
       {s.status === "running" && <p className="mt-3 text-[0.8125rem] text-sky-600 dark:text-sky-300">Still in progress…</p>}
 
       <H>Why</H>

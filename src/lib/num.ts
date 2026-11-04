@@ -10,3 +10,9 @@ export function maxOf<T>(items: Iterable<T>, f: (item: T) => number, floor = -In
   }
   return max;
 }
+
+/** Appends every item to `out` (push(...items) overflows the call stack for very large arrays). */
+export function pushAll<T>(out: T[], items: Iterable<T>): T[] {
+  for (const it of items) out.push(it);
+  return out;
+}

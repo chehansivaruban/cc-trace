@@ -24,6 +24,7 @@ import {
   type ConvRow,
 } from "./conversation.ts";
 import { SESSION_START, type Step } from "./session.ts";
+import { pushAll } from "./num.ts";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- tool inputs are untyped JSON */
 
@@ -99,8 +100,8 @@ export function markdownText(md: string): string[] {
     }
     if (line.includes("|") && i + 1 < lines.length && TABLE_SEP.test(lines[i + 1]) && lines[i + 1].includes("-")) {
       flush();
-      out.push(...cells(line).filter(Boolean));
-      for (i += 2; i < lines.length && lines[i].includes("|") && lines[i].trim(); i++) out.push(...cells(lines[i]).filter(Boolean));
+      pushAll(out, cells(line).filter(Boolean));
+      for (i += 2; i < lines.length && lines[i].includes("|") && lines[i].trim(); i++) pushAll(out, cells(lines[i]).filter(Boolean));
       i--;
       continue;
     }
@@ -170,7 +171,7 @@ function diffBlocks(step: Step, mask: Mask): string[] {
     if (budget <= 0) break;
     const rows = diffRows(h, budget);
     budget -= rows.length;
-    out.push(...maskLines(rows.map((r) => r.text), mask).map((t) => t || " "));
+    pushAll(out, maskLines(rows.map((r) => r.text), mask).map((t) => t || " "));
   }
   return out;
 }
@@ -197,13 +198,13 @@ export function toolBodyText(step: Step, mask: Mask): string[] {
     case "Bash":
     case "bash":
     case "PowerShell": {
-      const out: string[] = [...code(str(input.command) || JSON.stringify(input), mask)];
+      const out: string[] = code(str(input.command) || JSON.stringify(input), mask).slice();
       const r = step.result as any;
       // Same split as bashOutcome, without the exit-code line.
       const stdout = (r && typeof r === "object" && !Array.isArray(r) ? str(r.stdout) : typeof r === "string" ? r : outputText(step.output)).replace(/^(?:Error: )?Exit code \d+\r?\n?/, "");
       const stderr = r && typeof r === "object" && !Array.isArray(r) ? str(r.stderr) : "";
-      if (stdout.trim()) out.push(...code(stdout.replace(/\s+$/, ""), mask));
-      if (stderr.trim()) out.push(...code(stderr.replace(/\s+$/, ""), mask));
+      if (stdout.trim()) pushAll(out, code(stdout.replace(/\s+$/, ""), mask));
+      if (stderr.trim()) pushAll(out, code(stderr.replace(/\s+$/, ""), mask));
       return out;
     }
     case "Grep":

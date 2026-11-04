@@ -11,6 +11,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
 import { findAll, joinPieces } from "@/lib/find-text";
+import { pushAll } from "@/lib/num";
 
 const MAX_MATCHES = 5000;
 const STYLE = `::highlight(cc-find){background-color:rgb(250 204 21/.35);color:inherit}::highlight(cc-find-current){background-color:rgb(249 115 22/.7);color:inherit}`;
@@ -129,7 +130,7 @@ export function FindBar({
       for (const unit of units.length ? [...units] : [root]) {
         const ranges = unitRanges(unit, q);
         if (m && unit.getAttribute("data-find-row") === String(m.row)) current = ranges[Math.min(m.k, ranges.length - 1)];
-        all.push(...ranges);
+        pushAll(all, ranges);
       }
       if (!dataMode) {
         setDomCount(all.length);

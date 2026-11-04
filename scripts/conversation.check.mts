@@ -221,6 +221,13 @@ assert.equal(formatDuration(-1), "");
   assert.equal(maskText("DATABASE_URL=postgres://admin:s3cretpw@db:5432/x"), "DATABASE_URL=postgres://admin:•••@db:5432/x");
   assert.equal(maskText("git clone https://user:pw1234@host.example.com/r.git"), "git clone https://user:•••@host.example.com/r.git");
   assert.equal(maskText("see https://example.com:8080/path"), "see https://example.com:8080/path");
+  // Whatever the token looks like, it's hidden after Authorization: or Bearer.
+  assert.equal(maskText("Authorization: Bearer sk_live_abcdefghijklmnop"), "Authorization: Bearer •••");
+  assert.equal(maskText("-H 'Authorization: Bearer abcdefghijklmnopqrst'"), "-H 'Authorization: Bearer •••'");
+  assert.equal(maskText("Authorization: token_abcdefghijkl"), "Authorization: •••");
+  assert.equal(maskText('{"authorization":"Basic abcdefghijklmnop"}'), '{"authorization":"Basic •••"}');
+  assert.equal(maskText("bearer abcdefghijklmnopqrst"), "bearer •••");
+  assert.equal(maskText("REDIS_URL=redis://:hunter2pass@cache:6379/0"), "REDIS_URL=redis://:•••@cache:6379/0");
   for (const [k, v] of [["authorization", "xyz123"], ["credentials", "abc987"], ["access_key", "AKX1"], ["accessKey", "AKX2"], ["private-key", "pk999"], ["client_secret", "cs777"]]) {
     const out = maskText(`${k}=${v}`);
     assert.equal(out, `${k}=•••`, out);
