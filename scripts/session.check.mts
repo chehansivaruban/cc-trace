@@ -162,6 +162,28 @@ for (const s of ["sk-ant-api03-abc123def456", "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ012
 assert.ok(secret.includes("~/a"));
 assert.ok(secret.includes("password=•••"));
 assert.equal(maskSecrets("AKIAABCDEFGHIJKLMNOP xoxb-123-abc eyJhbGc.eyJzdWIi.c2ln API_KEY: abc"), "••• ••• ••• API_KEY: •••");
+// Common .env names and key formats: Stripe, GitLab, Google, npm, Hugging Face, and *_SECRET_KEY-style names.
+{
+  // Fake keys are assembled at run time so secret scanners don't mistake this file for a leak.
+  const fake = (prefix: string, n: number) => prefix + "Fake0Demo1Value2".repeat(4).slice(0, n);
+  const keys = [fake("sk" + "_live_", 24), fake("rk" + "_test_", 18), fake("glp" + "at-", 22), fake("AI" + "za", 36), fake("np" + "m_", 36), fake("h" + "f_", 32)];
+  const env = [
+    `STRIPE_SECRET_KEY=${keys[0]}`,
+    `RESTRICTED=${keys[1]}`,
+    `note ${keys[2]} in text`,
+    `maps ${keys[3]}`,
+    `npm ${keys[4]}`,
+    `hf ${keys[5]}`,
+    "JWT_SECRET_KEY=plainvalue1",
+    "SESSION_SECRET=plainvalue2",
+    "SIGNING_KEY=plainvalue3",
+    "ENCRYPTION_KEY=plainvalue4",
+  ].join("\n");
+  const out = maskSecrets(env);
+  for (const s of [...keys, "plainvalue"]) assert.ok(!out.includes(s), `${s} still visible in:\n${out}`);
+  assert.ok(out.includes("STRIPE_SECRET_KEY=") && out.includes("SIGNING_KEY="), "keeps the names");
+  assert.equal(maskSecrets("the secret sauce is basil"), "the secret sauce is basil", "prose stays");
+}
 assert.equal(maskSecrets("/Users/chehanx/b and /Users/chehan", "/Users/chehan"), "/Users/chehanx/b and ~");
 assert.equal(maskSecrets("disk-usage-monitoring-service-name KEY=sk-proj-abcdefghijklmnopqrstuvwxyz"), "disk-usage-monitoring-service-name KEY=•••");
 

@@ -8,6 +8,11 @@ const PATTERNS: RegExp[] = [
   /\bsk-ant-[\w-]{8,}/g,
   /\bsk-[\w-]{20,}/g,
   /gh[pousr]_[A-Za-z0-9]{20,}/g,
+  /\b[srp]k_(?:live|test)_[A-Za-z0-9]{8,}/g, // Stripe
+  /\bglpat-[\w-]{20,}/g, // GitLab
+  /\bAIza[\w-]{30,}/g, // Google
+  /\bnpm_[A-Za-z0-9]{30,}/g,
+  /\bhf_[A-Za-z0-9]{30,}/g, // Hugging Face
   /xox[abpr]-[\w-]+/g,
   /AKIA[0-9A-Z]{16}/g,
   /eyJ[\w-]+\.[\w-]+\.[\w-]+/g, // JWT-like
@@ -17,7 +22,7 @@ const PATTERNS: RegExp[] = [
 
 // "Authorization: <scheme> <token>" (a header, a JSON field, a curl -H): whatever the token looks like, it's
 // hidden; the scheme word (Bearer, Basic, …) stays.
-const AUTH_HEADER = /\b(authorization\\?["']?\s*[:=]\s*\\?["']?)(?:(Bearer|Basic|Token|Digest|Negotiate)\s+)?(?!•••)[^\s"'\\,;]+/gi;
+const AUTH_HEADER = /\b(authorization\\?["']?\s*[:=]\s*\\?["']?)(?!(?:Bearer|Basic|Token|Digest|Negotiate)\s+•••)(?:(Bearer|Basic|Token|Digest|Negotiate)\s+)?(?!•••)[^\s"'\\,;]+/gi;
 // "Bearer <token>" anywhere: hidden whatever its characters. "Basic <base64>" outside a header only when it
 // looks like a token (a digit, +, / or =, or a lower-to-upper case change), so "basic authentication" stays.
 const AUTH_SCHEME = [
@@ -29,7 +34,7 @@ const AUTH_SCHEME = [
 // name, hide the value. Quoted values may hold escaped quotes; a quote that never closes hides the rest of
 // its line only.
 const KEY_VALUE = new RegExp(
-  String.raw`(password|passwd|secret|token|api[_-]?key|authorization|credentials?|access[_-]?key|private[_-]?key|client[_-]?secret)((?:\\?["'])?\s*[:=]\s*)` +
+  String.raw`(password|passwd|secret(?:[_-]?key)?|token|api[_-]?key|authorization|credentials?|access[_-]?key|private[_-]?key|client[_-]?secret|(?:signing|encryption|master)[_-]?key)((?:\\?["'])?\s*[:=]\s*)` +
     // A value already hidden by AUTH_SCHEME ("Authorization: Bearer •••") keeps its scheme word.
     String.raw`(?!\\?["']?(?:Bearer|Basic|Token|Digest|Negotiate) •••)` +
     "(?:" +
